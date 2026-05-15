@@ -1,0 +1,18 @@
+﻿Review the following Phase 2 (WebSocket Presence) implementation for the AgentNet Relay Platform. Check for:
+
+1. Token/Secret not printed in logs
+2. Heartbeat and ack mechanisms are correct
+3. Connection cleanup is correct
+4. Audit log fields are complete
+5. Error codes follow protocol standard
+6. Tests cover all Phase 2 goals (connect, heartbeat, offline, invalid token, connection limit, session resume)
+
+Phase 2 files to review:
+- apps/api/app/websocket/manager.py
+- apps/api/app/websocket/protocol.py
+- apps/api/app/websocket/handlers.py
+- apps/api/app/routers/ws.py
+- apps/api/app/services/session_service.py
+- apps/api/tests/test_phase2_websocket.py
+
+Return APPROVED if all good, or list specific issues to fix.

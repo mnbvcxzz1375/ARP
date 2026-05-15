@@ -1,0 +1,6 @@
+[project]
+name = "agentnet-adapter-base"
+version = "0.1.0"
+description = "Base adapter interface for AgentNet adapters"
+requires-python = ">=3.11"
+

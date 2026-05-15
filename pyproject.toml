@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+# Root-level pytest config for monorepo CI.
+# Each sub-project has its own pyproject.toml with local settings.
+# Run from root: pytest apps/api packages/python-sdk packages/cli adapters/openclaw
+testpaths = ["apps/api", "packages/python-sdk", "packages/cli", "adapters/openclaw"]
+asyncio_mode = "auto"

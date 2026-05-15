@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentnet.dev/schemas/message.schema.json",
+  "title": "Message",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "envelope", "delivery_status"],
+  "properties": {
+    "id": { "type": "string" },
+    "task_id": { "type": ["string", "null"] },
+    "envelope": { "$ref": "envelope.schema.json" },
+    "delivery_status": { "enum": ["pending", "delivered", "acked", "failed", "expired"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "acked_at": { "type": ["string", "null"], "format": "date-time" }
+  }
+}
+

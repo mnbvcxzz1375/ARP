@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentnet.dev/schemas/task.schema.json",
+  "title": "Task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "from_agent_id", "to_agent_id", "status"],
+  "properties": {
+    "id": { "type": "string" },
+    "from_agent_id": { "type": "string" },
+    "to_agent_id": { "type": "string" },
+    "request_id": { "type": ["string", "null"] },
+    "idempotency_key": { "type": ["string", "null"] },
+    "status": {
+      "enum": [
+        "created",
+        "queued",
+        "delivered",
+        "accepted",
+        "running",
+        "awaiting_approval",
+        "completed",
+        "failed",
+        "cancelled",
+        "expired",
+        "rejected"
+      ]
+    },
+    "last_progress_at": { "type": ["string", "null"], "format": "date-time" },
+    "lease_expires_at": { "type": ["string", "null"], "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" }
+  }
+}
+

@@ -1,0 +1,28 @@
+agent:
+  number: AN-GLOBAL-QZ91TR-77
+  runtime: openclaw
+
+openclaw:
+  mode: cli
+  command: openclaw
+  working_dir: ./demo
+  allow_paths:
+    - ./demo
+  deny_paths:
+    - ~/.ssh
+    - ~/.aws
+    - ~/.config
+  require_approval:
+    - shell_command
+    - file_write
+    - file_delete
+    - network_request
+  env_policy: minimal
+  env_vars:
+    OPENCLAW_MODE: agentnet
+  pass_env:
+    - PATH
+    - HOME
+    - LANG
+    - SHELL
+

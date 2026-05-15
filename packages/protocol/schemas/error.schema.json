@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentnet.dev/schemas/error.schema.json",
+  "title": "Standard Error Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "error"],
+  "properties": {
+    "type": { "const": "error" },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "details"],
+      "properties": {
+        "code": {
+          "enum": [
+            "AGENT_NOT_FOUND",
+            "AGENT_OFFLINE",
+            "AGENT_FORBIDDEN",
+            "CONNECTION_APPROVAL_REQUIRED",
+            "CONNECTION_REJECTED",
+            "SECURITY_MODE_NOT_SUPPORTED",
+            "TASK_NOT_FOUND",
+            "TASK_TIMEOUT",
+            "TASK_EXPIRED",
+            "TASK_LEASE_EXPIRED",
+            "INVALID_TASK_STATE_TRANSITION",
+            "MESSAGE_TOO_LARGE",
+            "RATE_LIMITED",
+            "INVALID_TOKEN",
+            "TOKEN_REVOKED",
+            "APPROVAL_REQUIRED",
+            "APPROVAL_REJECTED",
+            "E2EE_NOT_IMPLEMENTED",
+            "INTERNAL_ERROR"
+          ]
+        },
+        "message": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    }
+  }
+}
+

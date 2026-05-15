@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentnet.dev/schemas/envelope.schema.json",
+  "title": "Agent Relay Protocol Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "message_id", "type", "timestamp"],
+  "properties": {
+    "version": { "const": "arp-0.1" },
+    "message_id": { "type": "string", "minLength": 1 },
+    "request_id": { "type": ["string", "null"] },
+    "session_id": { "type": ["string", "null"] },
+    "type": { "$ref": "#/$defs/message_type" },
+    "from": { "type": ["string", "null"] },
+    "to": { "type": ["string", "null"] },
+    "task_id": { "type": ["string", "null"] },
+    "conversation_id": { "type": ["string", "null"] },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "ttl_seconds": { "type": "integer", "minimum": 1, "default": 600 },
+    "delivery": { "$ref": "#/$defs/delivery" },
+    "security": { "$ref": "#/$defs/security" },
+    "limits": { "$ref": "#/$defs/limits" },
+    "content": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/content_part" },
+      "default": []
+    },
+    "encrypted_payload": { "type": ["string", "null"] },
+    "aad": { "type": ["object", "null"] },
+    "metadata": { "type": "object", "default": {} }
+  },
+  "$defs": {
+    "message_type": {
+      "enum": [
+        "presence.heartbeat",
+        "connection.request",
+        "connection.accepted",
+        "connection.rejected",
+        "session.resume",
+        "session.resume_result",
+        "task.request",
+        "task.accepted",
+        "task.rejected",
+        "task.progress",
+        "task.heartbeat",
+        "task.result",
+        "task.failed",
+        "task.cancelled",
+        "approval.request",
+        "approval.accepted",
+        "approval.rejected",
+        "approval.expired",
+        "ack",
+        "error"
+      ]
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requires_ack": { "type": "boolean", "default": true },
+        "idempotency_key": { "type": ["string", "null"] },
+        "retry_count": { "type": "integer", "minimum": 0, "default": 0 }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["relay_visible", "relay_encrypted", "e2ee"], "default": "relay_visible" },
+        "encryption": { "type": "string", "default": "none" },
+        "key_id": { "type": ["string", "null"] },
+        "nonce": { "type": ["string", "null"] }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_duration_seconds": { "type": "integer", "minimum": 1, "default": 600 },
+        "max_steps": { "type": "integer", "minimum": 1, "default": 20 },
+        "max_output_bytes": { "type": "integer", "minimum": 1, "default": 1048576 }
+      }
+    },
+    "content_part": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mime": { "type": "string", "default": "text/plain" },
+        "text": { "type": ["string", "null"] },
+        "data": { "type": ["object", "null"] }
+      }
+    }
+  }
+}
+

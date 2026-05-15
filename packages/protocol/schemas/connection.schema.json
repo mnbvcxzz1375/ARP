@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentnet.dev/schemas/connection.schema.json",
+  "title": "Connection Messages",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "from", "to"],
+      "properties": {
+        "type": { "const": "connection.request" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "reason": { "type": ["string", "null"] },
+        "requested_capabilities": { "type": "array", "items": { "type": "string" } },
+        "requested_security_modes": {
+          "type": "array",
+          "items": { "enum": ["relay_visible", "relay_encrypted", "e2ee"] }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "from", "to"],
+      "properties": {
+        "type": { "const": "connection.accepted" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "allowed_capabilities": { "type": "array", "items": { "type": "string" } },
+        "expires_at": { "type": ["string", "null"], "format": "date-time" },
+        "preferred_security_mode": { "enum": ["relay_visible", "relay_encrypted", "e2ee"] }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "from", "to"],
+      "properties": {
+        "type": { "const": "connection.rejected" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    }
+  ]
+}
+

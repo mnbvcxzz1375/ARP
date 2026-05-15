@@ -1,0 +1,5 @@
+Alembic migration environment for AgentNet API.
+
+Phase 0 intentionally defines no business tables. Phase 1 introduces users,
+api_keys, agents, and agent_tokens.
+

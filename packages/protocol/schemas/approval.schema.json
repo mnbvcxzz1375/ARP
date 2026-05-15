@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentnet.dev/schemas/approval.schema.json",
+  "title": "Approval Messages",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "task_id", "risk_level", "action"],
+      "properties": {
+        "type": { "const": "approval.request" },
+        "task_id": { "type": "string" },
+        "risk_level": { "type": "string" },
+        "action": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "preview"],
+          "properties": {
+            "kind": { "type": "string" },
+            "preview": { "type": "string" }
+          }
+        },
+        "reason": { "type": ["string", "null"] },
+        "expires_in_seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "task_id"],
+      "properties": {
+        "type": { "const": "approval.accepted" },
+        "task_id": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "task_id"],
+      "properties": {
+        "type": { "const": "approval.rejected" },
+        "task_id": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    }
+  ]
+}
+

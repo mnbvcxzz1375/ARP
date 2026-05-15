@@ -1,0 +1,8 @@
+services:
+  api:
+    volumes:
+      - ../apps/api/app:/app/app:ro
+      - ../apps/api/migrations:/app/migrations:ro
+    environment:
+      LOG_LEVEL: DEBUG
+

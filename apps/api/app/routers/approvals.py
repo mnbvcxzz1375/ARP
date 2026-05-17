@@ -19,7 +19,12 @@ from app.protocol.constants import ErrorCode
 router = APIRouter(prefix="/v1/approvals", tags=["approvals"])
 
 
-@router.get("", response_model=ApprovalListResponse)
+@router.get(
+    "",
+    response_model=ApprovalListResponse,
+    summary="List approvals",
+    description="List human-in-the-loop approval requests owned by the authenticated user's agents.",
+)
 async def list_approvals(
     task_id: str | None = Query(default=None),
     status: str | None = Query(default=None),
@@ -69,7 +74,12 @@ async def _verify_ownership(session: AsyncSession, approval_id: UUID, user: User
     return approval
 
 
-@router.post("/{approval_id}/accept", response_model=ApprovalResponse)
+@router.post(
+    "/{approval_id}/accept",
+    response_model=ApprovalResponse,
+    summary="Accept an approval",
+    description="Accept a pending approval request after verifying target agent ownership.",
+)
 async def accept_approval(
     approval_id: str,
     user: User = Depends(authenticate),
@@ -80,7 +90,12 @@ async def accept_approval(
     return approval
 
 
-@router.post("/{approval_id}/reject", response_model=ApprovalResponse)
+@router.post(
+    "/{approval_id}/reject",
+    response_model=ApprovalResponse,
+    summary="Reject an approval",
+    description="Reject a pending approval request after verifying target agent ownership.",
+)
 async def reject_approval(
     approval_id: str,
     user: User = Depends(authenticate),

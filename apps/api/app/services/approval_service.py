@@ -12,6 +12,7 @@ from app.models.approval import Approval
 from app.models.task import Task
 from app.protocol.constants import ErrorCode, TaskStatus
 from app.services.audit_service import write_audit
+from app import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ async def create_approval(
         "Approval created: %s task=%s risk=%s action=%s",
         approval.id, task_id, risk_level, action_kind,
     )
+    metrics.APPROVALS_PENDING.inc()
     return approval
 
 
@@ -100,6 +102,8 @@ async def accept_approval(session: AsyncSession, approval_id: UUID) -> Approval:
     )
 
     logger.info("Approval %s accepted, task %s back to running", approval_id, approval.task_id)
+    metrics.APPROVALS_PENDING.dec()
+    metrics.APPROVALS_ACCEPTED_TOTAL.inc()
     return approval
 
 
@@ -137,6 +141,8 @@ async def reject_approval(session: AsyncSession, approval_id: UUID) -> Approval:
     )
 
     logger.info("Approval %s rejected, task %s set to rejected", approval_id, approval.task_id)
+    metrics.APPROVALS_PENDING.dec()
+    metrics.APPROVALS_REJECTED_TOTAL.inc()
     return approval
 
 
@@ -165,6 +171,8 @@ async def expire_stale_approvals() -> int:
                 task.error_message = "Approval request expired"
 
             # Audit: approval expired
+            metrics.APPROVALS_PENDING.dec()
+            metrics.APPROVALS_EXPIRED_TOTAL.inc()
             await write_audit(
                 session,
                 actor_type="system",

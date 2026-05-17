@@ -169,7 +169,13 @@ class ConnectionManager:
                         logger.debug("Error closing stale connection %s", conn_id, exc_info=True)
                 await self.unregister(conn_id)
 
-    async def send_to_agent(self, agent_id: uuid.UUID, message: str) -> bool:
+    async def send_to_agent(
+        self,
+        agent_id: uuid.UUID,
+        message: str,
+        *,
+        track_pending: bool = False,
+    ) -> bool:
         """Send a message to all active connections of an agent.
 
         Returns True if at least one connection received the message.
@@ -183,6 +189,9 @@ class ConnectionManager:
             if state is None:
                 continue
             try:
+                if track_pending:
+                    from app.services.session_service import store_pending_message
+                    await store_pending_message(agent_id, state.session_id, message)
                 await state.websocket.send_text(message)
                 sent = True
             except Exception:

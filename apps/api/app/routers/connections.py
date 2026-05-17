@@ -38,7 +38,13 @@ async def _get_calling_agent(session: AsyncSession, user: User) -> Agent:
     return agent
 
 
-@router.post("/request", response_model=ConnectionResponse, status_code=201)
+@router.post(
+    "/request",
+    response_model=ConnectionResponse,
+    status_code=201,
+    summary="Request an agent connection",
+    description="Create a pending connection request from the user's first agent to a target Agent Number.",
+)
 async def request_connection(
     body: ConnectionRequestRequest,
     user: User = Depends(authenticate),
@@ -60,7 +66,12 @@ async def request_connection(
     return conn
 
 
-@router.post("/{connection_id}/accept", response_model=ConnectionResponse)
+@router.post(
+    "/{connection_id}/accept",
+    response_model=ConnectionResponse,
+    summary="Accept a connection request",
+    description="Accept a pending connection request after verifying target agent ownership.",
+)
 async def accept_connection(
     connection_id: str,
     body: ConnectionAcceptRequest | None = None,
@@ -88,7 +99,12 @@ async def accept_connection(
     return conn
 
 
-@router.post("/{connection_id}/reject", response_model=ConnectionResponse)
+@router.post(
+    "/{connection_id}/reject",
+    response_model=ConnectionResponse,
+    summary="Reject a connection request",
+    description="Reject a pending connection request after verifying target agent ownership.",
+)
 async def reject_connection(
     connection_id: str,
     body: ConnectionRejectRequest | None = None,
@@ -114,7 +130,12 @@ async def reject_connection(
     return conn
 
 
-@router.get("", response_model=ConnectionListResponse)
+@router.get(
+    "",
+    response_model=ConnectionListResponse,
+    summary="List connections",
+    description="List connection records for the authenticated user's first agent.",
+)
 async def list_connections(
     status: str | None = Query(default=None),
     offset: int = Query(default=0, ge=0),

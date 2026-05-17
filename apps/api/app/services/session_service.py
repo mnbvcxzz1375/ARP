@@ -87,7 +87,10 @@ async def ack_message(
     """
     r = redis or redis_client
     key = _session_key(agent_id, session_id)
+    await _remove_message_from_key(r, key, message_id)
 
+
+async def _remove_message_from_key(r: Redis, key: str, message_id: str) -> None:
     lua_remove = """
     local key = KEYS[1]
     local target_mid = ARGV[1]
@@ -102,6 +105,19 @@ async def ack_message(
     return 1
     """
     await r.eval(lua_remove, 1, key, message_id)
+
+
+async def ack_message_for_agent(
+    agent_id: uuid.UUID,
+    message_id: str,
+    redis: Redis | None = None,
+) -> None:
+    """Remove an acked message from all pending queues for an agent."""
+    r = redis or redis_client
+    pattern = _SESSION_PENDING_KEY.format(agent_id=agent_id, session_id="*")
+    keys = await r.keys(pattern)
+    for key in keys:
+        await _remove_message_from_key(r, key, message_id)
 
 
 async def clear_session(

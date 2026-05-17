@@ -15,6 +15,7 @@ from app.models.message import Message
 from app.models.agent import Agent
 from app.services.routing_service import deliver_task_request, resolve_agent
 from app.protocol.constants import ErrorCode, TaskStatus, MessageType, DeliveryStatus
+from app import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -100,10 +101,14 @@ async def create_task(
     )
 
     logger.info("Task created: id=%s from=%s to=%s", task.id, from_agent.agent_number, to_agent_number)
+    metrics.TASKS_CREATED_TOTAL.inc()
 
     # Route: deliver online or queue offline
     delivery_status = await deliver_task_request(task, msg, to_agent)
     msg.delivery_status = delivery_status
+    # Update task status to reflect delivery state
+    if delivery_status == DeliveryStatus.DELIVERED.value:
+        task.status = TaskStatus.DELIVERED.value
     await session.commit()
     logger.info("Task %s delivery status: %s", task.id, delivery_status)
 
@@ -333,7 +338,7 @@ async def complete_task(
     result: dict | None = None,
 ) -> Task:
     """Mark a task as completed with result."""
-    if task.status != TaskStatus.RUNNING.value:
+    if task.status not in (TaskStatus.RUNNING.value, TaskStatus.ACCEPTED.value, TaskStatus.DELIVERED.value):
         raise DomainException(
             ErrorCode.INVALID_TASK_STATE_TRANSITION,
             f"Cannot complete task in {task.status} state",
@@ -364,6 +369,7 @@ async def complete_task(
     )
 
     logger.info("Task %s completed", task.id)
+    metrics.TASKS_COMPLETED_TOTAL.inc()
     return task
 
 
@@ -414,6 +420,7 @@ async def fail_task(
     )
 
     logger.info("Task %s failed: %s", task.id, error_message)
+    metrics.TASKS_FAILED_TOTAL.inc()
     return task
 
 

@@ -9,7 +9,7 @@ from ..config import ConfigManager
 
 @click.command()
 @click.option("--base-url", default=None, help="Relay API base URL")
-@click.option("--api-key", prompt=True, hide_input=True, help="API key (an_key_...)")
+@click.option("--api-key", prompt=True, hide_input=True, help="API key (ak_...)")
 def login(base_url: str | None, api_key: str) -> None:
     """Configure credentials for the AgentNet relay."""
     try:

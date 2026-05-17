@@ -89,6 +89,28 @@ class Client:
     # agents
     # ------------------------------------------------------------------
 
+    def list_api_keys(self) -> dict[str, Any]:
+        return self._get("/v1/auth/api-keys")
+
+    def create_api_key(
+        self,
+        name: str,
+        *,
+        expires_at: str | None = None,
+    ) -> dict[str, Any]:
+        return self._post("/v1/auth/api-keys", {"name": name, "expires_at": expires_at})
+
+    def revoke_api_key(
+        self,
+        api_key_id: str,
+        *,
+        allow_last_key: bool = False,
+    ) -> dict[str, Any]:
+        return self._post(
+            f"/v1/auth/api-keys/{api_key_id}/revoke",
+            {"allow_last_key": allow_last_key},
+        )
+
     def create_agent(
         self,
         name: str,

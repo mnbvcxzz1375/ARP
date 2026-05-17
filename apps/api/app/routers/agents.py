@@ -18,40 +18,55 @@ router = APIRouter(prefix="/v1/agents", tags=["agents"])
 
 
 class CreateAgentRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=256)
-    runtime: str = Field(min_length=1, max_length=64)
-    description: str | None = None
-    capabilities: list[str] = Field(default_factory=list)
-    inbound_policy: str = "request_approval"
-    discoverable: bool = False
+    name: str = Field(min_length=1, max_length=256, description="Human-readable agent name.")
+    runtime: str = Field(min_length=1, max_length=64, description="Runtime or framework label.")
+    description: str | None = Field(default=None, description="Optional agent description.")
+    capabilities: list[str] = Field(
+        default_factory=list,
+        description="Capability labels advertised by this agent.",
+    )
+    inbound_policy: str = Field(
+        default="request_approval",
+        description="Inbound policy: private, contacts_only, request_approval, or public.",
+    )
+    discoverable: bool = Field(default=False, description="Whether other users can discover this agent.")
 
 
 class AgentResponse(BaseModel):
-    agent_id: str
-    agent_number: str
-    agent_token: str | None = None
-    name: str
-    runtime: str
-    description: str | None = None
-    capabilities: list[str]
-    inbound_policy: str
-    discoverable: bool
-    status: str
+    agent_id: str = Field(description="Agent UUID.")
+    agent_number: str = Field(description="Opaque Agent Number used for routing.")
+    agent_token: str | None = Field(default=None, description="One-time raw agent token when issued.")
+    name: str = Field(description="Human-readable agent name.")
+    runtime: str = Field(description="Runtime or framework label.")
+    description: str | None = Field(default=None, description="Optional agent description.")
+    capabilities: list[str] = Field(description="Capability labels advertised by this agent.")
+    inbound_policy: str = Field(description="Inbound policy for cross-agent requests.")
+    discoverable: bool = Field(description="Whether the agent is discoverable.")
+    status: str = Field(description="Current presence status.")
 
 
 class AgentListResponse(BaseModel):
-    agents: list[AgentResponse]
-    total: int
-    page: int
-    page_size: int
+    agents: list[AgentResponse] = Field(description="Agents on this page.")
+    total: int = Field(description="Total matching agents.")
+    page: int = Field(description="Current one-based page.")
+    page_size: int = Field(description="Requested page size.")
 
 
 class RotateTokenResponse(BaseModel):
-    agent_id: str
-    agent_token: str
+    agent_id: str = Field(description="Agent UUID.")
+    agent_token: str = Field(description="One-time replacement raw agent token.")
 
 
-@router.post("", response_model=AgentResponse, status_code=201)
+@router.post(
+    "",
+    response_model=AgentResponse,
+    status_code=201,
+    summary="Create an agent",
+    description=(
+        "Register a new agent owned by the authenticated user. The response includes "
+        "the one-time raw agent token used for WebSocket connections."
+    ),
+)
 async def create_agent_endpoint(
     body: CreateAgentRequest,
     session: AsyncSession = Depends(get_session),
@@ -83,7 +98,12 @@ async def create_agent_endpoint(
     )
 
 
-@router.get("", response_model=AgentListResponse)
+@router.get(
+    "",
+    response_model=AgentListResponse,
+    summary="List agents",
+    description="List the authenticated user's agents with pagination, status filtering, and search.",
+)
 async def list_agents_endpoint(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -121,7 +141,12 @@ async def list_agents_endpoint(
     )
 
 
-@router.get("/{agent_id}", response_model=AgentResponse)
+@router.get(
+    "/{agent_id}",
+    response_model=AgentResponse,
+    summary="Get an agent",
+    description="Return one agent owned by the authenticated user.",
+)
 async def get_agent_endpoint(
     agent_id: str,
     session: AsyncSession = Depends(get_session),
@@ -143,7 +168,15 @@ async def get_agent_endpoint(
     )
 
 
-@router.post("/{agent_id}/rotate-token", response_model=RotateTokenResponse)
+@router.post(
+    "/{agent_id}/rotate-token",
+    response_model=RotateTokenResponse,
+    summary="Rotate an agent token",
+    description=(
+        "Revoke the existing active token for an agent and issue a replacement. "
+        "The raw replacement token is shown only in this response."
+    ),
+)
 async def rotate_token_endpoint(
     agent_id: str,
     session: AsyncSession = Depends(get_session),
@@ -156,7 +189,12 @@ async def rotate_token_endpoint(
     return RotateTokenResponse(agent_id=agent_id, agent_token=raw_token)
 
 
-@router.delete("/{agent_id}", status_code=204)
+@router.delete(
+    "/{agent_id}",
+    status_code=204,
+    summary="Delete an agent",
+    description="Delete an agent owned by the authenticated user.",
+)
 async def delete_agent_endpoint(
     agent_id: str,
     session: AsyncSession = Depends(get_session),

@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
@@ -10,6 +11,7 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 from app.exceptions import DomainException, domain_exception_handler
 from app.logging import configure_logging
+from app.metrics import metrics_endpoint, metrics_middleware
 from app.routers.agents import router as agents_router
 from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
@@ -18,6 +20,16 @@ from app.routers.tasks import router as tasks_router
 from app.routers.connections import router as connections_router
 from app.routers.approvals import router as approvals_router
 from app.websocket.manager import get_connection_manager
+
+
+OPENAPI_TAGS = [
+    {"name": "health", "description": "Liveness checks used by operators and load balancers."},
+    {"name": "auth", "description": "User registration and API key bootstrap."},
+    {"name": "agents", "description": "Agent registry, Agent Number metadata, and token rotation."},
+    {"name": "tasks", "description": "Asynchronous task creation, lookup, messages, and progress history."},
+    {"name": "connections", "description": "Cross-agent connection requests and approvals."},
+    {"name": "approvals", "description": "Human-in-the-loop high-risk task approvals."},
+]
 
 
 @asynccontextmanager
@@ -55,49 +67,41 @@ def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(settings)
 
-    app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    app = FastAPI(
+        title=settings.app_name,
+        description=(
+            "AgentNet is a centralized Agent Relay Platform for registering agents, "
+            "routing asynchronous tasks, tracking delivery state, and enforcing "
+            "cross-agent approval policy. WebSocket agent transport is available at "
+            "`/v1/ws` and documented in `docs/openapi.md`."
+        ),
+        version="0.1.0",
+        openapi_tags=OPENAPI_TAGS,
+        lifespan=lifespan,
+    )
     app.add_exception_handler(DomainException, domain_exception_handler)
+    app.add_api_route(
+        "/metrics",
+        metrics_endpoint,
+        include_in_schema=False,
+        methods=["GET"],
+    )
+    app.middleware("http")(metrics_middleware)
 
     # Rate limit middleware (skip health endpoint)
+    # Uses IP-based rate limiting only — user-level rate limiting is handled
+    # by the auth layer to avoid DB queries in the middleware stack.
     @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next):
-        if request.url.path in ("/healthz", "/docs", "/openapi.json", "/redoc"):
+        if request.url.path in ("/healthz", "/docs", "/openapi.json", "/redoc", "/metrics"):
             return await call_next(request)
 
         try:
             from app.services.rate_limit_service import check_rate_limit
-
-            user_id = None
-            agent_id = None
             request_ip = request.client.host if request.client else None
-
-            # Try to extract user from X-API-Key or Authorization header (non-blocking for unauthed paths)
-            x_api_key = request.headers.get("X-API-Key")
-            if not x_api_key:
-                auth_header = request.headers.get("Authorization", "")
-                if auth_header.startswith("Bearer "):
-                    x_api_key = auth_header[7:]
-            if x_api_key:
-                import hashlib
-                from sqlalchemy import select
-                from app.database import SessionLocal
-                from app.models.api_key import ApiKey
-
-                key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
-                async with SessionLocal() as session:
-                    result = await session.execute(
-                        select(ApiKey).where(
-                            ApiKey.key_hash == key_hash,
-                            ApiKey.is_revoked == False,
-                        )
-                    )
-                    api_key = result.scalar_one_or_none()
-                    if api_key:
-                        user_id = str(api_key.user_id)
-
             await check_rate_limit(
-                user_id=user_id,
-                agent_id=agent_id,
+                user_id=None,
+                agent_id=None,
                 request_ip=request_ip,
             )
         except DomainException as exc:
@@ -106,7 +110,9 @@ def create_app() -> FastAPI:
                 content=exc.to_error(),
             )
         except Exception:
-            logger.error("Rate limiter middleware unexpected error", exc_info=True)
+            # Fail closed: if the rate limiter itself is broken (Redis down,
+            # etc.), return 503. Do NOT silently allow traffic through.
+            logger.error("Rate limiter middleware error, returning 503", exc_info=True)
             return JSONResponse(
                 status_code=503,
                 content={
@@ -128,8 +134,53 @@ def create_app() -> FastAPI:
     app.include_router(tasks_router)
     app.include_router(connections_router)
     app.include_router(approvals_router)
+    _install_openapi_schema(app)
 
     return app
+
+
+def _install_openapi_schema(app: FastAPI) -> None:
+    def custom_openapi():
+        if app.openapi_schema:
+            return app.openapi_schema
+
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+            tags=OPENAPI_TAGS,
+        )
+        components = schema.setdefault("components", {})
+        security_schemes = components.setdefault("securitySchemes", {})
+        security_schemes["ApiKeyBearer"] = {
+            "type": "http",
+            "scheme": "bearer",
+            "description": "REST API key in `Authorization: Bearer ak_...`.",
+        }
+        security_schemes["LegacyApiKeyHeader"] = {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+            "description": "Legacy REST API key header.",
+        }
+
+        public_operations = {
+            ("get", "/healthz"),
+            ("post", "/v1/auth/register"),
+        }
+        for path, methods in schema.get("paths", {}).items():
+            for method, operation in methods.items():
+                if (method.lower(), path) not in public_operations:
+                    operation.setdefault(
+                        "security",
+                        [{"ApiKeyBearer": []}, {"LegacyApiKeyHeader": []}],
+                    )
+
+        app.openapi_schema = schema
+        return app.openapi_schema
+
+    app.openapi = custom_openapi
 
 
 app = create_app()

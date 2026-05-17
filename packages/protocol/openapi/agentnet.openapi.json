@@ -1,0 +1,3185 @@
+{
+  "components": {
+    "schemas": {
+      "AgentListResponse": {
+        "properties": {
+          "agents": {
+            "description": "Agents on this page.",
+            "items": {
+              "$ref": "#/components/schemas/AgentResponse"
+            },
+            "title": "Agents",
+            "type": "array"
+          },
+          "page": {
+            "description": "Current one-based page.",
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Requested page size.",
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching agents.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "agents",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "AgentListResponse",
+        "type": "object"
+      },
+      "AgentResponse": {
+        "properties": {
+          "agent_id": {
+            "description": "Agent UUID.",
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "agent_number": {
+            "description": "Opaque Agent Number used for routing.",
+            "title": "Agent Number",
+            "type": "string"
+          },
+          "agent_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One-time raw agent token when issued.",
+            "title": "Agent Token"
+          },
+          "capabilities": {
+            "description": "Capability labels advertised by this agent.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional agent description.",
+            "title": "Description"
+          },
+          "discoverable": {
+            "description": "Whether the agent is discoverable.",
+            "title": "Discoverable",
+            "type": "boolean"
+          },
+          "inbound_policy": {
+            "description": "Inbound policy for cross-agent requests.",
+            "title": "Inbound Policy",
+            "type": "string"
+          },
+          "name": {
+            "description": "Human-readable agent name.",
+            "title": "Name",
+            "type": "string"
+          },
+          "runtime": {
+            "description": "Runtime or framework label.",
+            "title": "Runtime",
+            "type": "string"
+          },
+          "status": {
+            "description": "Current presence status.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id",
+          "agent_number",
+          "name",
+          "runtime",
+          "capabilities",
+          "inbound_policy",
+          "discoverable",
+          "status"
+        ],
+        "title": "AgentResponse",
+        "type": "object"
+      },
+      "ApiKeyListResponse": {
+        "properties": {
+          "api_keys": {
+            "description": "API keys for the authenticated user.",
+            "items": {
+              "$ref": "#/components/schemas/ApiKeyResponse"
+            },
+            "title": "Api Keys",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total API keys for the authenticated user.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "api_keys",
+          "total"
+        ],
+        "title": "ApiKeyListResponse",
+        "type": "object"
+      },
+      "ApiKeyResponse": {
+        "properties": {
+          "api_key_id": {
+            "description": "API key UUID.",
+            "title": "Api Key Id",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "Creation time.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional expiry time.",
+            "title": "Expires At"
+          },
+          "is_revoked": {
+            "description": "Whether this API key has been revoked.",
+            "title": "Is Revoked",
+            "type": "boolean"
+          },
+          "key_prefix": {
+            "description": "Non-secret API key prefix for identification.",
+            "title": "Key Prefix",
+            "type": "string"
+          },
+          "name": {
+            "description": "Human-readable API key name.",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "api_key_id",
+          "key_prefix",
+          "name",
+          "expires_at",
+          "is_revoked",
+          "created_at"
+        ],
+        "title": "ApiKeyResponse",
+        "type": "object"
+      },
+      "ApprovalListResponse": {
+        "properties": {
+          "approvals": {
+            "description": "Approvals in this page.",
+            "items": {
+              "$ref": "#/components/schemas/ApprovalResponse"
+            },
+            "title": "Approvals",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total matching approvals.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "approvals",
+          "total"
+        ],
+        "title": "ApprovalListResponse",
+        "type": "object"
+      },
+      "ApprovalResponse": {
+        "properties": {
+          "action_kind": {
+            "description": "Kind of action requiring approval.",
+            "title": "Action Kind",
+            "type": "string"
+          },
+          "action_preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Human-readable action preview.",
+            "title": "Action Preview"
+          },
+          "agent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Agent UUID that owns the approval.",
+            "title": "Agent Id"
+          },
+          "created_at": {
+            "description": "Approval creation time.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decision time, if decided.",
+            "title": "Decided At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Approval expiry time.",
+            "title": "Expires At"
+          },
+          "id": {
+            "description": "Approval UUID.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decision or rejection reason.",
+            "title": "Reason"
+          },
+          "risk_level": {
+            "description": "Risk level assigned to the action.",
+            "title": "Risk Level",
+            "type": "string"
+          },
+          "status": {
+            "description": "Approval status.",
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "description": "Task UUID requiring approval.",
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "Last approval update time.",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "task_id",
+          "agent_id",
+          "status",
+          "risk_level",
+          "action_kind",
+          "action_preview",
+          "reason",
+          "expires_at",
+          "decided_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ApprovalResponse",
+        "type": "object"
+      },
+      "ConnectionAcceptRequest": {
+        "properties": {
+          "allowed_capabilities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Capabilities granted to the requester.",
+            "title": "Allowed Capabilities"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When this connection grant expires",
+            "title": "Expires At"
+          },
+          "preferred_security_mode": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Negotiated security mode for this connection.",
+            "title": "Preferred Security Mode"
+          }
+        },
+        "title": "ConnectionAcceptRequest",
+        "type": "object"
+      },
+      "ConnectionListResponse": {
+        "properties": {
+          "connections": {
+            "description": "Connections in this page.",
+            "items": {
+              "$ref": "#/components/schemas/ConnectionResponse"
+            },
+            "title": "Connections",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total matching connections.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "connections",
+          "total"
+        ],
+        "title": "ConnectionListResponse",
+        "type": "object"
+      },
+      "ConnectionRejectRequest": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional rejection reason.",
+            "title": "Reason"
+          }
+        },
+        "title": "ConnectionRejectRequest",
+        "type": "object"
+      },
+      "ConnectionRequestRequest": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reason for requesting the connection",
+            "title": "Reason"
+          },
+          "requested_capabilities": {
+            "description": "Capabilities requested from the target agent.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Requested Capabilities",
+            "type": "array"
+          },
+          "requested_security_modes": {
+            "description": "Security modes acceptable to the requesting agent.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Requested Security Modes",
+            "type": "array"
+          },
+          "to_agent_number": {
+            "description": "Agent number of the target agent",
+            "title": "To Agent Number",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to_agent_number"
+        ],
+        "title": "ConnectionRequestRequest",
+        "type": "object"
+      },
+      "ConnectionResponse": {
+        "properties": {
+          "allowed_capabilities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Capabilities granted by the target agent.",
+            "title": "Allowed Capabilities"
+          },
+          "created_at": {
+            "description": "Connection creation time.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional connection expiry time.",
+            "title": "Expires At"
+          },
+          "from_agent_id": {
+            "description": "Requester agent UUID.",
+            "format": "uuid",
+            "title": "From Agent Id",
+            "type": "string"
+          },
+          "id": {
+            "description": "Connection UUID.",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "preferred_security_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Negotiated or preferred security mode.",
+            "title": "Preferred Security Mode"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Request or rejection reason.",
+            "title": "Reason"
+          },
+          "status": {
+            "description": "Connection lifecycle status.",
+            "title": "Status",
+            "type": "string"
+          },
+          "to_agent_id": {
+            "description": "Target agent UUID.",
+            "format": "uuid",
+            "title": "To Agent Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "Last connection update time.",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "from_agent_id",
+          "to_agent_id",
+          "status",
+          "allowed_capabilities",
+          "preferred_security_mode",
+          "expires_at",
+          "reason",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConnectionResponse",
+        "type": "object"
+      },
+      "CreateAgentRequest": {
+        "properties": {
+          "capabilities": {
+            "description": "Capability labels advertised by this agent.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional agent description.",
+            "title": "Description"
+          },
+          "discoverable": {
+            "default": false,
+            "description": "Whether other users can discover this agent.",
+            "title": "Discoverable",
+            "type": "boolean"
+          },
+          "inbound_policy": {
+            "default": "request_approval",
+            "description": "Inbound policy: private, contacts_only, request_approval, or public.",
+            "title": "Inbound Policy",
+            "type": "string"
+          },
+          "name": {
+            "description": "Human-readable agent name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "runtime": {
+            "description": "Runtime or framework label.",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Runtime",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "runtime"
+        ],
+        "title": "CreateAgentRequest",
+        "type": "object"
+      },
+      "CreateApiKeyRequest": {
+        "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional API key expiry time.",
+            "title": "Expires At"
+          },
+          "name": {
+            "description": "Human-readable API key name.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CreateApiKeyRequest",
+        "type": "object"
+      },
+      "CreateApiKeyResponse": {
+        "properties": {
+          "api_key": {
+            "description": "One-time raw API key. Store it securely.",
+            "title": "Api Key",
+            "type": "string"
+          },
+          "api_key_id": {
+            "description": "API key UUID.",
+            "title": "Api Key Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional expiry time.",
+            "title": "Expires At"
+          },
+          "key_prefix": {
+            "description": "Non-secret API key prefix for identification.",
+            "title": "Key Prefix",
+            "type": "string"
+          },
+          "name": {
+            "description": "Human-readable API key name.",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "api_key_id",
+          "key_prefix",
+          "name",
+          "expires_at",
+          "api_key"
+        ],
+        "title": "CreateApiKeyResponse",
+        "type": "object"
+      },
+      "CreateTaskRequest": {
+        "properties": {
+          "assigned_to": {
+            "description": "Agent number of the target agent",
+            "title": "Assigned To",
+            "type": "string"
+          },
+          "from_agent_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Agent number of the sending agent. If omitted, uses the user's first agent.",
+            "title": "From Agent Number"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional sender-provided idempotency key for safe retries.",
+            "title": "Idempotency Key"
+          },
+          "payload": {
+            "description": "Task payload delivered to the target agent.",
+            "title": "Payload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "assigned_to"
+        ],
+        "title": "CreateTaskRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "MessageListResponse": {
+        "properties": {
+          "limit": {
+            "description": "Requested page size.",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "messages": {
+            "description": "Messages in this page.",
+            "items": {
+              "$ref": "#/components/schemas/MessageResponse"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "offset": {
+            "description": "Zero-based result offset.",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total matching messages.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "messages",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "MessageListResponse",
+        "type": "object"
+      },
+      "MessageResponse": {
+        "properties": {
+          "content": {
+            "description": "Persisted protocol message payload.",
+            "title": "Content",
+            "type": "object"
+          },
+          "created_at": {
+            "description": "Message creation time.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivery_status": {
+            "description": "Delivery status such as pending, delivered, or acked.",
+            "title": "Delivery Status",
+            "type": "string"
+          },
+          "message_id": {
+            "description": "Stable message id used for delivery and ack.",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "task_id": {
+            "description": "Task UUID.",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "type": {
+            "description": "Protocol message type.",
+            "title": "Type",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "Last message update time.",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id",
+          "task_id",
+          "type",
+          "delivery_status",
+          "content",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MessageResponse",
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "key_name": {
+            "default": "default",
+            "description": "Human-readable name for the issued API key.",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Key Name",
+            "type": "string"
+          },
+          "username": {
+            "description": "Stable username for the API key owner.",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "title": "RegisterRequest",
+        "type": "object"
+      },
+      "RegisterResponse": {
+        "properties": {
+          "api_key": {
+            "description": "One-time raw API key. Store it securely.",
+            "title": "Api Key",
+            "type": "string"
+          },
+          "user_id": {
+            "description": "User UUID.",
+            "title": "User Id",
+            "type": "string"
+          },
+          "username": {
+            "description": "Registered username.",
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "username",
+          "api_key"
+        ],
+        "title": "RegisterResponse",
+        "type": "object"
+      },
+      "RevokeApiKeyRequest": {
+        "properties": {
+          "allow_last_key": {
+            "default": false,
+            "description": "Set true to allow revoking the user's final active API key.",
+            "title": "Allow Last Key",
+            "type": "boolean"
+          }
+        },
+        "title": "RevokeApiKeyRequest",
+        "type": "object"
+      },
+      "RotateTokenResponse": {
+        "properties": {
+          "agent_id": {
+            "description": "Agent UUID.",
+            "title": "Agent Id",
+            "type": "string"
+          },
+          "agent_token": {
+            "description": "One-time replacement raw agent token.",
+            "title": "Agent Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id",
+          "agent_token"
+        ],
+        "title": "RotateTokenResponse",
+        "type": "object"
+      },
+      "TaskListResponse": {
+        "properties": {
+          "limit": {
+            "description": "Requested page size.",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "Zero-based result offset.",
+            "title": "Offset",
+            "type": "integer"
+          },
+          "tasks": {
+            "description": "Tasks in this page.",
+            "items": {
+              "$ref": "#/components/schemas/TaskResponse"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total matching tasks.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tasks",
+          "total",
+          "offset",
+          "limit"
+        ],
+        "title": "TaskListResponse",
+        "type": "object"
+      },
+      "TaskResponse": {
+        "properties": {
+          "assigned_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Target agent UUID.",
+            "title": "Assigned To"
+          },
+          "created_at": {
+            "description": "Task creation time.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sender agent UUID.",
+            "title": "Created By"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Failure or expiry reason.",
+            "title": "Error Message"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sender-provided idempotency key, if any.",
+            "title": "Idempotency Key"
+          },
+          "last_heartbeat_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last lease heartbeat time.",
+            "title": "Last Heartbeat At"
+          },
+          "last_progress_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last progress update time.",
+            "title": "Last Progress At"
+          },
+          "lease_agent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Agent UUID currently holding the task lease.",
+            "title": "Lease Agent Id"
+          },
+          "lease_expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current lease expiry time.",
+            "title": "Lease Expires At"
+          },
+          "message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Initial task request message id.",
+            "title": "Message Id"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Task result payload when completed.",
+            "title": "Result"
+          },
+          "status": {
+            "description": "Task lifecycle status.",
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "description": "Task UUID.",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "Last task update time.",
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "idempotency_key",
+          "created_by",
+          "assigned_to",
+          "status",
+          "message_id",
+          "lease_agent_id",
+          "lease_expires_at",
+          "last_progress_at",
+          "last_heartbeat_at",
+          "result",
+          "error_message",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TaskResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyBearer": {
+        "description": "REST API key in `Authorization: Bearer ak_...`.",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "LegacyApiKeyHeader": {
+        "description": "Legacy REST API key header.",
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "description": "AgentNet is a centralized Agent Relay Platform for registering agents, routing asynchronous tasks, tracking delivery state, and enforcing cross-agent approval policy. WebSocket agent transport is available at `/v1/ws` and documented in `docs/openapi.md`.",
+    "title": "AgentNet API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/healthz": {
+      "get": {
+        "description": "Return a lightweight liveness response without requiring authentication.",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Healthz Healthz Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Check API health",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/v1/agents": {
+      "get": {
+        "description": "List the authenticated user's agents with pagination, status filtering, and search.",
+        "operationId": "list_agents_endpoint_v1_agents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "List agents",
+        "tags": [
+          "agents"
+        ]
+      },
+      "post": {
+        "description": "Register a new agent owned by the authenticated user. The response includes the one-time raw agent token used for WebSocket connections.",
+        "operationId": "create_agent_endpoint_v1_agents_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Create an agent",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/v1/agents/{agent_id}": {
+      "delete": {
+        "description": "Delete an agent owned by the authenticated user.",
+        "operationId": "delete_agent_endpoint_v1_agents__agent_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Delete an agent",
+        "tags": [
+          "agents"
+        ]
+      },
+      "get": {
+        "description": "Return one agent owned by the authenticated user.",
+        "operationId": "get_agent_endpoint_v1_agents__agent_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Get an agent",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/v1/agents/{agent_id}/rotate-token": {
+      "post": {
+        "description": "Revoke the existing active token for an agent and issue a replacement. The raw replacement token is shown only in this response.",
+        "operationId": "rotate_token_endpoint_v1_agents__agent_id__rotate_token_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RotateTokenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Rotate an agent token",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/v1/approvals": {
+      "get": {
+        "description": "List human-in-the-loop approval requests owned by the authenticated user's agents.",
+        "operationId": "list_approvals_v1_approvals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "task_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Task Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "List approvals",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/v1/approvals/{approval_id}/accept": {
+      "post": {
+        "description": "Accept a pending approval request after verifying target agent ownership.",
+        "operationId": "accept_approval_v1_approvals__approval_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "title": "Approval Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Accept an approval",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/v1/approvals/{approval_id}/reject": {
+      "post": {
+        "description": "Reject a pending approval request after verifying target agent ownership.",
+        "operationId": "reject_approval_v1_approvals__approval_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "title": "Approval Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Reject an approval",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/v1/auth/api-keys": {
+      "get": {
+        "description": "List API keys owned by the authenticated user. Raw key material is never returned.",
+        "operationId": "list_api_keys_endpoint_v1_auth_api_keys_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "List API keys",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "description": "Issue a new API key for the authenticated user. The raw key is returned only once.",
+        "operationId": "create_api_key_endpoint_v1_auth_api_keys_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateApiKeyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Create an API key",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/api-keys/{api_key_id}/revoke": {
+      "post": {
+        "description": "Revoke an API key owned by the authenticated user. By default the API refuses to revoke the user's final active key to avoid accidental lockout.",
+        "operationId": "revoke_api_key_endpoint_v1_auth_api_keys__api_key_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "api_key_id",
+            "required": true,
+            "schema": {
+              "title": "Api Key Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RevokeApiKeyRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Revoke an API key",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/register": {
+      "post": {
+        "description": "Create the user if it does not exist and return a newly issued API key. The raw API key is shown only in this response.",
+        "operationId": "register_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register or fetch a user and issue an API key",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/connections": {
+      "get": {
+        "description": "List connection records for the authenticated user's first agent.",
+        "operationId": "list_connections_v1_connections_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "List connections",
+        "tags": [
+          "connections"
+        ]
+      }
+    },
+    "/v1/connections/request": {
+      "post": {
+        "description": "Create a pending connection request from the user's first agent to a target Agent Number.",
+        "operationId": "request_connection_v1_connections_request_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Request an agent connection",
+        "tags": [
+          "connections"
+        ]
+      }
+    },
+    "/v1/connections/{connection_id}/accept": {
+      "post": {
+        "description": "Accept a pending connection request after verifying target agent ownership.",
+        "operationId": "accept_connection_v1_connections__connection_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ConnectionAcceptRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Accept a connection request",
+        "tags": [
+          "connections"
+        ]
+      }
+    },
+    "/v1/connections/{connection_id}/reject": {
+      "post": {
+        "description": "Reject a pending connection request after verifying target agent ownership.",
+        "operationId": "reject_connection_v1_connections__connection_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connection_id",
+            "required": true,
+            "schema": {
+              "title": "Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ConnectionRejectRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Reject a connection request",
+        "tags": [
+          "connections"
+        ]
+      }
+    },
+    "/v1/tasks": {
+      "get": {
+        "description": "List tasks visible to the authenticated user with optional status filtering.",
+        "operationId": "list_tasks_endpoint_v1_tasks_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "List tasks",
+        "tags": [
+          "tasks"
+        ]
+      },
+      "post": {
+        "description": "Create an asynchronous task from one owned sender agent to a target Agent Number. Delivery is routed online immediately or stored for offline delivery.",
+        "operationId": "create_task_endpoint_v1_tasks_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Create a task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/v1/tasks/{task_id}": {
+      "get": {
+        "description": "Return a task owned by or assigned to an agent owned by the authenticated user.",
+        "operationId": "get_task_endpoint_v1_tasks__task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Get a task",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/v1/tasks/{task_id}/messages": {
+      "get": {
+        "description": "Return persisted messages for a task after verifying user ownership.",
+        "operationId": "get_task_messages_endpoint_v1_tasks__task_id__messages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "List task messages",
+        "tags": [
+          "tasks"
+        ]
+      }
+    },
+    "/v1/tasks/{task_id}/progress": {
+      "get": {
+        "description": "Return historical progress entries for a task after verifying user ownership.",
+        "operationId": "get_task_progress_endpoint_v1_tasks__task_id__progress_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "List task progress",
+        "tags": [
+          "tasks"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "Local development",
+      "url": "http://localhost:8000"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Liveness checks used by operators and load balancers.",
+      "name": "health"
+    },
+    {
+      "description": "User registration and API key bootstrap.",
+      "name": "auth"
+    },
+    {
+      "description": "Agent registry, Agent Number metadata, and token rotation.",
+      "name": "agents"
+    },
+    {
+      "description": "Asynchronous task creation, lookup, messages, and progress history.",
+      "name": "tasks"
+    },
+    {
+      "description": "Cross-agent connection requests and approvals.",
+      "name": "connections"
+    },
+    {
+      "description": "Human-in-the-loop high-risk task approvals.",
+      "name": "approvals"
+    }
+  ]
+}

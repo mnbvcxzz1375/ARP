@@ -14,6 +14,7 @@ from app.models.agent import Agent
 from app.models.message import Message
 from app.models.task import Task
 from app.protocol.constants import ErrorCode, DeliveryStatus, MessageType
+from app import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +61,13 @@ async def deliver_task_request(
 
     if is_online:
         success = await mgr.send_to_agent(
-            assigned_to.id, json.dumps(ws_payload)
+            assigned_to.id,
+            json.dumps(ws_payload),
+            track_pending=True,
         )
         if success:
             logger.info("Delivered task %s to online agent %s", task.id, assigned_to.agent_number)
+            metrics.MESSAGES_DELIVERED_TOTAL.inc()
             return DeliveryStatus.DELIVERED.value
 
     # Offline: queue under agent_id. When the agent reconnects,
@@ -75,6 +79,7 @@ async def deliver_task_request(
         str(assigned_to.id),
         json.dumps(ws_payload),
     )
+    metrics.PENDING_MESSAGES.inc()
     logger.info("Queued task %s for offline agent %s", task.id, assigned_to.agent_number)
     return DeliveryStatus.PENDING.value
 
@@ -158,17 +163,18 @@ async def ack_message(message_id: str) -> None:
         msg.delivery_status = DeliveryStatus.ACKED.value
         msg.next_retry_at = None
         await session.commit()
+        metrics.MESSAGES_ACKED_TOTAL.inc()
         logger.info("Message %s acked", message_id)
 
         # Clean up Redis pending queue for this agent
         try:
-            from app.services.session_service import ack_message as redis_ack
+            from app.services.session_service import ack_message_for_agent
             task_result = await session.execute(
                 select(Task).where(Task.id == task_id)
             )
             task = task_result.scalar_one_or_none()
             if task and task.assigned_to:
-                await redis_ack(task.assigned_to, str(task.assigned_to), message_id)
+                await ack_message_for_agent(task.assigned_to, message_id)
         except Exception:
             logger.debug("Redis ack cleanup failed for %s, ignoring", message_id)
 
@@ -230,6 +236,7 @@ async def retry_unacked_messages() -> int:
                 msg.retry_count += 1
                 msg.next_retry_at = now + timedelta(seconds=backoff)
                 msg.delivery_status = DeliveryStatus.DELIVERED.value
+                metrics.MESSAGES_RETRIED_TOTAL.inc()
                 retried += 1
             else:
                 msg.next_retry_at = now + timedelta(seconds=RETRY_BACKOFF_BASE_S)
@@ -274,6 +281,7 @@ async def expire_ttl_messages() -> int:
                 if expire_at < now:
                     msg.delivery_status = DeliveryStatus.EXPIRED.value
                     msg.next_retry_at = None
+                    metrics.MESSAGES_EXPIRED_TOTAL.inc()
                     expired += 1
         
         if expired:

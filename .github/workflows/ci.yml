@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+  pull_request:
+
+jobs:
+  test:
+    name: Test and static checks
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: agentnet
+          POSTGRES_USER: agentnet
+          POSTGRES_PASSWORD: agentnet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agentnet -d agentnet"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://agentnet:agentnet@localhost:5432/agentnet
+      REDIS_URL: redis://localhost:6379/0
+      DB_POOL_PRE_PING: "true"
+      DB_NULL_POOL: "true"
+      RATE_LIMIT_IP_MAX: "999999"
+      RATE_LIMIT_USER_MAX: "999999"
+      RATE_LIMIT_AGENT_MAX: "999999"
+      RATE_LIMIT_GLOBAL_MAX: "999999"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install editable packages
+        run: bash scripts/ci/install.sh
+
+      - name: Alembic upgrade smoke
+        run: bash scripts/ci/check-alembic.sh
+
+      - name: Run tests
+        run: bash scripts/ci/run-tests.sh
+
+      - name: Compile Python packages
+        run: bash scripts/ci/check-compile.sh
+
+      - name: Check OpenAPI contract drift
+        run: python scripts/export_openapi.py --check
+
+      - name: Validate Docker Compose files
+        run: bash scripts/ci/check-compose.sh

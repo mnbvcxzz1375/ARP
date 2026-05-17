@@ -1,0 +1,83 @@
+groups:
+  - name: agentnet.rules
+    rules:
+      - alert: AgentNetApiHigh5xxRate
+        expr: sum(rate(agentnet_http_errors_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet API 5xx rate is high
+          description: API 5xx responses have exceeded the configured threshold for 5 minutes.
+
+      - alert: AgentNetApiHighLatency
+        expr: histogram_quantile(0.95, sum(rate(agentnet_http_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet API p95 latency is high
+          description: API p95 latency has remained above 1 second for 10 minutes.
+
+      - alert: AgentNetWebSocketConnectionsZero
+        expr: agentnet_ws_connections_active == 0
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: No active AgentNet WebSocket connections
+          description: Active WebSocket connections have been zero for 30 minutes.
+
+      - alert: AgentNetPendingMessagesGrowing
+        expr: increase(agentnet_pending_messages[15m]) > 100
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet pending messages are growing
+          description: Pending message count increased by more than 100 in 15 minutes.
+
+      - alert: AgentNetTaskExpiredRateHigh
+        expr: increase(agentnet_tasks_expired_total[15m]) > 10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet task expiry rate is high
+          description: More than 10 tasks expired in the last 15 minutes.
+
+      - alert: AgentNetWorkerErrors
+        expr: sum(increase(agentnet_worker_errors_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet worker errors detected
+          description: Retry or timeout worker errors were recorded.
+
+      - alert: AgentNetRedisUnavailable
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: AgentNet Redis exporter unavailable
+          description: Prometheus cannot scrape the Redis exporter; Redis health should be checked immediately.
+
+      - alert: AgentNetPostgresUnavailable
+        expr: up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: AgentNet Postgres exporter unavailable
+          description: Prometheus cannot scrape the Postgres exporter; Postgres health should be checked immediately.
+
+      - alert: AgentNetApprovalPendingTooLong
+        expr: agentnet_approvals_pending > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet approvals have been pending too long
+          description: One or more approvals have remained pending for more than 30 minutes.

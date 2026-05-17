@@ -9,6 +9,7 @@ from .commands.agent_cmd import agent
 from .commands.task_cmd import task
 from .commands.connect_cmd import connect
 from .commands.approve_cmd import approve
+from .commands.key_cmd import key
 
 
 @click.group()
@@ -33,6 +34,7 @@ main.add_command(agent)
 main.add_command(task)
 main.add_command(connect)
 main.add_command(approve)
+main.add_command(key)
 
 
 if __name__ == "__main__":

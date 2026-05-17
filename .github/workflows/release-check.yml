@@ -1,0 +1,131 @@
+name: Release Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      strict_phase11:
+        description: "Fail if later Phase 11 artifacts are not present yet"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  release-check:
+    name: Release readiness audit
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: agentnet
+          POSTGRES_USER: agentnet
+          POSTGRES_PASSWORD: agentnet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agentnet -d agentnet"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://agentnet:agentnet@localhost:5432/agentnet
+      REDIS_URL: redis://localhost:6379/0
+      DB_POOL_PRE_PING: "true"
+      DB_NULL_POOL: "true"
+      RATE_LIMIT_IP_MAX: "999999"
+      RATE_LIMIT_USER_MAX: "999999"
+      RATE_LIMIT_AGENT_MAX: "999999"
+      RATE_LIMIT_GLOBAL_MAX: "999999"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install editable packages
+        run: bash scripts/ci/install.sh
+
+      - name: Run current quality gates
+        run: |
+          bash scripts/ci/check-alembic.sh
+          bash scripts/ci/run-tests.sh
+          bash scripts/ci/check-compile.sh
+          python scripts/export_openapi.py --check
+          bash scripts/ci/check-compose.sh
+          docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.production.example config
+          docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.production.example --profile observability config
+          bash scripts/backup/postgres_backup.sh --dry-run
+          bash scripts/backup/postgres_restore.sh --dry-run
+          docker run --rm --entrypoint promtool -v "$PWD/infra/prometheus:/etc/prometheus:ro" prom/prometheus:v2.55.1 check config /etc/prometheus/prometheus.yml
+          docker run --rm --entrypoint promtool -v "$PWD/infra/prometheus:/etc/prometheus:ro" prom/prometheus:v2.55.1 check rules /etc/prometheus/alerts/agentnet.yml
+
+      - name: Audit later Phase 11 release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          report="reports/release_check_artifacts.md"
+          strict="${{ github.event.inputs.strict_phase11 }}"
+          missing=0
+
+          check_path() {
+            local path="$1"
+            if [[ -e "$path" ]]; then
+              echo "- [x] $path" >> "$report"
+            else
+              echo "- [ ] $path" >> "$report"
+              missing=$((missing + 1))
+            fi
+          }
+
+          {
+            echo "# Release Check Artifact Audit"
+            echo
+            echo "Strict mode: $strict"
+            echo
+            echo "These later Phase 11 artifacts are audited here. They are expected to be added by Phase 11.2-11.8."
+            echo
+          } > "$report"
+
+          check_path "scripts/export_openapi.py"
+          check_path "infra/docker-compose.prod.yml"
+          check_path "infra/.env.production.example"
+          check_path "scripts/backup/postgres_backup.sh"
+          check_path "scripts/backup/postgres_restore.sh"
+          check_path "infra/prometheus/prometheus.yml"
+          check_path "infra/prometheus/alerts/agentnet.yml"
+          check_path "infra/grafana/dashboards/agentnet-overview.json"
+
+          echo >> "$report"
+          echo "Missing artifact count: $missing" >> "$report"
+          cat "$report"
+
+          if [[ "$strict" == "true" && "$missing" -gt 0 ]]; then
+            echo "Strict release check failed: later Phase 11 artifacts are missing." >&2
+            exit 1
+          fi
+
+      - name: Upload release readiness report
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-check-report
+          path: reports/release_check_artifacts.md

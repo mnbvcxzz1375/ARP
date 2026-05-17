@@ -1,9 +1,10 @@
 import hashlib
 import secrets
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import Depends, Header, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -70,7 +71,11 @@ async def authenticate(
     stmt = (
         select(User)
         .join(ApiKey, ApiKey.user_id == User.id)
-        .where(ApiKey.key_hash == key_hash, ApiKey.is_revoked == False)
+        .where(
+            ApiKey.key_hash == key_hash,
+            ApiKey.is_revoked == False,
+            or_(ApiKey.expires_at == None, ApiKey.expires_at > datetime.now(UTC)),
+        )
     )
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()

@@ -41,6 +41,13 @@ AgentNet / Agent Relay Platform 的目标是构建一个中心化 Agent 通信�
 | 8 | CLI | 已实现 |
 | 9 | OpenClaw Adapter | 已实现 |
 | 10 | Hardening | 已实现 |
+| 11.1 | CI/CD | 已实现 |
+| 11.2 | 生产配置模板 | 已实现 |
+| 11.3 | OpenAPI 文档 | 已实现 |
+| 11.4 | WebSocket E2E | 已实现 |
+| 11.5 | 数据库备份和恢复 | 已实现 |
+| 11.6 | Secret 管理和密钥轮换 | 已实现 |
+| 11.7 | 观测性面板和告警 | 已实现 |
 
 “已实现”在这里指 MVP 级完整链路，不代表生产商用完备。
 
@@ -241,6 +248,7 @@ apps/api/app/models/api_key.py
 - 数据库存 `key_hash`。
 - 支持 revoke。
 - `key_prefix` 用于展示和排障。
+- REST 和 CLI 已支持 list/create/revoke；默认拒绝撤销最后一个 active key，除非显式 allow。
 
 ### Agent
 
@@ -922,23 +930,26 @@ WS:   Authorization: Bearer agt_sk_...
 - 服务端按 after_message_id 返回 pending。
 - ack 后 Redis 队列移除。
 
-## 发布前建议补齐
+## 生产化文档入口
+
+- CI/CD: `docs/ci-cd.md`
+- 生产部署: `docs/production-deploy.md`
+- 生产检查表: `docs/production-checklist.md`
+- OpenAPI: `docs/openapi.md`
+- API 示例: `docs/api-examples.md`
+- 备份恢复: `docs/backup-restore.md`
+- Secret 轮换: `docs/secrets-rotation.md`
+- 泄露响应: `docs/incident-secret-leak.md`
+- 观测性: `docs/observability.md`
+- Phase 11 报告: `reports/phase11_*.md`
+
+## 发布前建议继续强化
 
 这不是当前 MVP 必须项，但进入真实用户试用前建议做：
 
-- GitHub Actions 或其他 CI。
 - Ruff / mypy / pyright。
-- Alembic migration smoke test。
-- Docker Compose health smoke test。
-- 真实 WebSocket end-to-end integration test。
-- OpenAPI 文档导出。
-- API examples collection。
-- 生产 `.env.example`。
-- Secret 管理方案。
-- structured logging sink。
-- metrics。
-- alerting。
-- backup and restore。
+- 专用 Postgres exporter 和 Redis exporter。
+- TLS 自动化。
 - load test。
 - chaos test for Redis/Postgres temporary failure。
 
@@ -1131,6 +1142,17 @@ python -m pytest --collect-only -q
 
 # Docker 配置检查
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml config
+docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.production.example --profile observability config
+
+# OpenAPI 漂移检查
+python scripts/export_openapi.py --check
+
+# WebSocket E2E
+python -m pytest apps/api/tests/test_websocket_e2e.py packages/python-sdk/tests/test_websocket_integration.py -q
+
+# 备份恢复 dry-run
+./scripts/backup/postgres_backup.ps1 --dry-run
+./scripts/backup/postgres_restore.ps1 --dry-run
 
 # 启动本地栈
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up --build
@@ -1163,4 +1185,3 @@ alembic upgrade head
 - migration 从空库到 head 的 smoke test。
 - OpenAPI examples。
 - 生产部署文档。
-

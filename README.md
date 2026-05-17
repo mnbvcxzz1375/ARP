@@ -100,9 +100,12 @@ AgentNet 当前已经实现：
 │   ├── base                 AdapterInterface 基础接口
 │   ├── openclaw             OpenClaw adapter
 │   └── mcp                  MCP adapter 占位
-├── infra                    Docker Compose 本地依赖
+├── infra                    Docker Compose 本地和生产模板
 ├── docs                     主题文档
+├── reports                  Phase 验收报告
+├── .github/workflows        CI/CD 工作流
 ├── plan.md                  Phase 0-10 规划和验收标准
+├── planv2.md                Phase 11 生产化增强计划
 └── DEVELOPER_README.md      开发者维护手册
 ```
 
@@ -186,8 +189,7 @@ curl -X POST http://localhost:8000/v1/auth/register `
 {
   "user_id": "9b7f...",
   "username": "alice",
-  "api_key": "ak_...",
-  "key_prefix": "ak_..."
+  "api_key": "ak_..."
 }
 ```
 
@@ -203,6 +205,14 @@ CLI 会提示输入 API key。
 
 ```text
 ~/.agentnet/config.json
+```
+
+API key 轮换：
+
+```powershell
+agentnet key create --name rotated-local
+agentnet key list
+agentnet key revoke <old_api_key_id>
 ```
 
 ### 6. 创建 Agent
@@ -568,6 +578,15 @@ ak_...
 - 用户快速开始: `docs/quickstart.md`
 - 架构说明: `docs/architecture.md`
 - 协议说明: `docs/protocol.md`
+- CI/CD: `docs/ci-cd.md`
+- 生产部署: `docs/production-deploy.md`
+- 生产检查表: `docs/production-checklist.md`
+- OpenAPI: `docs/openapi.md`
+- API 示例: `docs/api-examples.md`
+- 数据库备份恢复: `docs/backup-restore.md`
+- Secret 轮换: `docs/secrets-rotation.md`
+- Secret 泄露响应: `docs/incident-secret-leak.md`
+- 观测性和告警: `docs/observability.md`
 - CLI: `docs/cli.md`
 - Python SDK: `docs/sdk-python.md`
 - OpenClaw Adapter: `docs/openclaw-adapter.md`
@@ -576,15 +595,11 @@ ak_...
 
 ## 当前成熟度
 
-当前项目已经覆盖 Agent Registry、WebSocket Presence、Task/Message Storage、Relay Routing、Connection Policy、Approval、Python SDK、CLI、OpenClaw Adapter 和 Hardening 的 MVP 实现。
+当前项目已经覆盖 Agent Registry、WebSocket Presence、Task/Message Storage、Relay Routing、Connection Policy、Approval、Python SDK、CLI、OpenClaw Adapter、Hardening，以及 Phase 11 的 CI/CD、生产配置模板、OpenAPI 导出、真实 WebSocket E2E、备份恢复、Secret 轮换流程和 Prometheus/Grafana 观测模板。
 
-它适合继续向“产品化原型”推进，但不是直接可公网商用的稳定版本。部署到真实公网前，建议继续补齐：
+它适合继续向“可试点的产品化原型”推进，但仍不是无需运维投入即可公网商用的稳定版本。真实公网试用前，建议继续强化：
 
-- CI/CD。
-- 生产配置模板。
-- 更完整的 OpenAPI 文档。
-- 真实 WebSocket 端到端集成测试。
-- 数据库备份和恢复方案。
-- Secret 管理和密钥轮换运营流程。
-- 观测性面板和告警。
-
+- 专用 Redis/Postgres exporter。
+- 更严格的权限模型。
+- 压力测试和故障注入。
+- TLS 自动化和正式发布流程。

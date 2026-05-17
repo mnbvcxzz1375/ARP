@@ -1,0 +1,1962 @@
+openapi: 3.1.0
+info:
+  title: AgentNet API
+  description: AgentNet is a centralized Agent Relay Platform for registering agents,
+    routing asynchronous tasks, tracking delivery state, and enforcing cross-agent
+    approval policy. WebSocket agent transport is available at `/v1/ws` and documented
+    in `docs/openapi.md`.
+  version: 0.1.0
+paths:
+  /healthz:
+    get:
+      tags:
+      - health
+      summary: Check API health
+      description: Return a lightweight liveness response without requiring authentication.
+      operationId: healthz_healthz_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Healthz Healthz Get
+  /v1/auth/register:
+    post:
+      tags:
+      - auth
+      summary: Register or fetch a user and issue an API key
+      description: Create the user if it does not exist and return a newly issued
+        API key. The raw API key is shown only in this response.
+      operationId: register_v1_auth_register_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /v1/auth/api-keys:
+    get:
+      tags:
+      - auth
+      summary: List API keys
+      description: List API keys owned by the authenticated user. Raw key material
+        is never returned.
+      operationId: list_api_keys_endpoint_v1_auth_api_keys_get
+      parameters:
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    post:
+      tags:
+      - auth
+      summary: Create an API key
+      description: Issue a new API key for the authenticated user. The raw key is
+        returned only once.
+      operationId: create_api_key_endpoint_v1_auth_api_keys_post
+      parameters:
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateApiKeyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/auth/api-keys/{api_key_id}/revoke:
+    post:
+      tags:
+      - auth
+      summary: Revoke an API key
+      description: Revoke an API key owned by the authenticated user. By default the
+        API refuses to revoke the user's final active key to avoid accidental lockout.
+      operationId: revoke_api_key_endpoint_v1_auth_api_keys__api_key_id__revoke_post
+      parameters:
+      - name: api_key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Api Key Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/RevokeApiKeyRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/agents:
+    post:
+      tags:
+      - agents
+      summary: Create an agent
+      description: Register a new agent owned by the authenticated user. The response
+        includes the one-time raw agent token used for WebSocket connections.
+      operationId: create_agent_endpoint_v1_agents_post
+      parameters:
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    get:
+      tags:
+      - agents
+      summary: List agents
+      description: List the authenticated user's agents with pagination, status filtering,
+        and search.
+      operationId: list_agents_endpoint_v1_agents_get
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Search
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/agents/{agent_id}:
+    get:
+      tags:
+      - agents
+      summary: Get an agent
+      description: Return one agent owned by the authenticated user.
+      operationId: get_agent_endpoint_v1_agents__agent_id__get
+      parameters:
+      - name: agent_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Agent Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    delete:
+      tags:
+      - agents
+      summary: Delete an agent
+      description: Delete an agent owned by the authenticated user.
+      operationId: delete_agent_endpoint_v1_agents__agent_id__delete
+      parameters:
+      - name: agent_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Agent Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/agents/{agent_id}/rotate-token:
+    post:
+      tags:
+      - agents
+      summary: Rotate an agent token
+      description: Revoke the existing active token for an agent and issue a replacement.
+        The raw replacement token is shown only in this response.
+      operationId: rotate_token_endpoint_v1_agents__agent_id__rotate_token_post
+      parameters:
+      - name: agent_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Agent Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotateTokenResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/tasks:
+    post:
+      tags:
+      - tasks
+      summary: Create a task
+      description: Create an asynchronous task from one owned sender agent to a target
+        Agent Number. Delivery is routed online immediately or stored for offline
+        delivery.
+      operationId: create_task_endpoint_v1_tasks_post
+      parameters:
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    get:
+      tags:
+      - tasks
+      summary: List tasks
+      description: List tasks visible to the authenticated user with optional status
+        filtering.
+      operationId: list_tasks_endpoint_v1_tasks_get
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Limit
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/tasks/{task_id}:
+    get:
+      tags:
+      - tasks
+      summary: Get a task
+      description: Return a task owned by or assigned to an agent owned by the authenticated
+        user.
+      operationId: get_task_endpoint_v1_tasks__task_id__get
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/tasks/{task_id}/messages:
+    get:
+      tags:
+      - tasks
+      summary: List task messages
+      description: Return persisted messages for a task after verifying user ownership.
+      operationId: get_task_messages_endpoint_v1_tasks__task_id__messages_get
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/tasks/{task_id}/progress:
+    get:
+      tags:
+      - tasks
+      summary: List task progress
+      description: Return historical progress entries for a task after verifying user
+        ownership.
+      operationId: get_task_progress_endpoint_v1_tasks__task_id__progress_get
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/connections/request:
+    post:
+      tags:
+      - connections
+      summary: Request an agent connection
+      description: Create a pending connection request from the user's first agent
+        to a target Agent Number.
+      operationId: request_connection_v1_connections_request_post
+      parameters:
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectionRequestRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/connections/{connection_id}/accept:
+    post:
+      tags:
+      - connections
+      summary: Accept a connection request
+      description: Accept a pending connection request after verifying target agent
+        ownership.
+      operationId: accept_connection_v1_connections__connection_id__accept_post
+      parameters:
+      - name: connection_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Connection Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/ConnectionAcceptRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/connections/{connection_id}/reject:
+    post:
+      tags:
+      - connections
+      summary: Reject a connection request
+      description: Reject a pending connection request after verifying target agent
+        ownership.
+      operationId: reject_connection_v1_connections__connection_id__reject_post
+      parameters:
+      - name: connection_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Connection Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/ConnectionRejectRequest'
+              - type: 'null'
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/connections:
+    get:
+      tags:
+      - connections
+      summary: List connections
+      description: List connection records for the authenticated user's first agent.
+      operationId: list_connections_v1_connections_get
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Limit
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/approvals:
+    get:
+      tags:
+      - approvals
+      summary: List approvals
+      description: List human-in-the-loop approval requests owned by the authenticated
+        user's agents.
+      operationId: list_approvals_v1_approvals_get
+      parameters:
+      - name: task_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Task Id
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Limit
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/approvals/{approval_id}/accept:
+    post:
+      tags:
+      - approvals
+      summary: Accept an approval
+      description: Accept a pending approval request after verifying target agent
+        ownership.
+      operationId: accept_approval_v1_approvals__approval_id__accept_post
+      parameters:
+      - name: approval_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Approval Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/approvals/{approval_id}/reject:
+    post:
+      tags:
+      - approvals
+      summary: Reject an approval
+      description: Reject a pending approval request after verifying target agent
+        ownership.
+      operationId: reject_approval_v1_approvals__approval_id__reject_post
+      parameters:
+      - name: approval_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Approval Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+components:
+  schemas:
+    AgentListResponse:
+      properties:
+        agents:
+          items:
+            $ref: '#/components/schemas/AgentResponse'
+          type: array
+          title: Agents
+          description: Agents on this page.
+        total:
+          type: integer
+          title: Total
+          description: Total matching agents.
+        page:
+          type: integer
+          title: Page
+          description: Current one-based page.
+        page_size:
+          type: integer
+          title: Page Size
+          description: Requested page size.
+      type: object
+      required:
+      - agents
+      - total
+      - page
+      - page_size
+      title: AgentListResponse
+    AgentResponse:
+      properties:
+        agent_id:
+          type: string
+          title: Agent Id
+          description: Agent UUID.
+        agent_number:
+          type: string
+          title: Agent Number
+          description: Opaque Agent Number used for routing.
+        agent_token:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agent Token
+          description: One-time raw agent token when issued.
+        name:
+          type: string
+          title: Name
+          description: Human-readable agent name.
+        runtime:
+          type: string
+          title: Runtime
+          description: Runtime or framework label.
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Optional agent description.
+        capabilities:
+          items:
+            type: string
+          type: array
+          title: Capabilities
+          description: Capability labels advertised by this agent.
+        inbound_policy:
+          type: string
+          title: Inbound Policy
+          description: Inbound policy for cross-agent requests.
+        discoverable:
+          type: boolean
+          title: Discoverable
+          description: Whether the agent is discoverable.
+        status:
+          type: string
+          title: Status
+          description: Current presence status.
+      type: object
+      required:
+      - agent_id
+      - agent_number
+      - name
+      - runtime
+      - capabilities
+      - inbound_policy
+      - discoverable
+      - status
+      title: AgentResponse
+    ApiKeyListResponse:
+      properties:
+        api_keys:
+          items:
+            $ref: '#/components/schemas/ApiKeyResponse'
+          type: array
+          title: Api Keys
+          description: API keys for the authenticated user.
+        total:
+          type: integer
+          title: Total
+          description: Total API keys for the authenticated user.
+      type: object
+      required:
+      - api_keys
+      - total
+      title: ApiKeyListResponse
+    ApiKeyResponse:
+      properties:
+        api_key_id:
+          type: string
+          title: Api Key Id
+          description: API key UUID.
+        key_prefix:
+          type: string
+          title: Key Prefix
+          description: Non-secret API key prefix for identification.
+        name:
+          type: string
+          title: Name
+          description: Human-readable API key name.
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+          description: Optional expiry time.
+        is_revoked:
+          type: boolean
+          title: Is Revoked
+          description: Whether this API key has been revoked.
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+          description: Creation time.
+      type: object
+      required:
+      - api_key_id
+      - key_prefix
+      - name
+      - expires_at
+      - is_revoked
+      - created_at
+      title: ApiKeyResponse
+    ApprovalListResponse:
+      properties:
+        approvals:
+          items:
+            $ref: '#/components/schemas/ApprovalResponse'
+          type: array
+          title: Approvals
+          description: Approvals in this page.
+        total:
+          type: integer
+          title: Total
+          description: Total matching approvals.
+      type: object
+      required:
+      - approvals
+      - total
+      title: ApprovalListResponse
+    ApprovalResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Approval UUID.
+        task_id:
+          type: string
+          format: uuid
+          title: Task Id
+          description: Task UUID requiring approval.
+        agent_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Agent Id
+          description: Agent UUID that owns the approval.
+        status:
+          type: string
+          title: Status
+          description: Approval status.
+        risk_level:
+          type: string
+          title: Risk Level
+          description: Risk level assigned to the action.
+        action_kind:
+          type: string
+          title: Action Kind
+          description: Kind of action requiring approval.
+        action_preview:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action Preview
+          description: Human-readable action preview.
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+          description: Decision or rejection reason.
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+          description: Approval expiry time.
+        decided_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Decided At
+          description: Decision time, if decided.
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+          description: Approval creation time.
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+          description: Last approval update time.
+      type: object
+      required:
+      - id
+      - task_id
+      - agent_id
+      - status
+      - risk_level
+      - action_kind
+      - action_preview
+      - reason
+      - expires_at
+      - decided_at
+      - created_at
+      - updated_at
+      title: ApprovalResponse
+    ConnectionAcceptRequest:
+      properties:
+        allowed_capabilities:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 20
+          - type: 'null'
+          title: Allowed Capabilities
+          description: Capabilities granted to the requester.
+        preferred_security_mode:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Preferred Security Mode
+          description: Negotiated security mode for this connection.
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+          description: When this connection grant expires
+      type: object
+      title: ConnectionAcceptRequest
+    ConnectionListResponse:
+      properties:
+        connections:
+          items:
+            $ref: '#/components/schemas/ConnectionResponse'
+          type: array
+          title: Connections
+          description: Connections in this page.
+        total:
+          type: integer
+          title: Total
+          description: Total matching connections.
+      type: object
+      required:
+      - connections
+      - total
+      title: ConnectionListResponse
+    ConnectionRejectRequest:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Reason
+          description: Optional rejection reason.
+      type: object
+      title: ConnectionRejectRequest
+    ConnectionRequestRequest:
+      properties:
+        to_agent_number:
+          type: string
+          title: To Agent Number
+          description: Agent number of the target agent
+        reason:
+          anyOf:
+          - type: string
+            maxLength: 1024
+          - type: 'null'
+          title: Reason
+          description: Reason for requesting the connection
+        requested_capabilities:
+          items:
+            type: string
+          type: array
+          maxItems: 20
+          title: Requested Capabilities
+          description: Capabilities requested from the target agent.
+        requested_security_modes:
+          items:
+            type: string
+          type: array
+          maxItems: 5
+          title: Requested Security Modes
+          description: Security modes acceptable to the requesting agent.
+      type: object
+      required:
+      - to_agent_number
+      title: ConnectionRequestRequest
+    ConnectionResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+          description: Connection UUID.
+        from_agent_id:
+          type: string
+          format: uuid
+          title: From Agent Id
+          description: Requester agent UUID.
+        to_agent_id:
+          type: string
+          format: uuid
+          title: To Agent Id
+          description: Target agent UUID.
+        status:
+          type: string
+          title: Status
+          description: Connection lifecycle status.
+        allowed_capabilities:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Allowed Capabilities
+          description: Capabilities granted by the target agent.
+        preferred_security_mode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preferred Security Mode
+          description: Negotiated or preferred security mode.
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+          description: Optional connection expiry time.
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+          description: Request or rejection reason.
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+          description: Connection creation time.
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+          description: Last connection update time.
+      type: object
+      required:
+      - id
+      - from_agent_id
+      - to_agent_id
+      - status
+      - allowed_capabilities
+      - preferred_security_mode
+      - expires_at
+      - reason
+      - created_at
+      - updated_at
+      title: ConnectionResponse
+    CreateAgentRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Name
+          description: Human-readable agent name.
+        runtime:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Runtime
+          description: Runtime or framework label.
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: Optional agent description.
+        capabilities:
+          items:
+            type: string
+          type: array
+          title: Capabilities
+          description: Capability labels advertised by this agent.
+        inbound_policy:
+          type: string
+          title: Inbound Policy
+          description: 'Inbound policy: private, contacts_only, request_approval,
+            or public.'
+          default: request_approval
+        discoverable:
+          type: boolean
+          title: Discoverable
+          description: Whether other users can discover this agent.
+          default: false
+      type: object
+      required:
+      - name
+      - runtime
+      title: CreateAgentRequest
+    CreateApiKeyRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Name
+          description: Human-readable API key name.
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+          description: Optional API key expiry time.
+      type: object
+      required:
+      - name
+      title: CreateApiKeyRequest
+    CreateApiKeyResponse:
+      properties:
+        api_key_id:
+          type: string
+          title: Api Key Id
+          description: API key UUID.
+        key_prefix:
+          type: string
+          title: Key Prefix
+          description: Non-secret API key prefix for identification.
+        name:
+          type: string
+          title: Name
+          description: Human-readable API key name.
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+          description: Optional expiry time.
+        api_key:
+          type: string
+          title: Api Key
+          description: One-time raw API key. Store it securely.
+      type: object
+      required:
+      - api_key_id
+      - key_prefix
+      - name
+      - expires_at
+      - api_key
+      title: CreateApiKeyResponse
+    CreateTaskRequest:
+      properties:
+        assigned_to:
+          type: string
+          title: Assigned To
+          description: Agent number of the target agent
+        from_agent_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: From Agent Number
+          description: Agent number of the sending agent. If omitted, uses the user's
+            first agent.
+        idempotency_key:
+          anyOf:
+          - type: string
+            maxLength: 128
+          - type: 'null'
+          title: Idempotency Key
+          description: Optional sender-provided idempotency key for safe retries.
+        payload:
+          type: object
+          title: Payload
+          description: Task payload delivered to the target agent.
+      type: object
+      required:
+      - assigned_to
+      title: CreateTaskRequest
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    MessageListResponse:
+      properties:
+        messages:
+          items:
+            $ref: '#/components/schemas/MessageResponse'
+          type: array
+          title: Messages
+          description: Messages in this page.
+        total:
+          type: integer
+          title: Total
+          description: Total matching messages.
+        offset:
+          type: integer
+          title: Offset
+          description: Zero-based result offset.
+        limit:
+          type: integer
+          title: Limit
+          description: Requested page size.
+      type: object
+      required:
+      - messages
+      - total
+      - offset
+      - limit
+      title: MessageListResponse
+    MessageResponse:
+      properties:
+        message_id:
+          type: string
+          title: Message Id
+          description: Stable message id used for delivery and ack.
+        task_id:
+          type: string
+          title: Task Id
+          description: Task UUID.
+        type:
+          type: string
+          title: Type
+          description: Protocol message type.
+        delivery_status:
+          type: string
+          title: Delivery Status
+          description: Delivery status such as pending, delivered, or acked.
+        content:
+          type: object
+          title: Content
+          description: Persisted protocol message payload.
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+          description: Message creation time.
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+          description: Last message update time.
+      type: object
+      required:
+      - message_id
+      - task_id
+      - type
+      - delivery_status
+      - content
+      - created_at
+      - updated_at
+      title: MessageResponse
+    RegisterRequest:
+      properties:
+        username:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Username
+          description: Stable username for the API key owner.
+        key_name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Key Name
+          description: Human-readable name for the issued API key.
+          default: default
+      type: object
+      required:
+      - username
+      title: RegisterRequest
+    RegisterResponse:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+          description: User UUID.
+        username:
+          type: string
+          title: Username
+          description: Registered username.
+        api_key:
+          type: string
+          title: Api Key
+          description: One-time raw API key. Store it securely.
+      type: object
+      required:
+      - user_id
+      - username
+      - api_key
+      title: RegisterResponse
+    RevokeApiKeyRequest:
+      properties:
+        allow_last_key:
+          type: boolean
+          title: Allow Last Key
+          description: Set true to allow revoking the user's final active API key.
+          default: false
+      type: object
+      title: RevokeApiKeyRequest
+    RotateTokenResponse:
+      properties:
+        agent_id:
+          type: string
+          title: Agent Id
+          description: Agent UUID.
+        agent_token:
+          type: string
+          title: Agent Token
+          description: One-time replacement raw agent token.
+      type: object
+      required:
+      - agent_id
+      - agent_token
+      title: RotateTokenResponse
+    TaskListResponse:
+      properties:
+        tasks:
+          items:
+            $ref: '#/components/schemas/TaskResponse'
+          type: array
+          title: Tasks
+          description: Tasks in this page.
+        total:
+          type: integer
+          title: Total
+          description: Total matching tasks.
+        offset:
+          type: integer
+          title: Offset
+          description: Zero-based result offset.
+        limit:
+          type: integer
+          title: Limit
+          description: Requested page size.
+      type: object
+      required:
+      - tasks
+      - total
+      - offset
+      - limit
+      title: TaskListResponse
+    TaskResponse:
+      properties:
+        task_id:
+          type: string
+          title: Task Id
+          description: Task UUID.
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+          description: Sender-provided idempotency key, if any.
+        created_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created By
+          description: Sender agent UUID.
+        assigned_to:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assigned To
+          description: Target agent UUID.
+        status:
+          type: string
+          title: Status
+          description: Task lifecycle status.
+        message_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message Id
+          description: Initial task request message id.
+        lease_agent_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Lease Agent Id
+          description: Agent UUID currently holding the task lease.
+        lease_expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Lease Expires At
+          description: Current lease expiry time.
+        last_progress_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Progress At
+          description: Last progress update time.
+        last_heartbeat_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Heartbeat At
+          description: Last lease heartbeat time.
+        result:
+          anyOf:
+          - type: object
+          - type: 'null'
+          title: Result
+          description: Task result payload when completed.
+        error_message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error Message
+          description: Failure or expiry reason.
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+          description: Task creation time.
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+          description: Last task update time.
+      type: object
+      required:
+      - task_id
+      - idempotency_key
+      - created_by
+      - assigned_to
+      - status
+      - message_id
+      - lease_agent_id
+      - lease_expires_at
+      - last_progress_at
+      - last_heartbeat_at
+      - result
+      - error_message
+      - created_at
+      - updated_at
+      title: TaskResponse
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+  securitySchemes:
+    ApiKeyBearer:
+      type: http
+      scheme: bearer
+      description: 'REST API key in `Authorization: Bearer ak_...`.'
+    LegacyApiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Legacy REST API key header.
+tags:
+- name: health
+  description: Liveness checks used by operators and load balancers.
+- name: auth
+  description: User registration and API key bootstrap.
+- name: agents
+  description: Agent registry, Agent Number metadata, and token rotation.
+- name: tasks
+  description: Asynchronous task creation, lookup, messages, and progress history.
+- name: connections
+  description: Cross-agent connection requests and approvals.
+- name: approvals
+  description: Human-in-the-loop high-risk task approvals.
+servers:
+- url: http://localhost:8000
+  description: Local development

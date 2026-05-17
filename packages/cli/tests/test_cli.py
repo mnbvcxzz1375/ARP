@@ -103,6 +103,12 @@ class TestCLIHelp:
         assert result.exit_code == 0
         assert "base-url" in result.output
 
+    def test_key_help(self):
+        runner = CliRunner()
+        result = runner.invoke(main, ["key", "--help"])
+        assert result.exit_code == 0
+        assert "revoke" in result.output
+
     def test_version(self):
         runner = CliRunner()
         result = runner.invoke(main, ["--version"])

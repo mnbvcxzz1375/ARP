@@ -40,7 +40,16 @@ async def _get_calling_agent(
     return agent
 
 
-@router.post("", response_model=TaskResponse, status_code=201)
+@router.post(
+    "",
+    response_model=TaskResponse,
+    status_code=201,
+    summary="Create a task",
+    description=(
+        "Create an asynchronous task from one owned sender agent to a target Agent Number. "
+        "Delivery is routed online immediately or stored for offline delivery."
+    ),
+)
 async def create_task_endpoint(
     body: CreateTaskRequest,
     user: User = Depends(authenticate),
@@ -57,7 +66,12 @@ async def create_task_endpoint(
     return _task_to_response(task)
 
 
-@router.get("", response_model=TaskListResponse)
+@router.get(
+    "",
+    response_model=TaskListResponse,
+    summary="List tasks",
+    description="List tasks visible to the authenticated user with optional status filtering.",
+)
 async def list_tasks_endpoint(
     status: str | None = Query(default=None),
     offset: int = Query(default=0, ge=0),
@@ -74,7 +88,12 @@ async def list_tasks_endpoint(
     )
 
 
-@router.get("/{task_id}", response_model=TaskResponse)
+@router.get(
+    "/{task_id}",
+    response_model=TaskResponse,
+    summary="Get a task",
+    description="Return a task owned by or assigned to an agent owned by the authenticated user.",
+)
 async def get_task_endpoint(
     task_id: str,
     user: User = Depends(authenticate),
@@ -88,7 +107,12 @@ async def get_task_endpoint(
     return _task_to_response(task)
 
 
-@router.get("/{task_id}/messages", response_model=MessageListResponse)
+@router.get(
+    "/{task_id}/messages",
+    response_model=MessageListResponse,
+    summary="List task messages",
+    description="Return persisted messages for a task after verifying user ownership.",
+)
 async def get_task_messages_endpoint(
     task_id: str,
     offset: int = Query(default=0, ge=0),
@@ -141,7 +165,11 @@ def _task_to_response(t) -> TaskResponse:
     )
 
 
-@router.get("/{task_id}/progress")
+@router.get(
+    "/{task_id}/progress",
+    summary="List task progress",
+    description="Return historical progress entries for a task after verifying user ownership.",
+)
 async def get_task_progress_endpoint(
     task_id: str,
     offset: int = Query(default=0, ge=0),

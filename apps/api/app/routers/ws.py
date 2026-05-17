@@ -11,6 +11,7 @@ from sqlalchemy import select, or_
 
 from app.database import SessionLocal
 from app.exceptions import DomainException
+from app import metrics
 from app.models.agent import Agent
 from app.models.agent_token import AgentToken
 from app.protocol.constants import ErrorCode, MessageType
@@ -92,6 +93,7 @@ async def agent_websocket(ws: WebSocket):
     try:
         agent = await _authenticate_agent(token_raw)
     except DomainException as exc:
+        metrics.ws_auth_failed()
         await ws.accept()
         await ws.send_text(build_error(exc.code, exc.message))
         await ws.close(code=4001)
@@ -107,6 +109,7 @@ async def agent_websocket(ws: WebSocket):
             request_ip=client_ip,
         )
     except DomainException as exc:
+        metrics.ws_auth_failed()
         await ws.accept()
         await ws.send_text(build_error(exc.code, exc.message))
         await ws.close(code=4429)
@@ -125,6 +128,7 @@ async def agent_websocket(ws: WebSocket):
         return
 
     await ws.accept()
+    metrics.ws_connected()
     await _update_agent_status(str(agent.id), "online")
 
     # Deliver any pending offline messages
@@ -183,6 +187,7 @@ async def agent_websocket(ws: WebSocket):
             "Unexpected WS error for agent=%s", agent.agent_number
         )
     finally:
+        metrics.ws_disconnected()
         agent_id, agent_number = await mgr.unregister(conn_state.connection_id)
         if agent_id is not None:
             await _update_agent_status(str(agent_id), "offline")

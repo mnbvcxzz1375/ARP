@@ -23,6 +23,7 @@ htmlcov/
 # Environment / secrets
 .env
 .env.*
+!infra/.env.production.example
 
 # IDE
 .vscode/
@@ -39,3 +40,20 @@ Thumbs.db
 
 # AgentNet runtime
 agentnet_session.json
+.learnings/
+
+# Test artifacts (reports, result dumps, debug output)
+test_model_results.json
+reports/
+*.test.log
+
+# Docker volumes and data
+infra/postgres_data/
+infra/redis_data/
+docker-compose.override.yml
+
+# Credentials (absolute — never commit real keys/tokens)
+credentials/
+*.pem
+*.key
+!infra/.env.production.example

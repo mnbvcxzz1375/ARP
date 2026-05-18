@@ -19,14 +19,14 @@ AgentNet 可以理解为 Agent 之间的消息队列、审批网关和审计中�
 
 ## 适用场景
 
-| 场景 | 说明 |
-| --- | --- |
-| 多机 Agent 通信 | 多个 Agent 分布在不同机器上，需要互相投递任务 |
-| 安全隔离 | Agent 不直接暴露公网地址，统一接入 Relay API |
-| 离线消息 | 需要消息排队、断线重连、session resume 和 ack |
-| Human-in-the-loop | 高风险任务需要人工审批，避免自动执行危险操作 |
-| 多框架适配 | 接入 OpenClaw、MCP 或未来其他 Agent 框架 |
-| 审计合规 | 记录 task 创建、投递、执行、审批和结果 |
+| 场景              | 说明                                          |
+| ----------------- | --------------------------------------------- |
+| 多机 Agent 通信   | 多个 Agent 分布在不同机器上，需要互相投递任务 |
+| 安全隔离          | Agent 不直接暴露公网地址，统一接入 Relay API  |
+| 离线消息          | 需要消息排队、断线重连、session resume 和 ack |
+| Human-in-the-loop | 高风险任务需要人工审批，避免自动执行危险操作  |
+| 多框架适配        | 接入 OpenClaw、MCP 或未来其他 Agent 框架      |
+| 审计合规          | 记录 task 创建、投递、执行、审批和结果        |
 
 ## 当前不做
 
@@ -39,32 +39,32 @@ AgentNet 可以理解为 Agent 之间的消息队列、审批网关和审计中�
 ## 架构总览
 
 <p align="center">
-  <img src="docs/figures/agentnet_nature_flow.svg" width="90%" alt="AgentNet 系统架构图">
+  <img src="docs/figures/agentnet_flow.png" width="90%" alt="AgentNet 系统架构图">
 </p>
 
 完整架构图位于 [docs/figures](docs/figures)，包含可编辑的 Draw.io 源文件、SVG/PDF 矢量图和 PNG 图像。
 
-| 层级 | 职责 |
-| --- | --- |
-| Identity | 用户注册、API key 认证、rate limit、Agent Number 分配 |
-| Policy and Delivery | 策略门控、幂等去重、任务/消息存储、路由、结果存储 |
-| Execution | 离线队列、WebSocket 投递、SDK runtime、OpenClaw Adapter、真实 CLI 执行 |
-| Operations | PostgreSQL 持久化、Redis presence/queue、可观测性、备份恢复、密钥管理 |
+| 层级                | 职责                                                                   |
+| ------------------- | ---------------------------------------------------------------------- |
+| Identity            | 用户注册、API key 认证、rate limit、Agent Number 分配                  |
+| Policy and Delivery | 策略门控、幂等去重、任务/消息存储、路由、结果存储                      |
+| Execution           | 离线队列、WebSocket 投递、SDK runtime、OpenClaw Adapter、真实 CLI 执行 |
+| Operations          | PostgreSQL 持久化、Redis presence/queue、可观测性、备份恢复、密钥管理  |
 
 ## 技术栈
 
-| 组件 | 技术 |
-| --- | --- |
-| API | FastAPI + Uvicorn, Python 3.11+ |
-| 数据库 | PostgreSQL 16 + asyncpg |
-| 缓存/队列 | Redis 7 |
-| 协议 | JSON Schema + WebSocket + Agent Relay Protocol |
-| ORM | SQLAlchemy 2.0 async |
-| 测试 | pytest + asyncio + httpx + websockets |
-| 部署 | Docker Compose |
-| SDK | Python REST client + WebSocket runtime |
-| CLI | Click-based `agentnet` 命令 |
-| Adapter | OpenClaw 已实现，MCP 预留 |
+| 组件      | 技术                                           |
+| --------- | ---------------------------------------------- |
+| API       | FastAPI + Uvicorn, Python 3.11+                |
+| 数据库    | PostgreSQL 16 + asyncpg                        |
+| 缓存/队列 | Redis 7                                        |
+| 协议      | JSON Schema + WebSocket + Agent Relay Protocol |
+| ORM       | SQLAlchemy 2.0 async                           |
+| 测试      | pytest + asyncio + httpx + websockets          |
+| 部署      | Docker Compose                                 |
+| SDK       | Python REST client + WebSocket runtime         |
+| CLI       | Click-based `agentnet` 命令                  |
+| Adapter   | OpenClaw 已实现，MCP 预留                      |
 
 ## 快速开始
 
@@ -238,18 +238,18 @@ running -> awaiting_approval -> rejected
 running -> failed / cancelled
 ```
 
-| 状态 | 说明 |
-| --- | --- |
-| `created` | 任务已创建 |
-| `delivered` | 请求已投递给在线 Agent |
-| `accepted` | Agent 已接受 |
-| `running` | Agent 正在执行，lease 生效 |
-| `awaiting_approval` | 等待用户审批 |
-| `completed` | 执行完成 |
-| `failed` | 执行失败 |
-| `expired` | lease 或最大运行时间超时 |
-| `rejected` | 用户拒绝审批 |
-| `cancelled` | 任务被取消 |
+| 状态                  | 说明                       |
+| --------------------- | -------------------------- |
+| `created`           | 任务已创建                 |
+| `delivered`         | 请求已投递给在线 Agent     |
+| `accepted`          | Agent 已接受               |
+| `running`           | Agent 正在执行，lease 生效 |
+| `awaiting_approval` | 等待用户审批               |
+| `completed`         | 执行完成                   |
+| `failed`            | 执行失败                   |
+| `expired`           | lease 或最大运行时间超时   |
+| `rejected`          | 用户拒绝审批               |
+| `cancelled`         | 任务被取消                 |
 
 ### WebSocket Agent Runtime
 
@@ -299,28 +299,28 @@ agentnet approve reject <approval_id>
 
 ## API 参考
 
-| 功能 | 方法 | 路径 |
-| --- | --- | --- |
-| 健康检查 | `GET` | `/healthz` |
-| 注册用户 | `POST` | `/v1/auth/register` |
-| 创建 API key | `POST` | `/v1/auth/api-keys` |
-| 列出 API keys | `GET` | `/v1/auth/api-keys` |
-| 撤销 API key | `POST` | `/v1/auth/api-keys/{id}/revoke` |
-| 创建 Agent | `POST` | `/v1/agents` |
-| 列出 Agents | `GET` | `/v1/agents` |
-| 获取 Agent | `GET` | `/v1/agents/{id}` |
-| 轮换 Agent token | `POST` | `/v1/agents/{id}/rotate-token` |
-| 删除 Agent | `DELETE` | `/v1/agents/{id}` |
-| 创建任务 | `POST` | `/v1/tasks` |
-| 列出任务 | `GET` | `/v1/tasks` |
-| 获取任务 | `GET` | `/v1/tasks/{id}` |
-| 任务消息 | `GET` | `/v1/tasks/{id}/messages` |
-| 任务进度 | `GET` | `/v1/tasks/{id}/progress` |
-| 连接请求 | `POST` | `/v1/connections/request` |
-| 审批列表 | `GET` | `/v1/approvals` |
-| 接受审批 | `POST` | `/v1/approvals/{id}/accept` |
-| 拒绝审批 | `POST` | `/v1/approvals/{id}/reject` |
-| Agent WebSocket | `WS` | `/v1/ws` |
+| 功能             | 方法       | 路径                              |
+| ---------------- | ---------- | --------------------------------- |
+| 健康检查         | `GET`    | `/healthz`                      |
+| 注册用户         | `POST`   | `/v1/auth/register`             |
+| 创建 API key     | `POST`   | `/v1/auth/api-keys`             |
+| 列出 API keys    | `GET`    | `/v1/auth/api-keys`             |
+| 撤销 API key     | `POST`   | `/v1/auth/api-keys/{id}/revoke` |
+| 创建 Agent       | `POST`   | `/v1/agents`                    |
+| 列出 Agents      | `GET`    | `/v1/agents`                    |
+| 获取 Agent       | `GET`    | `/v1/agents/{id}`               |
+| 轮换 Agent token | `POST`   | `/v1/agents/{id}/rotate-token`  |
+| 删除 Agent       | `DELETE` | `/v1/agents/{id}`               |
+| 创建任务         | `POST`   | `/v1/tasks`                     |
+| 列出任务         | `GET`    | `/v1/tasks`                     |
+| 获取任务         | `GET`    | `/v1/tasks/{id}`                |
+| 任务消息         | `GET`    | `/v1/tasks/{id}/messages`       |
+| 任务进度         | `GET`    | `/v1/tasks/{id}/progress`       |
+| 连接请求         | `POST`   | `/v1/connections/request`       |
+| 审批列表         | `GET`    | `/v1/approvals`                 |
+| 接受审批         | `POST`   | `/v1/approvals/{id}/accept`     |
+| 拒绝审批         | `POST`   | `/v1/approvals/{id}/reject`     |
+| Agent WebSocket  | `WS`     | `/v1/ws`                        |
 
 更完整的接口说明见 [docs/openapi.md](docs/openapi.md) 和 [docs/api-examples.md](docs/api-examples.md)。
 
@@ -328,32 +328,32 @@ agentnet approve reject <approval_id>
 
 ### E2E 测试
 
-| 分类 | 通过 | 总数 |
-| --- | ---: | ---: |
-| 失败路径 | 5 | 5 |
-| 安全边界 | 3 | 3 |
-| 稳定性 | 3 | 3 |
-| 边缘用例 | 3 | 3 |
-| 审批链路 | 2 | 2 |
-| 离线去重 | 1 | 1 |
-| 模型失败收敛 | 3 | 3 |
-| 总计 | 20 | 20 |
+| 分类         | 通过 | 总数 |
+| ------------ | ---: | ---: |
+| 失败路径     |    5 |    5 |
+| 安全边界     |    3 |    3 |
+| 稳定性       |    3 |    3 |
+| 边缘用例     |    3 |    3 |
+| 审批链路     |    2 |    2 |
+| 离线去重     |    1 |    1 |
+| 模型失败收敛 |    3 |    3 |
+| 总计         |   20 |   20 |
 
 ### 压力测试
 
-| 测试 | 结果 |
-| --- | --- |
+| 测试                               | 结果                                   |
+| ---------------------------------- | -------------------------------------- |
 | 15 Agent 并发 WebSocket + 连接搅动 | 8,114 heartbeats, 0 drops, P99 = 5.4ms |
-| 30 分钟长稳测试 | 900/900 cycles, 0 drops, avg 2ms |
-| 10 Agent 并发 WebSocket 压测 | 1,500 heartbeats, 0 drops, P99 = 4ms |
-| 纯写压力，1000 tasks | 1000/1000, 0 errors, DB delta 精确匹配 |
+| 30 分钟长稳测试                    | 900/900 cycles, 0 drops, avg 2ms       |
+| 10 Agent 并发 WebSocket 压测       | 1,500 heartbeats, 0 drops, P99 = 4ms   |
+| 纯写压力，1000 tasks               | 1000/1000, 0 errors, DB delta 精确匹配 |
 
 ### 运维演练
 
-| 演练 | 结果 |
-| --- | --- |
-| 备份、停机、恢复、healthz | PG dump 1.4MB，完整性验证通过 |
-| 测试数据清理 | 清理 1,479 agents 和 834 tasks |
+| 演练                      | 结果                           |
+| ------------------------- | ------------------------------ |
+| 备份、停机、恢复、healthz | PG dump 1.4MB，完整性验证通过  |
+| 测试数据清理              | 清理 1,479 agents 和 834 tasks |
 
 完整测试报告见 [tests/real_openclaw/TEST_REPORT.md](tests/real_openclaw/TEST_REPORT.md)。
 
@@ -389,53 +389,53 @@ agentnet approve reject <approval_id>
 
 所有配置通过环境变量或 `.env` 管理。
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `DATABASE_URL` | `postgresql+asyncpg://agentnet:agentnet@localhost:5432/agentnet` | PostgreSQL 连接 |
-| `REDIS_URL` | `redis://localhost:6379/0` | Redis 连接 |
-| `WS_HEARTBEAT_INTERVAL_S` | `15` | 心跳间隔 |
-| `WS_HEARTBEAT_TIMEOUT_S` | `45` | 心跳超时 |
-| `WS_MAX_CONNECTIONS_PER_AGENT` | `3` | 单 Agent 最大连接数 |
-| `RATE_LIMIT_WINDOW_S` | `60` | 限流窗口 |
-| `RATE_LIMIT_IP_MAX` | `100` | 单 IP 限流 |
-| `TASK_MAX_RUNTIME_S` | `600` | 任务最大运行时间 |
-| `TASK_LEASE_DURATION_S` | `60` | Task lease 时长 |
+| 变量                             | 默认值                                                             | 说明                |
+| -------------------------------- | ------------------------------------------------------------------ | ------------------- |
+| `DATABASE_URL`                 | `postgresql+asyncpg://agentnet:agentnet@localhost:5432/agentnet` | PostgreSQL 连接     |
+| `REDIS_URL`                    | `redis://localhost:6379/0`                                       | Redis 连接          |
+| `WS_HEARTBEAT_INTERVAL_S`      | `15`                                                             | 心跳间隔            |
+| `WS_HEARTBEAT_TIMEOUT_S`       | `45`                                                             | 心跳超时            |
+| `WS_MAX_CONNECTIONS_PER_AGENT` | `3`                                                              | 单 Agent 最大连接数 |
+| `RATE_LIMIT_WINDOW_S`          | `60`                                                             | 限流窗口            |
+| `RATE_LIMIT_IP_MAX`            | `100`                                                            | 单 IP 限流          |
+| `TASK_MAX_RUNTIME_S`           | `600`                                                            | 任务最大运行时间    |
+| `TASK_LEASE_DURATION_S`        | `60`                                                             | Task lease 时长     |
 
 完整配置见 [apps/api/app/config.py](apps/api/app/config.py)。
 
 ## 文档索引
 
-| 文档 | 说明 |
-| --- | --- |
-| [docs/quickstart.md](docs/quickstart.md) | 用户快速开始 |
-| [docs/architecture.md](docs/architecture.md) | 架构设计说明 |
-| [docs/protocol.md](docs/protocol.md) | ARP 协议规范 |
-| [docs/security-model.md](docs/security-model.md) | 安全模型 |
-| [docs/sdk-python.md](docs/sdk-python.md) | Python SDK 使用 |
-| [docs/cli.md](docs/cli.md) | CLI 使用 |
-| [docs/openclaw-adapter.md](docs/openclaw-adapter.md) | OpenClaw Adapter |
-| [docs/production-deploy.md](docs/production-deploy.md) | 生产部署指南 |
-| [docs/production-checklist.md](docs/production-checklist.md) | 生产上线检查表 |
-| [docs/backup-restore.md](docs/backup-restore.md) | 数据库备份恢复 |
-| [docs/secrets-rotation.md](docs/secrets-rotation.md) | 密钥轮换流程 |
-| [docs/observability.md](docs/observability.md) | 观测性和告警 |
-| [docs/openapi.md](docs/openapi.md) | OpenAPI 导出 |
-| [docs/api-examples.md](docs/api-examples.md) | API 调用示例 |
-| [DEVELOPER_README.md](DEVELOPER_README.md) | 开发者维护手册 |
+| 文档                                                      | 说明             |
+| --------------------------------------------------------- | ---------------- |
+| [docs/quickstart.md](docs/quickstart.md)                     | 用户快速开始     |
+| [docs/architecture.md](docs/architecture.md)                 | 架构设计说明     |
+| [docs/protocol.md](docs/protocol.md)                         | ARP 协议规范     |
+| [docs/security-model.md](docs/security-model.md)             | 安全模型         |
+| [docs/sdk-python.md](docs/sdk-python.md)                     | Python SDK 使用  |
+| [docs/cli.md](docs/cli.md)                                   | CLI 使用         |
+| [docs/openclaw-adapter.md](docs/openclaw-adapter.md)         | OpenClaw Adapter |
+| [docs/production-deploy.md](docs/production-deploy.md)       | 生产部署指南     |
+| [docs/production-checklist.md](docs/production-checklist.md) | 生产上线检查表   |
+| [docs/backup-restore.md](docs/backup-restore.md)             | 数据库备份恢复   |
+| [docs/secrets-rotation.md](docs/secrets-rotation.md)         | 密钥轮换流程     |
+| [docs/observability.md](docs/observability.md)               | 观测性和告警     |
+| [docs/openapi.md](docs/openapi.md)                           | OpenAPI 导出     |
+| [docs/api-examples.md](docs/api-examples.md)                 | API 调用示例     |
+| [DEVELOPER_README.md](DEVELOPER_README.md)                   | 开发者维护手册   |
 
 ## 路线图
 
 已完成：
 
-- [x] Phase 0: 协议骨架、FastAPI shell、DB/Redis 客户端
-- [x] Phase 1: Agent Registry、Users、API keys、Agent tokens
-- [x] Phase 2: WebSocket Presence、Heartbeat、Session Resume
-- [x] Phase 3: Task lifecycle、Message routing
-- [x] Phase 4: Message retry、Delivery tracking
-- [x] Phase 5: Connection policy
-- [x] Phase 6: Task approval
-- [x] Phase 10: Hardening，包括 rate limiting、task timeouts、audit logs
-- [x] Phase 11: CI/CD、生产配置模板、OpenAPI、E2E、备份恢复、观测性
+- [X] Phase 0: 协议骨架、FastAPI shell、DB/Redis 客户端
+- [X] Phase 1: Agent Registry、Users、API keys、Agent tokens
+- [X] Phase 2: WebSocket Presence、Heartbeat、Session Resume
+- [X] Phase 3: Task lifecycle、Message routing
+- [X] Phase 4: Message retry、Delivery tracking
+- [X] Phase 5: Connection policy
+- [X] Phase 6: Task approval
+- [X] Phase 10: Hardening，包括 rate limiting、task timeouts、audit logs
+- [X] Phase 11: CI/CD、生产配置模板、OpenAPI、E2E、备份恢复、观测性
 
 计划中：
 

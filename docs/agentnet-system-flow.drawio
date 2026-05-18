@@ -1,0 +1,211 @@
+<mxfile host="app.diagrams.net" modified="2026-05-18T00:00:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="agentnet-system-flow" name="AgentNet System Flow">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1200" math="0" shadow="0" adaptiveColors="auto">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="lane_user" value="用户 / CLI / SDK" style="swimlane;horizontal=0;startSize=110;fillColor=#f5f5f5;html=1;" vertex="1" parent="1">
+          <mxGeometry x="0" y="0" width="2100" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="u1" value="用户或系统&#xa;发起任务" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="lane_user">
+          <mxGeometry x="120" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="u2" value="CLI / Python SDK&#xa;携带 API key" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="lane_user">
+          <mxGeometry x="300" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="u3" value="查看任务 / 审批&#xa;结果与日志" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="lane_user">
+          <mxGeometry x="1740" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_api" value="FastAPI Relay API" style="swimlane;horizontal=0;startSize=110;fillColor=#e8f4f8;html=1;" vertex="1" parent="1">
+          <mxGeometry x="0" y="150" width="2100" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" value="REST Endpoint&#xa;POST /v1/tasks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="lane_api">
+          <mxGeometry x="300" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" value="Rate limit&#xa;fail-closed" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_api">
+          <mxGeometry x="480" y="35" width="140" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" value="API key 验证&#xa;hash 匹配" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="lane_api">
+          <mxGeometry x="660" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" value="统一错误格式&#xa;DomainException" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane_api">
+          <mxGeometry x="480" y="160" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_policy" value="身份 / 策略 / 审批" style="swimlane;horizontal=0;startSize=110;fillColor=#fff0e6;html=1;" vertex="1" parent="1">
+          <mxGeometry x="0" y="300" width="2100" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1" value="解析 sender / target&#xa;Agent Number" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="lane_policy">
+          <mxGeometry x="660" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2" value="Connection policy&#xa;public / contacts / approval" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_policy">
+          <mxGeometry x="840" y="35" width="140" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="p3" value="创建 approval&#xa;等待用户决策" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_policy">
+          <mxGeometry x="1020" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="p4" value="accept / reject&#xa;超时处理" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_policy">
+          <mxGeometry x="1200" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_task" value="任务 / 消息 / 路由" style="swimlane;horizontal=0;startSize=110;fillColor=#e8f5e9;html=1;" vertex="1" parent="1">
+          <mxGeometry x="0" y="450" width="2100" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="t1" value="幂等检查&#xa;sender + target + key" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="lane_task">
+          <mxGeometry x="840" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="t2" value="创建 Task / Message&#xa;写 AuditLog" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="lane_task">
+          <mxGeometry x="1020" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="t3" value="目标 Agent&#xa;是否在线？" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_task">
+          <mxGeometry x="1200" y="35" width="140" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="t4" value="在线投递&#xa;WebSocket task.request" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="lane_task">
+          <mxGeometry x="1380" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="t5" value="离线入队&#xa;Redis pending queue" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="lane_task">
+          <mxGeometry x="1380" y="160" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_agent" value="远程 Agent / Adapter" style="swimlane;horizontal=0;startSize=110;fillColor=#fff9e6;html=1;" vertex="1" parent="1">
+          <mxGeometry x="0" y="600" width="2100" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="g1" value="Agent WebSocket&#xa;agt_sk token 验证" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_agent">
+          <mxGeometry x="120" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="g2" value="session.resume&#xa;补发未 ack 消息" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_agent">
+          <mxGeometry x="1380" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="g3" value="SDK handler&#xa;自动 ack / heartbeat" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_agent">
+          <mxGeometry x="1560" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="g4" value="OpenClaw Adapter&#xa;安全检查" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_agent">
+          <mxGeometry x="1740" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="g5" value="真实 CLI 执行&#xa;无生产 fallback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="lane_agent">
+          <mxGeometry x="1920" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_result" value="结果 / 审计 / 运维闭环" style="swimlane;horizontal=0;startSize=110;fillColor=#fce4ec;html=1;" vertex="1" parent="1">
+          <mxGeometry x="0" y="750" width="2100" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="r1" value="progress / result / failed&#xa;回传 API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane_result">
+          <mxGeometry x="1560" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="r2" value="更新 task 状态&#xa;记录 result/error" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane_result">
+          <mxGeometry x="1380" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="r3" value="ack 消息&#xa;清理 pending" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane_result">
+          <mxGeometry x="1200" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="r4" value="用户查询结果&#xa;CLI / API / SDK" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="lane_result">
+          <mxGeometry x="1740" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_data" value="Postgres / Redis / Observability" style="swimlane;horizontal=0;startSize=110;fillColor=#e1d5e7;html=1;" vertex="1" parent="1">
+          <mxGeometry x="0" y="900" width="2100" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="d1" value="PostgreSQL&#xa;users / agents / tasks / audit" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane_data">
+          <mxGeometry x="1020" y="40" width="100" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="d2" value="Redis&#xa;presence / pending / rate limit" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane_data">
+          <mxGeometry x="1200" y="40" width="100" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="d3" value="Prometheus / Grafana&#xa;metrics + alerts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane_data">
+          <mxGeometry x="1380" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="d4" value="备份 / 恢复演练&#xa;pg_dump + pg_restore" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane_data">
+          <mxGeometry x="1560" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="d5" value="Secret 轮换&#xa;API key / token / DB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="lane_data">
+          <mxGeometry x="1740" y="45" width="140" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="u1" target="u2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="HTTP" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="u2" target="a1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="a1" target="a2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" value="通过" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="a2" target="a3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" value="失败 503" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#b85450;" edge="1" parent="1" source="a2" target="a4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="a3" target="p1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="p1" target="p2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" value="需要审批" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="p2" target="p3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="p3" target="p4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e10" value="允许" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="p2" target="t1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" value="accept" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="p4" target="t1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="t1" target="t2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e13" value="写入" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;" edge="1" parent="1" source="t2" target="d1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="t2" target="t3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e15" value="online" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="t3" target="t4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e16" value="offline" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="t3" target="t5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e17" value="存储" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;" edge="1" parent="1" source="t5" target="d2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e18" value="重连恢复" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="t5" target="g2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e19" value="WebSocket" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="t4" target="g2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e20" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="g2" target="g3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e21" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="g3" target="g4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e22" value="安全通过" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="g4" target="g5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e23" value="执行回传" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="g5" target="r1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e24" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="r1" target="r2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e25" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="r2" target="r3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e26" value="查询" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="r2" target="r4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e27" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;" edge="1" parent="1" source="r4" target="u3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e28" value="连接注册" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;" edge="1" parent="1" source="g1" target="d2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e29" value="指标" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;" edge="1" parent="1" source="r2" target="d3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e30" value="恢复保障" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;" edge="1" parent="1" source="d1" target="d4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

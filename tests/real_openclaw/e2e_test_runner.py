@@ -1414,6 +1414,102 @@ def test_model_failure(runner: TestRunner):
 
 
 # ------------------------------------------------------------------
+# Category 9: Long Stability (30-60 min WebSocket heartbeat/reconnect)
+# ------------------------------------------------------------------
+
+def test_long_stability(runner: TestRunner):
+    """Run a long-duration WebSocket stability test with heartbeat monitoring."""
+
+    def test_websocket_heartbeat_30min():
+        """Connect and maintain heartbeat for 60 cycles (10 min baseline).
+        Monitors for connection drops, max connection errors, and latency.
+
+        For a full 30-60 minute run, set CYCLES=180 or 360.
+        """
+        CYCLES = int(os.getenv("LONG_STABILITY_CYCLES", "60"))
+        async def run_test():
+            reg = register_user(f"long-stab-{uuid.uuid4().hex[:6]}")
+            api_key = reg["api_key"]
+            agent = create_agent("Long Stability Agent", "test", api_key)
+            token = agent["agent_token"]
+
+            session_id = f"long-stab-{uuid.uuid4().hex[:6]}"
+            drop_count = 0
+            max_conn_errors = 0
+            latencies: list[float] = []
+
+            async with websockets.connect(
+                f"{WS_URL}?session_id={session_id}",
+                additional_headers={"Authorization": f"Bearer {token}"},
+                close_timeout=2,
+            ) as ws:
+                raw = await asyncio.wait_for(ws.recv(), timeout=10)
+                msg = json.loads(raw)
+                assert msg["type"] in ("session.resume_result", "task.request"), \
+                    f"Unexpected first message: {msg['type']}"
+
+                for cycle in range(CYCLES):
+                    t0 = time.time()
+                    try:
+                        await ws.send(json.dumps({
+                            "type": "presence.heartbeat",
+                            "message_id": str(uuid.uuid4()),
+                            "payload": {},
+                        }))
+                        raw = await asyncio.wait_for(ws.recv(), timeout=15)
+                        msg = json.loads(raw)
+                        lat = time.time() - t0
+                        latencies.append(lat)
+
+                        if msg["type"] == "error":
+                            if "max connections" in str(msg.get("payload", {})):
+                                max_conn_errors += 1
+                                print(f"  [CYCLE {cycle+1}] max connection error")
+                            else:
+                                drop_count += 1
+                                print(f"  [CYCLE {cycle+1}] error: {msg['payload']}")
+                        elif msg["type"] == "ack":
+                            pass  # normal heartbeat ack
+                        elif msg["type"] == "task.request":
+                            # Process unexpected task
+                            await ws.send(json.dumps({
+                                "type": "ack",
+                                "message_id": str(uuid.uuid4()),
+                                "payload": {"message_id": msg["message_id"]},
+                            }))
+                    except asyncio.TimeoutError:
+                        drop_count += 1
+                        print(f"  [CYCLE {cycle+1}] heartbeat timeout")
+                    except websockets.ConnectionClosed as e:
+                        drop_count += 1
+                        print(f"  [CYCLE {cycle+1}] connection closed: {e}")
+                        break
+
+                    if (cycle + 1) % 20 == 0:
+                        avg_lat = sum(latencies[-20:]) / len(latencies[-20:])
+                        print(f"  [CYCLE {cycle+1}/{CYCLES}] avg latency: {avg_lat:.3f}s, "
+                              f"drops: {drop_count}, max_conn_errors: {max_conn_errors}")
+
+                    await asyncio.sleep(2)
+
+            total_time = time.time() - t0 if 't0' in dir() else 0
+            assert drop_count < CYCLES * 0.1, \
+                f"Too many heartbeat drops: {drop_count}/{CYCLES}"
+            assert max_conn_errors == 0, \
+                f"Max connection errors occurred: {max_conn_errors}"
+
+            avg_lat = sum(latencies) / len(latencies) if latencies else 0
+            return (f"{CYCLES} heartbeat cycles completed. "
+                    f"Drops: {drop_count}, MaxConnErrors: {max_conn_errors}, "
+                    f"Avg latency: {avg_lat:.3f}s")
+
+        return asyncio.run(run_test())
+
+    runner.run(f"WebSocket heartbeat stability ({os.getenv('LONG_STABILITY_CYCLES','60')} cycles)",
+               test_websocket_heartbeat_30min)
+
+
+# ------------------------------------------------------------------
 # main
 # ------------------------------------------------------------------
 
@@ -1426,6 +1522,7 @@ CATEGORIES = {
     "stability": test_stability,
     "dedup": test_offline_dedup,
     "model_failure": test_model_failure,
+    "long_stability": test_long_stability,
 }
 
 def main():

@@ -57,3 +57,7 @@ credentials/
 *.pem
 *.key
 !infra/.env.production.example
+
+# AI assistant config (personal, not project)
+*.agent.md
+.ai/

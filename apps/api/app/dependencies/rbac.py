@@ -8,7 +8,7 @@ from app.exceptions import DomainException
 from app.models.dashboard_session import DashboardSession
 from app.models.user import User
 from app.protocol.constants import ErrorCode
-from app.services.rbac_service import has_permission, has_step_up
+from app.services.rbac_service import PERM_DISABLE_USER, has_permission, has_step_up
 
 
 def _forbidden():
@@ -78,7 +78,7 @@ def require_high_risk():
             ...
     """
     def _check(ds: CurrentSession) -> None:
-        if ds.user.role != "super_admin":
+        if not has_permission(ds.user, PERM_DISABLE_USER):
             _forbidden()
         if not has_step_up(ds):
             _step_up_required()

@@ -1,5 +1,6 @@
 """Dashboard authentication endpoints: login, logout, step-up, me."""
 import hashlib
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
@@ -100,6 +101,13 @@ async def login(
             status_code=401,
         )
 
+    if found_key.expires_at and found_key.expires_at < datetime.now(UTC):
+        raise DomainException(
+            ErrorCode.INVALID_CREDENTIALS,
+            "Invalid credentials",
+            status_code=401,
+        )
+
     if user.is_disabled:
         raise DomainException(
             ErrorCode.USER_DISABLED,
@@ -108,7 +116,6 @@ async def login(
         )
 
     ds, token, csrf_token = await create_session(session, user)
-    await session.commit()
 
     await write_audit(
         session,
@@ -118,6 +125,7 @@ async def login(
         resource_type="session",
         resource_id=str(ds.id),
     )
+    await session.commit()
 
     _set_cookies(response, token, csrf_token)
     response.status_code = 200

@@ -2,7 +2,6 @@
 import hashlib
 
 from fastapi import APIRouter, Depends, Response
-from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -121,7 +120,8 @@ async def login(
     )
 
     _set_cookies(response, token, csrf_token)
-    return JSONResponse(content={"message": "authenticated"})
+    response.status_code = 200
+    return {"message": "authenticated"}
 
 
 @router.post("/logout")
@@ -143,7 +143,8 @@ async def logout(
     await session.commit()
 
     _clear_cookies(response)
-    return JSONResponse(content={"message": "logged out"})
+    response.status_code = 200
+    return {"message": "logged out"}
 
 
 @router.post("/step-up")
@@ -191,7 +192,8 @@ async def step_up(
     await session.commit()
 
     _set_cookies(response, token, csrf_token)
-    return JSONResponse(content={"message": "step-up verified"})
+    response.status_code = 200
+    return {"message": "step-up verified"}
 
 
 @router.get("/me")

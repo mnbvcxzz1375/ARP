@@ -11,15 +11,24 @@ from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import Depends
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import SessionLocal
+from app.database import get_session, SessionLocal
+from app.main import create_app
 
 
 @pytest.fixture
 async def session() -> AsyncIterator[AsyncSession]:
-    """Provide an async SQLAlchemy session that rolls back after each test."""
+    """Provide an async SQLAlchemy session where commits are rolled back.
+
+    The session's commit() is patched to only flush(), so an outer
+    rollback() at the end of the test undoes all changes.
+    """
     async with SessionLocal() as s:
+        original_commit = s.commit
+        s.commit = s.flush  # commit() → flush() so rollback() can undo
         try:
             yield s
         finally:
@@ -46,6 +55,29 @@ def _mock_redis():
     with patch("app.services.rate_limit_service.redis_client", mock), \
          patch("app.redis.redis_client", mock):
         yield mock
+
+
+@pytest.fixture
+async def app(session: AsyncSession):
+    """FastAPI app instance with test DB session override."""
+    _app = create_app()
+
+    async def _test_session():
+        yield session
+
+    _app.dependency_overrides[get_session] = _test_session
+    try:
+        yield _app
+    finally:
+        _app.dependency_overrides.pop(get_session, None)
+
+
+@pytest.fixture
+async def client(app):
+    """Async test client for FastAPI app."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
 
 
 @pytest.fixture

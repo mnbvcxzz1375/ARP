@@ -92,8 +92,8 @@ async def get_admin_overview_kpis(session: AsyncSession) -> dict:
         "expired_tasks": expired_tasks,
         "pending_approvals": pending_approvals,
         "pending_messages": pending_messages,
-        "retry_worker_health": "ok",
-        "timeout_worker_health": "ok",
+        "retry_worker_health": "not_configured",
+        "timeout_worker_health": "not_configured",
         "api_5xx_rate": 0.0,
     }
 
@@ -191,9 +191,9 @@ async def get_system_health(session: AsyncSession) -> dict:
     except Exception:
         current_rev = "unknown"
 
-    # Worker health (MVP: report ok if API is up)
-    retry_health = "ok"
-    timeout_health = "ok"
+    # Worker health (not actually monitored — returns not_configured)
+    retry_health = "not_configured"
+    timeout_health = "not_configured"
 
     # Pending queue length
     pending_queue = (await session.execute(

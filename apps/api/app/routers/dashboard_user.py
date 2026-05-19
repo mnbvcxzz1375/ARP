@@ -372,3 +372,251 @@ async def get_task_progress(
         "limit": limit,
     }
 
+
+# ──────────────────────────────────────────────────────────────────
+# Approvals
+# ──────────────────────────────────────────────────────────────────
+
+@router.get("/approvals")
+async def list_approvals(
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    status_filter: str | None = None,
+    _: None = Depends(require_permission(PERM_HANDLE_OWN_APPROVAL)),
+):
+    agent_ids = [a.id for a in ds.user.agents]
+
+    stmt = select(Approval).where(Approval.agent_id.in_(agent_ids))
+    if status_filter:
+        stmt = stmt.where(Approval.status == status_filter)
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await session.execute(count_stmt)).scalar_one()
+
+    stmt = stmt.order_by(Approval.created_at.desc()).offset(offset).limit(limit)
+    result = await session.execute(stmt)
+    approvals = list(result.scalars().all())
+
+    items = []
+    for a in approvals:
+        items.append({
+            "approval_id": str(a.id),
+            "type": "task_action",
+            "status": a.status,
+            "risk_level": a.risk_level,
+            "action_kind": a.action_kind,
+            "action_preview": a.action_preview,
+            "created_at": a.created_at,
+        })
+
+    return {"approvals": items, "total": total, "offset": offset, "limit": limit}
+
+
+@router.post("/approvals/{approval_id}/accept")
+async def accept_approval(
+    approval_id: str,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_HANDLE_OWN_APPROVAL)),
+):
+    from app.services.approval_service import accept_approval as _accept_approval
+
+    agent_ids = [a.id for a in ds.user.agents]
+    result = await session.execute(
+        select(Approval).where(Approval.id == uuid.UUID(approval_id), Approval.agent_id.in_(agent_ids))
+    )
+    approval = result.scalar_one_or_none()
+    if approval is None:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Approval not found")
+
+    await _accept_approval(session, approval)
+    await session.commit()
+    return {"approval_id": str(approval.id), "status": "accepted"}
+
+
+@router.post("/approvals/{approval_id}/reject")
+async def reject_approval(
+    approval_id: str,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_HANDLE_OWN_APPROVAL)),
+):
+    from app.services.approval_service import reject_approval as _reject_approval
+
+    agent_ids = [a.id for a in ds.user.agents]
+    result = await session.execute(
+        select(Approval).where(Approval.id == uuid.UUID(approval_id), Approval.agent_id.in_(agent_ids))
+    )
+    approval = result.scalar_one_or_none()
+    if approval is None:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Approval not found")
+
+    await _reject_approval(session, approval)
+    await session.commit()
+    return {"approval_id": str(approval.id), "status": "rejected"}
+
+
+# ──────────────────────────────────────────────────────────────────
+# Connections / Firewall
+# ──────────────────────────────────────────────────────────────────
+
+@router.get("/connections")
+async def get_connections(
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_MANAGE_OWN_CONNECTIONS)),
+):
+    agents_info = []
+    for agent in ds.user.agents:
+        pending = await session.execute(
+            select(func.count(Connection.id)).where(Connection.agent_id == agent.id, Connection.status == "pending")
+        )
+        accepted = await session.execute(
+            select(func.count(Connection.id)).where(Connection.agent_id == agent.id, Connection.status == "accepted")
+        )
+        rejected = await session.execute(
+            select(func.count(Connection.id)).where(Connection.agent_id == agent.id, Connection.status == "rejected")
+        )
+        agents_info.append({
+            "agent_id": str(agent.id),
+            "agent_number": agent.agent_number,
+            "inbound_policy": agent.inbound_policy,
+            "pending_requests": pending.scalar_one(),
+            "accepted_connections": accepted.scalar_one(),
+            "rejected_connections": rejected.scalar_one(),
+        })
+
+    agent_ids = [a.id for a in ds.user.agents]
+    pending_result = await session.execute(
+        select(Connection).where(Connection.agent_id.in_(agent_ids), Connection.status == "pending").order_by(Connection.created_at.desc())
+    )
+    pending_requests = []
+    for c in pending_result.scalars():
+        pending_requests.append({
+            "connection_id": str(c.id),
+            "agent_number": c.agent_number,
+            "requester_agent": str(c.requester_agent_id),
+            "requested_policy": c.requested_policy or "unknown",
+            "created_at": c.created_at,
+        })
+
+    return {"agents": agents_info, "pending_requests": pending_requests}
+
+
+@router.post("/connections/{connection_id}/accept")
+async def accept_connection(
+    connection_id: str,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_MANAGE_OWN_CONNECTIONS)),
+):
+    from app.services.connection_service import accept_connection as _accept_connection
+
+    result = await session.execute(
+        select(Connection).where(Connection.id == uuid.UUID(connection_id), Connection.agent_id.in_([a.id for a in ds.user.agents]))
+    )
+    conn = result.scalar_one_or_none()
+    if conn is None:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Connection not found")
+
+    await _accept_connection(session, conn)
+    await session.commit()
+    return {"connection_id": str(conn.id), "status": "accepted"}
+
+
+@router.post("/connections/{connection_id}/reject")
+async def reject_connection(
+    connection_id: str,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_MANAGE_OWN_CONNECTIONS)),
+):
+    from app.services.connection_service import reject_connection as _reject_connection
+
+    result = await session.execute(
+        select(Connection).where(Connection.id == uuid.UUID(connection_id), Connection.agent_id.in_([a.id for a in ds.user.agents]))
+    )
+    conn = result.scalar_one_or_none()
+    if conn is None:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Connection not found")
+
+    await _reject_connection(session, conn)
+    await session.commit()
+    return {"connection_id": str(conn.id), "status": "rejected"}
+
+
+@router.patch("/agents/{agent_id}/firewall")
+async def update_firewall(
+    agent_id: str,
+    body: dict,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_MANAGE_OWN_FIREWALL)),
+):
+    try:
+        agent = await _get_agent_by_id_service(session, uuid.UUID(agent_id), ds.user)
+    except Exception:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Agent not found")
+
+    if body.get("inbound_policy") is not None:
+        agent.inbound_policy = body["inbound_policy"]
+
+    await session.commit()
+    return {"agent_id": str(agent.id), "inbound_policy": agent.inbound_policy}
+
+
+# ──────────────────────────────────────────────────────────────────
+# API Keys
+# ──────────────────────────────────────────────────────────────────
+
+@router.get("/api-keys")
+async def list_api_keys(
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_MANAGE_OWN_KEYS)),
+):
+    from app.services.api_key_service import list_api_keys as _list_api_keys
+
+    keys = await _list_api_keys(session, ds.user)
+    return {
+        "api_keys": [
+            {"api_key_id": str(k.id), "key_prefix": k.key_prefix, "name": k.name,
+             "created_at": k.created_at, "expires_at": k.expires_at, "revoked_at": k.revoked_at}
+            for k in keys
+        ],
+        "total": len(keys),
+    }
+
+
+@router.post("/api-keys", status_code=201)
+async def create_api_key(
+    body: dict,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_MANAGE_OWN_KEYS)),
+):
+    from app.services.api_key_service import create_api_key as _create_api_key
+
+    name = body.get("name", "dashboard-key")
+    expires_at = body.get("expires_at")
+    key, raw = await _create_api_key(session, ds.user, name=name, expires_at=expires_at)
+    await session.commit()
+    return {"api_key_id": str(key.id), "key_prefix": key.key_prefix, "name": key.name, "expires_at": key.expires_at, "api_key": raw}
+
+
+@router.post("/api-keys/{api_key_id}/revoke")
+async def revoke_api_key(
+    api_key_id: str,
+    body: dict,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_MANAGE_OWN_KEYS)),
+):
+    from app.services.api_key_service import revoke_api_key as _revoke_api_key
+
+    allow_last_key = body.get("allow_last_key", False)
+    key = await _revoke_api_key(session, ds.user, uuid.UUID(api_key_id), allow_last_key=allow_last_key)
+    await session.commit()
+    return {"api_key_id": str(key.id), "key_prefix": key.key_prefix, "name": key.name, "revoked_at": key.revoked_at}

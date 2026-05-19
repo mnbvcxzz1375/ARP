@@ -7,9 +7,23 @@ os.environ["RATE_LIMIT_AGENT_MAX"] = "999999"
 os.environ["RATE_LIMIT_GLOBAL_MAX"] = "999999"
 
 import asyncio
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import SessionLocal
+
+
+@pytest.fixture
+async def session() -> AsyncIterator[AsyncSession]:
+    """Provide an async SQLAlchemy session that rolls back after each test."""
+    async with SessionLocal() as s:
+        try:
+            yield s
+        finally:
+            await s.rollback()
 
 
 @pytest.fixture(autouse=True)

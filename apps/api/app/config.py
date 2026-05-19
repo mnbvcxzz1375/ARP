@@ -57,6 +57,33 @@ class Settings(BaseSettings):
         description="Interval in seconds between timeout worker cycles"
     )
 
+    # Phase Web 2: Dashboard session management
+    session_cookie_name: str = Field(
+        default="agentnet_session", alias="SESSION_COOKIE_NAME",
+    )
+    csrf_cookie_name: str = Field(
+        default="agentnet_csrf", alias="CSRF_COOKIE_NAME",
+    )
+    session_secure_cookie: bool = Field(
+        default=False, alias="SESSION_SECURE_COOKIE",
+        description="Set Secure flag on session cookies (true in production)",
+    )
+    session_user_lifetime_days: int = Field(
+        default=30, alias="SESSION_USER_LIFETIME_DAYS",
+    )
+    session_admin_lifetime_days: int = Field(
+        default=7, alias="SESSION_ADMIN_LIFETIME_DAYS",
+    )
+    session_user_idle_hours: int = Field(
+        default=24, alias="SESSION_USER_IDLE_HOURS",
+    )
+    session_admin_idle_hours: int = Field(
+        default=2, alias="SESSION_ADMIN_IDLE_HOURS",
+    )
+    session_step_up_duration_minutes: int = Field(
+        default=10, alias="SESSION_STEP_UP_DURATION_MINUTES",
+    )
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

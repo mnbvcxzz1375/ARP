@@ -20,6 +20,7 @@ from app.routers.tasks import router as tasks_router
 from app.routers.connections import router as connections_router
 from app.routers.approvals import router as approvals_router
 from app.routers.dashboard_auth import router as dashboard_auth_router
+from app.routers.dashboard_user import router as dashboard_user_router
 from app.websocket.manager import get_connection_manager
 
 
@@ -147,6 +148,7 @@ def create_app() -> FastAPI:
     app.include_router(connections_router)
     app.include_router(approvals_router)
     app.include_router(dashboard_auth_router)
+    app.include_router(dashboard_user_router)
     _install_openapi_schema(app)
 
     return app

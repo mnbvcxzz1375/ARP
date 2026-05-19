@@ -10,8 +10,15 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:5173',
     trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
+  webServer: process.env.CI ? {
+    command: 'npm run build && npx vite preview --port 4173',
+    port: 4173,
+    cwd: 'apps/web',
+    reuseExistingServer: true,
+  } : undefined,
 });

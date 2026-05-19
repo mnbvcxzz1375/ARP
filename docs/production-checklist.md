@@ -64,3 +64,21 @@ curl http://localhost/healthz
 - [ ] Grafana is not exposed publicly without TLS and authentication.
 - [ ] `/metrics` is not public.
 
+## Dashboard Security
+
+- [ ] Dashboard session cookie is HttpOnly, SameSite=Lax, Secure=true
+- [ ] Dashboard CSRF protection is enabled
+- [ ] Dashboard admin pages require admin or super_admin role
+- [ ] Dashboard admin actions that are high-risk require step-up
+- [ ] Dashboard System Health page does not expose DATABASE_URL, REDIS_URL, tokens, or passwords
+- [ ] Dashboard user cannot access admin endpoints (403)
+- [ ] SecretMaskedText component masks secrets in UI
+- [ ] API key only returned once (on creation)
+- [ ] Agent token only returned once (on creation/rotation)
+
+## Dashboard Performance
+
+- [ ] Overview pages use polling with appropriate intervals (user 15s, admin 30s, system health 10s)
+- [ ] All lists are paginated (default 50, max 200)
+- [ ] TanStack Query retry is configured (default 1 retry)
+

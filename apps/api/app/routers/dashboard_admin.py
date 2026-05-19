@@ -24,7 +24,7 @@ from app.schemas.dashboard_admin import (
     SystemHealthResponse,
 )
 from app.services.admin_service import (
-    get_admin_overview_kpis,
+    get_admin_overview_kpis_cached,
     get_user_stats,
     get_agent_stats,
     get_system_health,
@@ -53,7 +53,7 @@ async def admin_overview(
     _: None = Depends(require_permission(PERM_READ_GLOBAL_OVERVIEW)),
 ):
     """Platform-wide KPIs: users, agents, tasks, worker health."""
-    kpis = await get_admin_overview_kpis(session)
+    kpis = await get_admin_overview_kpis_cached(session)
     return AdminOverviewResponse(**kpis)
 
 

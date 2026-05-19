@@ -46,6 +46,18 @@ async def get_agent_online_status(session: AsyncSession, agent_ids: list[str]) -
     return result
 
 
+async def get_overview_kpis_cached(session: AsyncSession, user_id: str) -> dict:
+    """Get overview KPIs with Redis snapshot cache (TTL 15s)."""
+    cache_key = f"dashboard:overview:{user_id}"
+    cached = await redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
+
+    result = await get_overview_kpis(session, user_id)
+    await redis_client.setex(cache_key, 15, json.dumps(result, default=str))
+    return result
+
+
 async def get_overview_kpis(
     session: AsyncSession,
     user_id: str,

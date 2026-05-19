@@ -21,7 +21,7 @@ from app.schemas.dashboard import (
     AgentListItem, AgentListResponse, CreateAgentRequest,
     UpdateAgentRequest, AgentDetailResponse,
 )
-from app.services.dashboard_service import get_overview_kpis, get_agent_online_status
+from app.services.dashboard_service import get_overview_kpis_cached, get_agent_online_status
 from app.services.agent_service import (
     create_agent as _create_agent_service,
     list_agents as _list_agents_service,
@@ -51,7 +51,7 @@ async def overview(
     session: AsyncSession = Depends(get_session),
     _: None = Depends(require_permission(PERM_READ_OWN_AGENTS)),
 ):
-    return await get_overview_kpis(session, str(ds.user_id))
+    return await get_overview_kpis_cached(session, str(ds.user_id))
 
 
 # ──────────────────────────────────────────────────────────────────

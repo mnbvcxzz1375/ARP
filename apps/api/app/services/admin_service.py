@@ -1,4 +1,5 @@
 """Admin dashboard aggregation: global KPIs, user/agent/task stats."""
+import json
 
 from datetime import UTC, datetime, timedelta
 
@@ -13,6 +14,18 @@ from app.models.message import Message
 from app.models.api_key import ApiKey
 from app.models.dashboard_session import DashboardSession
 from app.redis import redis_client
+
+
+async def get_admin_overview_kpis_cached(session: AsyncSession) -> dict:
+    """Get admin overview KPIs with Redis snapshot cache (TTL 30s)."""
+    cache_key = "dashboard:admin:overview"
+    cached = await redis_client.get(cache_key)
+    if cached:
+        return json.loads(cached)
+
+    result = await get_admin_overview_kpis(session)
+    await redis_client.setex(cache_key, 30, json.dumps(result, default=str))
+    return result
 
 
 async def get_admin_overview_kpis(session: AsyncSession) -> dict:

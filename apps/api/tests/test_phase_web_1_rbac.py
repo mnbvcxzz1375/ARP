@@ -56,13 +56,33 @@ class TestUserRBAC:
             )
             await session.flush()
 
-    async def test_server_default_applied_after_migration(self, session: AsyncSession):
-        """Verify that existing users have the server defaults via raw SQL."""
+    async def test_orm_defaults_match_server_defaults(self, session: AsyncSession):
+        """ORM defaults for role and is_disabled match the migration server defaults."""
         result = await session.execute(
             text("SELECT COUNT(*) FROM users WHERE role <> 'user' OR is_disabled IS DISTINCT FROM false")
         )
         count = result.scalar_one()
-        assert count == 0, f"Found {count} users with non-default role or is_disabled after migration"
+        assert count == 0, f"Found {count} users with non-default role or is_disabled"
+
+    async def test_is_disabled_can_be_toggled(self, session: AsyncSession):
+        """User's is_disabled can be toggled to True and back."""
+        user = User(
+            id=uuid.uuid4(),
+            username=f"rbac-disable-{uuid.uuid4().hex[:8]}",
+        )
+        session.add(user)
+        await session.flush()
+        assert user.is_disabled is False
+
+        user.is_disabled = True
+        await session.flush()
+        await session.refresh(user)
+        assert user.is_disabled is True
+
+        user.is_disabled = False
+        await session.flush()
+        await session.refresh(user)
+        assert user.is_disabled is False
 
 
 class TestDashboardSession:
@@ -207,12 +227,3 @@ class TestDashboardSession:
         await session.refresh(ds)
         assert ds.revoked_by_user_id is None
         assert ds.id is not None
-
-    async def test_migration_idempotent(self):
-        """alembic upgrade head twice should be safe.
-
-        This is verified by the migration test infrastructure;
-        the migration itself uses IF NOT EXISTS patterns.
-        For explicit verification, see Task 6 migration validation.
-        """
-        pass

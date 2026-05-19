@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.dependencies.auth import CurrentSession
+from app.dependencies.csrf import require_csrf
 from app.dependencies.rbac import require_permission
 from app.models.agent import Agent
 from app.models.agent_token import AgentToken
@@ -38,7 +39,11 @@ from app.services.rbac_service import (
     PERM_MANAGE_OWN_KEYS,
 )
 
-router = APIRouter(prefix="/v1/dashboard", tags=["dashboard-user"])
+router = APIRouter(
+    prefix="/v1/dashboard",
+    tags=["dashboard-user"],
+    dependencies=[Depends(require_csrf)],
+)
 
 
 # ──────────────────────────────────────────────────────────────────

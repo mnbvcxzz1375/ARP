@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select, update
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -75,7 +76,9 @@ async def find_session_by_token(
     Returns None if not found, expired, revoked, or user disabled.
     """
     result = await session.execute(
-        select(DashboardSession).where(
+        select(DashboardSession).options(
+            selectinload(DashboardSession.user)
+        ).where(
             DashboardSession.session_hash == _hash_token(token),
             DashboardSession.revoked_at.is_(None),
             DashboardSession.expires_at > datetime.now(UTC),

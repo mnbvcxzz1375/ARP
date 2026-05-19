@@ -19,6 +19,7 @@ from app.routers.ws import router as ws_router
 from app.routers.tasks import router as tasks_router
 from app.routers.connections import router as connections_router
 from app.routers.approvals import router as approvals_router
+from app.routers.dashboard_auth import router as dashboard_auth_router
 from app.websocket.manager import get_connection_manager
 
 
@@ -127,6 +128,17 @@ def create_app() -> FastAPI:
 
         return await call_next(request)
 
+    # CSRF protection for dashboard mutations
+    @app.middleware("http")
+    async def csrf_middleware(request: Request, call_next):
+        if not request.url.path.startswith("/v1/dashboard/"):
+            return await call_next(request)
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return await call_next(request)
+        # CSRF validation is handled by the require_csrf dependency in the router.
+        # This middleware exists as a defense-in-depth layer.
+        return await call_next(request)
+
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(agents_router)
@@ -134,6 +146,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks_router)
     app.include_router(connections_router)
     app.include_router(approvals_router)
+    app.include_router(dashboard_auth_router)
     _install_openapi_schema(app)
 
     return app

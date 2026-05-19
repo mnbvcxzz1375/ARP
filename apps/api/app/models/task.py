@@ -51,9 +51,9 @@ class Task(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    messages: Mapped[list["Message"]] = relationship(back_populates="task", lazy="selectin")
-    progress_entries: Mapped[list["TaskProgress"]] = relationship(back_populates="task", lazy="selectin", order_by="TaskProgress.seq")
-    approvals: Mapped[list["Approval"]] = relationship(back_populates="task", lazy="selectin")
+    messages: Mapped[list["Message"]] = relationship(back_populates="task", lazy="select")
+    progress_entries: Mapped[list["TaskProgress"]] = relationship(back_populates="task", lazy="select", order_by="TaskProgress.seq")
+    approvals: Mapped[list["Approval"]] = relationship(back_populates="task", lazy="select")
 
     __table_args__ = (
         UniqueConstraint("created_by", "assigned_to", "idempotency_key", name="uq_tasks_idempotency_key"),

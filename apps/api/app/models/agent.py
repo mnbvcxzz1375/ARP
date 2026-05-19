@@ -30,5 +30,5 @@ class Agent(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    owner: Mapped["User"] = relationship(back_populates="agents")
+    owner: Mapped["User"] = relationship(back_populates="agents", lazy="joined")
     tokens: Mapped[list["AgentToken"]] = relationship(back_populates="agent", lazy="selectin", cascade="all, delete-orphan")

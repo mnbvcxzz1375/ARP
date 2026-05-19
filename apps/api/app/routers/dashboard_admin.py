@@ -111,7 +111,15 @@ async def get_user_detail(
     _: None = Depends(require_permission(PERM_READ_GLOBAL_USERS)),
 ):
     """Detailed view of a single user."""
-    result = await session.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    try:
+        user_uuid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid user ID format",
+        )
+
+    result = await session.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -119,12 +127,12 @@ async def get_user_detail(
     stats = await get_user_stats(session, str(user.id))
 
     recent_audit = (await session.execute(
-        select(func.count(AuditLog.id)).where(AuditLog.actor_id == uuid.UUID(user_id))
+        select(func.count(AuditLog.id)).where(AuditLog.actor_id == str(user_uuid))
     )).scalar_one()
 
     active_sessions = (await session.execute(
         select(func.count(DashboardSession.id)).where(
-            DashboardSession.user_id == uuid.UUID(user_id),
+            DashboardSession.user_id == user_uuid,
             DashboardSession.revoked_at.is_(None),
         )
     )).scalar_one()
@@ -326,15 +334,12 @@ async def list_tasks(
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     status_filter: str | None = None,
-    error_code: str | None = None,
     _: None = Depends(require_permission(PERM_READ_GLOBAL_TASKS)),
 ):
     """List all tasks across all agents."""
     stmt = select(Task)
     if status_filter:
         stmt = stmt.where(Task.status == status_filter)
-    if error_code:
-        stmt = stmt.where(Task.error_code == error_code)
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar_one()
@@ -348,12 +353,12 @@ async def list_tasks(
         items.append(AdminTaskListItem(
             task_id=str(t.id),
             status=t.status,
-            sender_agent=str(t.created_by),
-            target_agent=str(t.assigned_to),
+            sender_agent=str(t.created_by) if t.created_by else "",
+            target_agent=str(t.assigned_to) if t.assigned_to else "",
             owner_username="",  # Resolved via subquery if needed
             created_at=t.created_at,
             updated_at=t.updated_at,
-            error_code=t.error_code,
+            error_code=None,
             delivery_status="delivered",
         ))
 

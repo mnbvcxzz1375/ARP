@@ -47,6 +47,10 @@ test_model_results.json
 reports/
 *.test.log
 
+# Frontend build
+apps/web/node_modules/
+apps/web/dist/
+
 # Docker volumes and data
 infra/postgres_data/
 infra/redis_data/

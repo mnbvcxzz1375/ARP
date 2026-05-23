@@ -19,6 +19,8 @@ def _mock_admin_redis():
     mock = AsyncMock()
     mock.exists = AsyncMock(return_value=0)
     mock.ping = AsyncMock(return_value=True)
+    mock.get = AsyncMock(return_value=None)
+    mock.setex = AsyncMock(return_value=None)
     with patch("app.services.admin_service.redis_client", mock):
         yield mock
 
@@ -77,12 +79,21 @@ async def login(client: AsyncClient, username: str, api_key: str):
     })
 
 
+def csrf_headers(client):
+    """Build X-CSRF-Token header from the CSRF cookie stored on the client."""
+    csrf = client.cookies.get("agentnet_csrf")
+    if csrf:
+        return {"X-CSRF-Token": csrf}
+    return {}
+
+
 async def login_and_step_up(client: AsyncClient, username: str, api_key: str):
     """Login and perform step-up to enable high-risk admin operations."""
     await login(client, username, api_key)
+    csrf = client.cookies.get("agentnet_csrf")
     resp = await client.post("/v1/dashboard/auth/step-up", json={
         "api_key": api_key,
-    })
+    }, headers={"X-CSRF-Token": csrf} if csrf else {})
     return resp
 
 
@@ -218,19 +229,36 @@ class TestAdminUsers:
         resp = await client.get(f"/v1/dashboard/admin/users/{fake_id}")
         assert resp.status_code == 404
 
+    async def test_user_detail_creates_audit(self, client: AsyncClient, admin_user, regular_user, session: AsyncSession):
+        admin, _, admin_key = admin_user
+        reg, _, _ = regular_user
+        await login(client, admin.username, admin_key.decode())
+        resp = await client.get(f"/v1/dashboard/admin/users/{reg.id}")
+        assert resp.status_code == 200
+        # Check audit log
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.admin.read_user",
+                AuditLog.resource_id == str(reg.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
+        assert logs[0].actor_type == "user"
+
     async def test_disable_user_requires_step_up(self, client: AsyncClient, admin_user, regular_user):
         admin, _, admin_key = admin_user
         reg, _, _ = regular_user
         await login(client, admin.username, admin_key.decode())
         # Without step-up, should get 403
-        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/disable", json={"is_disabled": True})
+        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/disable", json={"is_disabled": True}, headers=csrf_headers(client))
         assert resp.status_code == 403
 
     async def test_disable_user_with_step_up(self, client: AsyncClient, admin_user, regular_user, session):
         admin, _, admin_key = admin_user
         reg, _, _ = regular_user
         await login_and_step_up(client, admin.username, admin_key.decode())
-        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/disable", json={"is_disabled": True})
+        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/disable", json={"is_disabled": True}, headers=csrf_headers(client))
         assert resp.status_code == 200
         data = resp.json()
         assert data["user_id"] == str(reg.id)
@@ -244,14 +272,14 @@ class TestAdminUsers:
         admin, _, admin_key = admin_user
         reg, _, _ = regular_user
         await login(client, admin.username, admin_key.decode())
-        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/force-revoke-keys")
+        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/force-revoke-keys", headers=csrf_headers(client))
         assert resp.status_code == 403
 
     async def test_force_revoke_keys_with_step_up(self, client: AsyncClient, admin_user, regular_user, session):
         admin, _, admin_key = admin_user
         reg, reg_api_key, _ = regular_user
         await login_and_step_up(client, admin.username, admin_key.decode())
-        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/force-revoke-keys")
+        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/force-revoke-keys", headers=csrf_headers(client))
         assert resp.status_code == 200
         data = resp.json()
         assert data["user_id"] == str(reg.id)
@@ -260,6 +288,143 @@ class TestAdminUsers:
         result = await session.execute(select(ApiKey).where(ApiKey.id == reg_api_key.id))
         key = result.scalar_one()
         assert key.is_revoked is True
+
+    async def test_disable_user_creates_audit(self, client: AsyncClient, admin_user, regular_user, session: AsyncSession):
+        admin, _, admin_key = admin_user
+        reg, _, _ = regular_user
+        await login_and_step_up(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/disable", json={"is_disabled": True}, headers=csrf_headers(client))
+        assert resp.status_code == 200
+        # Check audit log
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.admin.disable_user",
+                AuditLog.actor_id == str(admin.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
+        assert logs[0].actor_type == "user"
+
+    async def test_force_revoke_keys_revokes_sessions(self, client: AsyncClient, admin_user, regular_user, session: AsyncSession):
+        """force_revoke_keys revokes API keys AND active dashboard sessions."""
+        from app.services.dashboard_session_service import create_session
+        from app.models.dashboard_session import DashboardSession
+
+        admin, _, admin_key = admin_user
+        reg, reg_api_key, _ = regular_user
+
+        # Create an active session for the target user
+        ds, _token, _csrf = await create_session(session, reg)
+
+        await login_and_step_up(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/force-revoke-keys", headers=csrf_headers(client))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["revoked_keys"] >= 1
+        assert data["revoked_sessions"] >= 1
+
+        # Verify API key is revoked
+        await session.refresh(reg_api_key)
+        assert reg_api_key.is_revoked is True
+
+        # Verify session is revoked
+        await session.refresh(ds)
+        assert ds.revoked_at is not None
+        assert ds.revoked_reason == "force_revoke_keys"
+
+        # Verify audit details include both counts
+        from app.models.audit_log import AuditLog
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.admin.force_revoke_keys",
+                AuditLog.actor_id == str(admin.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
+        assert "revoked_keys" in (logs[0].details or {})
+        assert "revoked_sessions" in (logs[0].details or {})
+
+    async def test_disable_user_revokes_sessions(self, client: AsyncClient, admin_user, regular_user, session: AsyncSession):
+        """disable_user(is_disabled=true) revokes target user's active dashboard sessions."""
+        from app.services.dashboard_session_service import create_session
+
+        admin, _, admin_key = admin_user
+        reg, _, _ = regular_user
+
+        # Create active sessions for the target user
+        ds1, _, _ = await create_session(session, reg)
+        ds2, _, _ = await create_session(session, reg)
+
+        await login_and_step_up(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/disable", json={"is_disabled": True}, headers=csrf_headers(client))
+        assert resp.status_code == 200
+
+        # Verify sessions are revoked
+        await session.refresh(ds1)
+        await session.refresh(ds2)
+        assert ds1.revoked_at is not None
+        assert ds1.revoked_reason == "user_disabled"
+        assert ds2.revoked_at is not None
+        assert ds2.revoked_reason == "user_disabled"
+
+        # Verify audit details
+        from app.models.audit_log import AuditLog
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.admin.disable_user",
+                AuditLog.actor_id == str(admin.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
+        details = logs[0].details or {}
+        assert details.get("is_disabled") is True
+        assert details.get("revoked_sessions", 0) >= 2
+
+    async def test_enable_user_does_not_revoke_sessions(self, client: AsyncClient, admin_user, regular_user, session: AsyncSession):
+        """disable_user(is_disabled=false) re-enables without revoking target user's sessions."""
+        from app.services.dashboard_session_service import create_session
+
+        admin, _, admin_key = admin_user
+        reg, _, _ = regular_user
+
+        # Create a session for the target regular user
+        ds, _, _ = await create_session(session, reg)
+
+        # Disable user first
+        reg.is_disabled = True
+        await session.flush()
+
+        await login_and_step_up(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/users/{reg.id}/disable", json={"is_disabled": False}, headers=csrf_headers(client))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["is_disabled"] is False
+
+        # Verify user is re-enabled
+        await session.refresh(reg)
+        assert reg.is_disabled is False
+
+        # Target user's session should NOT be revoked by re-enable
+        await session.refresh(ds)
+        assert ds.revoked_at is None
+        assert ds.revoked_reason is None
+
+        # Verify audit details do NOT include revoked_sessions
+        from app.models.audit_log import AuditLog
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.admin.disable_user",
+                AuditLog.actor_id == str(admin.id),
+            ).order_by(AuditLog.created_at.desc())
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
+        details = logs[0].details or {}
+        assert details.get("is_disabled") is False
+        assert "revoked_sessions" not in details
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -306,7 +471,7 @@ class TestAdminAgents:
         await session.flush()
 
         await login(client, admin.username, admin_key.decode())
-        resp = await client.post(f"/v1/dashboard/admin/agents/{agent.id}/disable", json={"status": "offline"})
+        resp = await client.post(f"/v1/dashboard/admin/agents/{agent.id}/disable", json={"status": "offline"}, headers=csrf_headers(client))
         assert resp.status_code == 403
 
     async def test_disable_agent_with_step_up(self, client: AsyncClient, admin_user, session):
@@ -323,7 +488,7 @@ class TestAdminAgents:
         await session.flush()
 
         await login_and_step_up(client, admin.username, admin_key.decode())
-        resp = await client.post(f"/v1/dashboard/admin/agents/{agent.id}/disable", json={"status": "offline"})
+        resp = await client.post(f"/v1/dashboard/admin/agents/{agent.id}/disable", json={"status": "offline"}, headers=csrf_headers(client))
         assert resp.status_code == 200
         data = resp.json()
         assert data["agent_id"] == str(agent.id)
@@ -353,6 +518,451 @@ class TestAdminTasks:
         assert "tasks" in data
 
 
+    async def test_list_tasks_returns_real_delivery_status(self, client: AsyncClient, admin_user, session):
+        from app.models.agent import Agent
+        from app.models.task import Task
+        from app.models.message import Message
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="task-agent",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="completed",
+        )
+        session.add(task)
+        await session.flush()
+
+        msg = Message(
+            id=uuid.uuid4(),
+            task_id=task.id,
+            message_id="adm-msg-001",
+            type="task_result",
+            delivery_status="acked",
+            retry_count=3,
+        )
+        session.add(msg)
+        await session.flush()
+
+        await login(client, admin.username, admin_key.decode())
+        resp = await client.get("/v1/dashboard/admin/tasks")
+        assert resp.status_code == 200
+        data = resp.json()
+        task_data = next(t for t in data["tasks"] if t["task_id"] == str(task.id))
+        assert task_data["delivery_status"] == "acked"
+        assert task_data["owner_username"] == admin.username
+
+    async def test_list_tasks_returns_unknown_when_no_message(self, client: AsyncClient, admin_user, session):
+        from app.models.agent import Agent
+        from app.models.task import Task
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="no-msg-agent",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="completed",
+        )
+        session.add(task)
+        await session.flush()
+
+        await login(client, admin.username, admin_key.decode())
+        resp = await client.get("/v1/dashboard/admin/tasks")
+        assert resp.status_code == 200
+        data = resp.json()
+        task_data = next(t for t in data["tasks"] if t["task_id"] == str(task.id))
+        assert task_data["delivery_status"] == "unknown"
+        assert task_data["owner_username"] == admin.username
+
+    async def test_task_detail_returns_real_values(self, client: AsyncClient, admin_user, session):
+        from app.models.agent import Agent
+        from app.models.task import Task
+        from app.models.message import Message
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="detail-agent",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="completed",
+        )
+        session.add(task)
+        await session.flush()
+
+        msg = Message(
+            id=uuid.uuid4(),
+            task_id=task.id,
+            message_id="adm-msg-002",
+            type="task_result",
+            delivery_status="failed",
+            retry_count=7,
+        )
+        session.add(msg)
+        await session.flush()
+
+        await login(client, admin.username, admin_key.decode())
+        resp = await client.get(f"/v1/dashboard/admin/tasks/{task.id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["delivery_status"] == "failed"
+        assert data["retry_count"] == 7
+        assert data["owner_username"] == admin.username
+
+    async def test_task_detail_returns_unknown_when_no_message(self, client: AsyncClient, admin_user, session):
+        from app.models.agent import Agent
+        from app.models.task import Task
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="no-msg-detail-agent",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="completed",
+        )
+        session.add(task)
+        await session.flush()
+
+        await login(client, admin.username, admin_key.decode())
+        resp = await client.get(f"/v1/dashboard/admin/tasks/{task.id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["delivery_status"] == "unknown"
+        assert data["retry_count"] == 0
+        assert data["owner_username"] == admin.username
+
+    async def test_cancel_task_creates_audit(self, client: AsyncClient, admin_user, session: AsyncSession):
+        from app.models.agent import Agent
+        from app.models.task import Task
+        from app.models.audit_log import AuditLog
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="cancel-audit-agent",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="pending",
+        )
+        session.add(task)
+        await session.flush()
+
+        # Login only (no step-up needed for pending task cancel)
+        await login(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/tasks/{task.id}/cancel", headers=csrf_headers(client))
+        assert resp.status_code == 200
+
+        # Check audit
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.admin.cancel_task",
+                AuditLog.task_id == str(task.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
+
+    async def test_cancel_running_task_requires_step_up(self, client: AsyncClient, admin_user, session: AsyncSession):
+        """super_admin cannot cancel a running task without step-up; task stays running."""
+        from app.models.agent import Agent
+        from app.models.task import Task
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="running-task-agent",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="running",
+        )
+        session.add(task)
+        await session.flush()
+
+        # Login without step-up
+        await login(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/tasks/{task.id}/cancel", headers=csrf_headers(client))
+        assert resp.status_code == 403
+
+        # Task status must still be running
+        await session.refresh(task)
+        assert task.status == "running"
+
+    async def test_cancel_running_task_with_step_up(self, client: AsyncClient, admin_user, session: AsyncSession):
+        """super_admin with step-up can cancel a running task."""
+        from app.models.agent import Agent
+        from app.models.task import Task
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="running-task-agent-2",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="running",
+        )
+        session.add(task)
+        await session.flush()
+
+        # Login with step-up
+        await login_and_step_up(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/tasks/{task.id}/cancel", headers=csrf_headers(client))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["task_id"] == str(task.id)
+        assert data["status"] == "cancelled"
+
+        # Verify in DB
+        await session.refresh(task)
+        assert task.status == "cancelled"
+
+
+    async def test_expire_task_requires_super_admin(self, client: AsyncClient, admin_user, session: AsyncSession):
+        """regular/admin user cannot expire a task."""
+        from app.models.agent import Agent
+        from app.models.task import Task
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="expire-agent",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="pending",
+        )
+        session.add(task)
+        await session.flush()
+
+        # super_admin without step-up → 403
+        await login(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/tasks/{task.id}/expire", headers=csrf_headers(client))
+        assert resp.status_code == 403
+
+        # Task status must remain unchanged
+        await session.refresh(task)
+        assert task.status == "pending"
+
+    async def test_expire_task_with_step_up(self, client: AsyncClient, admin_user, session: AsyncSession):
+        """super_admin with step-up can expire a pending task."""
+        from app.models.agent import Agent
+        from app.models.task import Task
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="expire-agent-2",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="pending",
+        )
+        session.add(task)
+        await session.flush()
+
+        await login_and_step_up(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/tasks/{task.id}/expire", headers=csrf_headers(client))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["task_id"] == str(task.id)
+        assert data["status"] == "expired"
+
+        await session.refresh(task)
+        assert task.status == "expired"
+
+    async def test_expire_running_task_with_step_up(self, client: AsyncClient, admin_user, session: AsyncSession):
+        """super_admin with step-up can expire a running task."""
+        from app.models.agent import Agent
+        from app.models.task import Task
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="expire-running-agent",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="running",
+        )
+        session.add(task)
+        await session.flush()
+
+        await login_and_step_up(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/tasks/{task.id}/expire", headers=csrf_headers(client))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "expired"
+
+        await session.refresh(task)
+        assert task.status == "expired"
+
+    async def test_expire_terminal_task_returns_400(self, client: AsyncClient, admin_user, session: AsyncSession):
+        """Expiring a terminal task (completed) returns 400 and status is unchanged."""
+        from app.models.agent import Agent
+        from app.models.task import Task
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="expire-terminal-agent",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        for terminal_status in ("completed", "failed", "cancelled", "expired"):
+            task = Task(
+                id=uuid.uuid4(),
+                created_by=agent.id,
+                assigned_to=agent.id,
+                status=terminal_status,
+            )
+            session.add(task)
+            await session.flush()
+
+            await login_and_step_up(client, admin.username, admin_key.decode())
+            resp = await client.post(f"/v1/dashboard/admin/tasks/{task.id}/expire", headers=csrf_headers(client))
+            assert resp.status_code == 400, f"Expected 400 for terminal status '{terminal_status}', got {resp.status_code}"
+            assert "Cannot expire" in resp.json()["detail"]
+
+            await session.refresh(task)
+            assert task.status == terminal_status
+
+    async def test_expire_task_creates_audit(self, client: AsyncClient, admin_user, session: AsyncSession):
+        """Expiring a task writes audit with previous_status in details."""
+        from app.models.agent import Agent
+        from app.models.task import Task
+        from app.models.audit_log import AuditLog
+
+        admin, _, admin_key = admin_user
+        agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=admin.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}",
+            name="expire-audit-agent",
+            runtime="python",
+        )
+        session.add(agent)
+        await session.flush()
+
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="delivered",
+        )
+        session.add(task)
+        await session.flush()
+
+        await login_and_step_up(client, admin.username, admin_key.decode())
+        resp = await client.post(f"/v1/dashboard/admin/tasks/{task.id}/expire", headers=csrf_headers(client))
+        assert resp.status_code == 200
+
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.admin.expire_task",
+                AuditLog.task_id == str(task.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
+        assert logs[0].resource_type == "task"
+        assert logs[0].resource_id == str(task.id)
+        details = logs[0].details or {}
+        assert details.get("previous_status") == "delivered"
+
+
 # ──────────────────────────────────────────────────────────────────
 # Audit Logs
 # ──────────────────────────────────────────────────────────────────
@@ -376,14 +986,30 @@ class TestAuditLogs:
         assert "audit_logs" in data
 
     async def test_export_audit_logs(self, client: AsyncClient, admin_user):
-        """Export audit logs works for super_admin (permission-gated, no step-up required)."""
+        """Export audit logs works for super_admin (requires step-up)."""
         admin, _, admin_key = admin_user
-        await login(client, admin.username, admin_key.decode())
+        await login_and_step_up(client, admin.username, admin_key.decode())
         resp = await client.get("/v1/dashboard/admin/audit-logs/export")
         assert resp.status_code == 200
         data = resp.json()
         assert "total" in data
         assert "logs" in data
+
+    async def test_export_audit_logs_creates_audit(self, client: AsyncClient, admin_user, session: AsyncSession):
+        admin, _, admin_key = admin_user
+        await login_and_step_up(client, admin.username, admin_key.decode())
+        resp = await client.get("/v1/dashboard/admin/audit-logs/export")
+        assert resp.status_code == 200
+        # Check audit log
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.admin.export_audit",
+                AuditLog.actor_id == str(admin.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
+        assert logs[0].actor_type == "user"
 
     async def test_export_audit_logs_regular_user_forbidden(self, client: AsyncClient, regular_user):
         """Regular user cannot export audit logs."""

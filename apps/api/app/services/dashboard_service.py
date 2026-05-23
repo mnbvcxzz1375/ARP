@@ -1,6 +1,7 @@
 """Dashboard aggregation: overview KPIs, online status, secret masking."""
 import json
 import re
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, func
@@ -18,7 +19,7 @@ from app.redis import redis_client
 _SECRET_PATTERNS = [
     (re.compile(r"sk-[A-Za-z0-9]{20,}"), "***"),
     (re.compile(r"agt_sk_[A-Za-z0-9_-]{20,}"), "***"),
-    (re.compile(r"ak_[A-Za-z0-9]{20,}"), "***"),
+    (re.compile(r"ak_[A-Za-z0-9_-]{20,}"), "***"),
 ]
 
 
@@ -34,6 +35,89 @@ def mask_secrets(text: str) -> str:
 def mask_secrets_obj(obj: object) -> str:
     """Mask secrets in a JSON-serializable object."""
     return mask_secrets(json.dumps(obj))
+
+
+async def get_task_delivery_info(
+    session: AsyncSession, task_id: uuid.UUID
+) -> tuple[str, int]:
+    """Query the most recent Message for a task and return (delivery_status, retry_count).
+
+    Returns ("unknown", 0) if no message exists for the task.
+    """
+    result = await session.execute(
+        select(Message)
+        .where(Message.task_id == task_id)
+        .order_by(Message.created_at.desc())
+        .limit(1)
+    )
+    msg = result.scalar_one_or_none()
+    if msg is None:
+        return ("unknown", 0)
+    return (msg.delivery_status, msg.retry_count)
+
+
+async def get_tasks_delivery_info_batch(
+    session: AsyncSession, task_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[str, int]]:
+    """Efficiently batch query delivery info for multiple tasks.
+
+    Returns {task_id: (delivery_status, retry_count)}.
+    Tasks with no messages get ("unknown", 0).
+    """
+    if not task_ids:
+        return {}
+
+    result = await session.execute(
+        select(Message)
+        .where(Message.task_id.in_(task_ids))
+        .order_by(Message.created_at.desc())
+    )
+    messages = result.scalars().all()
+
+    # Keep only the latest message per task (first encountered after DESC sort)
+    seen: set[uuid.UUID] = set()
+    info_map: dict[uuid.UUID, tuple[str, int]] = {}
+    for msg in messages:
+        if msg.task_id not in seen:
+            seen.add(msg.task_id)
+            info_map[msg.task_id] = (msg.delivery_status, msg.retry_count)
+
+    # Fill in missing task_ids with default
+    for tid in task_ids:
+        if tid not in info_map:
+            info_map[tid] = ("unknown", 0)
+
+    return info_map
+
+
+async def get_agent_owner_username(
+    session: AsyncSession, agent_id: uuid.UUID | None
+) -> str | None:
+    """Return the owner username for a given agent, or None if not found / no owner."""
+    if agent_id is None:
+        return None
+
+    result = await session.execute(select(Agent).where(Agent.id == agent_id))
+    agent = result.scalar_one_or_none()
+    if agent is None or agent.owner is None:
+        return None
+    return agent.owner.username
+
+
+async def get_task_owner_username(session: AsyncSession, task: Task) -> str:
+    """Return the owner username from task's created_by or assigned_to agent.
+
+    Tries the created_by agent's owner first, then assigned_to agent's owner.
+    Returns "unknown" if neither agent has an owner.
+    """
+    for agent_id in (task.created_by, task.assigned_to):
+        if agent_id is None:
+            continue
+        result = await session.execute(select(Agent).where(Agent.id == agent_id))
+        agent = result.scalar_one_or_none()
+        if agent is not None and agent.owner is not None:
+            return agent.owner.username
+    return "unknown"
 
 
 async def get_agent_online_status(session: AsyncSession, agent_ids: list[str]) -> dict[str, bool]:

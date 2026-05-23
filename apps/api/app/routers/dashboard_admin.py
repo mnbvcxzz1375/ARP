@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.dependencies.auth import CurrentSession
 from app.dependencies.csrf import require_csrf
-from app.dependencies.rbac import require_permission, require_high_risk
+from app.dependencies.rbac import require_permission, require_high_risk, require_step_up
+from app.exceptions import DomainException
+from app.protocol.constants import ErrorCode
 from app.models.user import User
 from app.models.agent import Agent
 from app.models.task import Task
@@ -30,7 +32,15 @@ from app.services.admin_service import (
     get_agent_stats,
     get_system_health,
 )
+from app.services.dashboard_service import (
+    get_task_delivery_info,
+    get_tasks_delivery_info_batch,
+    get_task_owner_username,
+    mask_secrets_obj,
+)
+from app.services.audit_service import write_audit
 from app.services.rbac_service import (
+    has_permission, has_step_up,
     PERM_READ_GLOBAL_OVERVIEW, PERM_READ_GLOBAL_USERS,
     PERM_READ_GLOBAL_AGENTS, PERM_READ_GLOBAL_TASKS,
     PERM_READ_GLOBAL_TASK_DETAIL, PERM_READ_AUDIT_LOGS,
@@ -39,6 +49,7 @@ from app.services.rbac_service import (
     PERM_CANCEL_RUNNING_TASK, PERM_FORCE_REVOKE_KEYS,
     PERM_READ_SYSTEM,
 )
+from app.services.dashboard_session_service import revoke_all_sessions
 
 router = APIRouter(
     prefix="/v1/dashboard/admin",
@@ -142,6 +153,16 @@ async def get_user_detail(
         )
     )).scalar_one()
 
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.admin.read_user",
+        resource_type="user",
+        resource_id=str(user.id),
+    )
+    await session.flush()
+
     return AdminUserDetailResponse(
         user_id=str(user.id),
         username=user.username,
@@ -163,7 +184,7 @@ async def disable_user(
     body: dict,
     ds: CurrentSession,
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_high_risk()),
+    _: None = Depends(require_high_risk(PERM_DISABLE_USER)),
 ):
     """Disable or re-enable a user. Requires super_admin + step-up."""
     result = await session.execute(select(User).where(User.id == uuid.UUID(user_id)))
@@ -171,7 +192,26 @@ async def disable_user(
     if user is None:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    user.is_disabled = body.get("is_disabled", True)
+    is_disabled = body.get("is_disabled", True)
+    user.is_disabled = is_disabled
+
+    audit_details: dict = {"is_disabled": is_disabled}
+    if is_disabled:
+        revoked_sessions = await revoke_all_sessions(
+            session, uuid.UUID(user_id), reason="user_disabled",
+        )
+        audit_details["revoked_sessions"] = revoked_sessions
+
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.admin.disable_user",
+        resource_type="user",
+        resource_id=str(user.id),
+        details=audit_details,
+    )
+
     await session.commit()
     return {"user_id": str(user.id), "is_disabled": user.is_disabled}
 
@@ -181,7 +221,7 @@ async def force_revoke_keys(
     user_id: str,
     ds: CurrentSession,
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_high_risk()),
+    _: None = Depends(require_high_risk(PERM_FORCE_REVOKE_KEYS)),
 ):
     """Revoke all API keys for a user. Requires super_admin + step-up."""
     result = await session.execute(select(User).where(User.id == uuid.UUID(user_id)))
@@ -204,8 +244,22 @@ async def force_revoke_keys(
         k.revoked_at = datetime.now(UTC)
         revoked_count += 1
 
+    revoked_sessions = await revoke_all_sessions(
+        session, uuid.UUID(user_id), reason="force_revoke_keys",
+    )
+
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.admin.force_revoke_keys",
+        resource_type="user",
+        resource_id=str(user.id),
+        details={"revoked_keys": revoked_count, "revoked_sessions": revoked_sessions},
+    )
+
     await session.commit()
-    return {"user_id": str(user.id), "revoked_keys": revoked_count}
+    return {"user_id": str(user.id), "revoked_keys": revoked_count, "revoked_sessions": revoked_sessions}
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -290,6 +344,16 @@ async def get_agent_detail(
             "rotated_at": token.rotated_at,
         }
 
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.admin.read_agent",
+        resource_type="agent",
+        resource_id=str(agent.id),
+    )
+    await session.flush()
+
     return AdminAgentDetailResponse(
         agent_id=str(agent.id),
         agent_number=agent.agent_number,
@@ -314,7 +378,7 @@ async def disable_agent(
     body: dict,
     ds: CurrentSession,
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_high_risk()),
+    _: None = Depends(require_high_risk(PERM_DISABLE_AGENT)),
 ):
     """Disable or re-enable an agent. Requires super_admin + step-up."""
     result = await session.execute(select(Agent).where(Agent.id == uuid.UUID(agent_id)))
@@ -324,6 +388,17 @@ async def disable_agent(
 
     # Set status to offline to disable
     agent.status = body.get("status", "offline")
+
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.admin.disable_agent",
+        resource_type="agent",
+        resource_id=str(agent.id),
+        details={"status": body.get("status", "offline")},
+    )
+
     await session.commit()
     return {"agent_id": str(agent.id), "status": agent.status}
 
@@ -354,17 +429,22 @@ async def list_tasks(
     tasks = list(result.scalars().all())
 
     items = []
+    task_ids = [t.id for t in tasks]
+    delivery_info = await get_tasks_delivery_info_batch(session, task_ids)
+
     for t in tasks:
+        ds, _rc = delivery_info.get(t.id, ("unknown", 0))
+        owner_username = await get_task_owner_username(session, t)
         items.append(AdminTaskListItem(
             task_id=str(t.id),
             status=t.status,
             sender_agent=str(t.created_by) if t.created_by else "",
             target_agent=str(t.assigned_to) if t.assigned_to else "",
-            owner_username="",  # Resolved via subquery if needed
+            owner_username=owner_username,
             created_at=t.created_at,
             updated_at=t.updated_at,
             error_code=None,
-            delivery_status="delivered",
+            delivery_status=ds,
         ))
 
     return AdminTaskListResponse(tasks=items, total=total, offset=offset, limit=limit)
@@ -378,8 +458,6 @@ async def get_task_detail(
     _: None = Depends(require_permission(PERM_READ_GLOBAL_TASK_DETAIL)),
 ):
     """Detailed view of a single task with payload/result previews."""
-    from app.services.dashboard_service import mask_secrets_obj
-
     result = await session.execute(select(Task).where(Task.id == uuid.UUID(task_id)))
     task = result.scalar_one_or_none()
     if task is None:
@@ -397,15 +475,30 @@ async def get_task_detail(
     if task.result:
         result_preview = mask_secrets_obj(task.result)[:500]
 
+    auditor_id = str(ds.user_id)
+    ds, rc = await get_task_delivery_info(session, task.id)
+    owner_username = await get_task_owner_username(session, task)
+
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=auditor_id,
+        action="dashboard.admin.read_task",
+        resource_type="task",
+        resource_id=str(task.id),
+        task_id=str(task.id),
+    )
+    await session.flush()
+
     return AdminTaskDetailResponse(
         task_id=str(task.id),
         status=task.status,
         payload_preview=payload_preview,
         result_preview=result_preview,
         error_message=task.error_message,
-        delivery_status="delivered",
-        retry_count=0,
-        owner_username="",
+        delivery_status=ds,
+        retry_count=rc,
+        owner_username=owner_username,
         created_at=task.created_at,
         updated_at=task.updated_at,
     )
@@ -431,16 +524,73 @@ async def cancel_task(
         )
 
     if task.status == "running":
-        # Only super_admin can cancel running tasks
-        if ds.user.role != "super_admin":
+        # Running tasks require PERM_CANCEL_RUNNING_TASK AND step-up
+        if not has_permission(ds.user, PERM_CANCEL_RUNNING_TASK):
             raise HTTPException(
                 status_code=http_status.HTTP_403_FORBIDDEN,
-                detail="Only super_admin can cancel running tasks",
+                detail="Insufficient permissions to cancel running tasks",
+            )
+        if not has_step_up(ds):
+            raise DomainException(
+                ErrorCode.STEP_UP_REQUIRED,
+                "Step-up authentication required to cancel running tasks",
+                status_code=http_status.HTTP_403_FORBIDDEN,
             )
 
     task.status = "cancelled"
+
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.admin.cancel_task",
+        resource_type="task",
+        resource_id=str(task.id),
+        task_id=str(task.id),
+    )
+
     await session.commit()
     return {"task_id": str(task.id), "status": "cancelled"}
+
+
+_TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "expired"})
+
+
+@router.post("/tasks/{task_id}/expire")
+async def expire_task(
+    task_id: str,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_high_risk(PERM_CANCEL_RUNNING_TASK)),
+):
+    """Force expire a task. super_admin + step-up only."""
+    result = await session.execute(select(Task).where(Task.id == uuid.UUID(task_id)))
+    task = result.scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    if task.status in _TERMINAL_TASK_STATUSES:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot expire task in '{task.status}' state",
+        )
+
+    previous_status = task.status
+    task.status = "expired"
+
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.admin.expire_task",
+        resource_type="task",
+        resource_id=str(task.id),
+        task_id=str(task.id),
+        details={"previous_status": previous_status},
+    )
+
+    await session.commit()
+    return {"task_id": str(task.id), "status": "expired"}
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -496,15 +646,30 @@ async def list_audit_logs(
 async def export_audit_logs(
     ds: CurrentSession,
     session: AsyncSession = Depends(get_session),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(1000, ge=1, le=10000),
     _: None = Depends(require_permission(PERM_EXPORT_AUDIT)),
+    __: None = Depends(require_step_up()),
 ):
-    """Export all audit logs as JSON. Requires super_admin + step-up."""
-    stmt = select(AuditLog).order_by(AuditLog.created_at.desc())
+    """Export audit logs as JSON with pagination. Requires export permission + step-up."""
+    stmt = select(AuditLog).order_by(AuditLog.created_at.desc()).offset(offset).limit(limit)
     result = await session.execute(stmt)
     logs = list(result.scalars().all())
 
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.admin.export_audit",
+        resource_type="audit_log",
+        details={"limit": limit, "offset": offset},
+    )
+    await session.flush()
+
     return {
         "total": len(logs),
+        "offset": offset,
+        "limit": limit,
         "logs": [
             {
                 "audit_id": str(log.id),

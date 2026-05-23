@@ -19,6 +19,10 @@ ENV/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+coverage/
+playwright-report/
+test-results/
+.playwright-mcp/
 
 # Environment / secrets
 .env
@@ -46,10 +50,20 @@ agentnet_session.json
 test_model_results.json
 reports/
 *.test.log
+IMPLEMENTATION_STATUS.md
+ROUTING_RUNTIME_PROGRESS.md
+PHASE*-*_COMPLETION_REPORT.md
+aliyun-dns-snapshot.md
+aliyun-login.png
 
 # Frontend build
 apps/web/node_modules/
 apps/web/dist/
+apps/web/*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Docker volumes and data
 infra/postgres_data/

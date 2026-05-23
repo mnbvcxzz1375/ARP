@@ -52,6 +52,21 @@ PERM_FORCE_REVOKE_KEYS = "apikey:revoke:global"
 PERM_MODIFY_SECURITY_POLICY = "security:modify"
 PERM_READ_SYSTEM = "system:read"
 
+# Admin general read (dashboard overview, egress logs, etc.)
+PERM_ADMIN_READ = "admin:read"
+
+# Policy management (admin read, super_admin manage)
+PERM_POLICY_READ = "policy:read"
+PERM_POLICY_MANAGE = "policy:manage"
+
+# SLA monitoring
+PERM_SLA_READ = "sla:read"
+PERM_SLA_MANAGE = "sla:manage"
+
+# Business continuity
+PERM_CONTINUITY_READ = "continuity:read"
+PERM_CONTINUITY_MANAGE = "continuity:manage"
+
 # ──────────────────────────────────────────────────────────────────
 # Role-to-permission mapping
 # ──────────────────────────────────────────────────────────────────
@@ -70,12 +85,19 @@ _ADMIN_PERMS: set[str] = _USER_PERMS | {
     PERM_READ_GLOBAL_AGENTS, PERM_READ_GLOBAL_TASKS,
     PERM_READ_GLOBAL_TASK_DETAIL, PERM_READ_AUDIT_LOGS,
     PERM_CANCEL_PENDING_TASK,
+    PERM_ADMIN_READ,
+    PERM_POLICY_READ,
+    PERM_SLA_READ,
+    PERM_CONTINUITY_READ,
 }
 
 _SUPER_ADMIN_PERMS: set[str] = _ADMIN_PERMS | {
     PERM_EXPORT_AUDIT, PERM_DISABLE_USER, PERM_DISABLE_AGENT,
     PERM_CANCEL_RUNNING_TASK, PERM_FORCE_REVOKE_KEYS,
     PERM_MODIFY_SECURITY_POLICY, PERM_READ_SYSTEM,
+    PERM_POLICY_MANAGE,
+    PERM_SLA_MANAGE,
+    PERM_CONTINUITY_MANAGE,
 }
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {

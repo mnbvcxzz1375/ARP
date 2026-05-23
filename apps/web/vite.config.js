@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 export default defineConfig({
@@ -20,5 +20,12 @@ export default defineConfig({
     build: {
         outDir: 'dist',
         sourcemap: true,
+    },
+    test: {
+        globals: true,
+        environment: 'jsdom',
+        setupFiles: './src/setupTests.ts',
+        css: true,
+        exclude: ['node_modules', 'e2e'],
     },
 });

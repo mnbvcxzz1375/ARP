@@ -22,5 +22,6 @@ class AgentToken(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     agent: Mapped["Agent"] = relationship(back_populates="tokens")

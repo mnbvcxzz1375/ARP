@@ -2,6 +2,10 @@
 
 Use this checklist before running AgentNet on a VPS.
 
+For the stricter production closeout gates, Web UI decision, and final acceptance standard, see:
+
+- [Production Closeout Plan](production-closeout.md)
+
 ## Environment
 
 - [ ] Docker Engine is installed.
@@ -82,3 +86,12 @@ curl http://localhost/healthz
 - [ ] All lists are paginated (default 50, max 200)
 - [ ] TanStack Query retry is configured (default 1 retry)
 
+## Routing Runtime Closeout
+
+- [ ] Egress Gateway is enforced by adapters, not only available as a service.
+- [ ] Network-level egress bypass is blocked or explicitly documented for private pilot scope.
+- [ ] Dedicated Channel CRUD/API or approved operational workflow exists.
+- [ ] Route decisions and delivery timelines are visible to operators.
+- [ ] SLA violations, circuit breaker state, and failover events are visible to operators.
+- [ ] Redis/Postgres/API/worker/egress/relay failure drills are recorded.
+- [ ] Final production acceptance report is created under `reports/`.

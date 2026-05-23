@@ -23,6 +23,15 @@ class Agent(Base):
     inbound_policy: Mapped[str] = mapped_column(String(32), default="request_approval", nullable=False)
     discoverable: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     status: Mapped[str] = mapped_column(String(16), default="offline", nullable=False)
+
+    # Phase 15: Network topology
+    scope_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("network_scopes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    zone_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("network_zones.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -32,3 +41,9 @@ class Agent(Base):
 
     owner: Mapped["User"] = relationship(back_populates="agents", lazy="joined")
     tokens: Mapped[list["AgentToken"]] = relationship(back_populates="agent", lazy="selectin", cascade="all, delete-orphan")
+    outbound_channels: Mapped[list["DedicatedChannel"]] = relationship(
+        foreign_keys="DedicatedChannel.source_agent_id", back_populates="source_agent", lazy="select"
+    )
+    inbound_channels: Mapped[list["DedicatedChannel"]] = relationship(
+        foreign_keys="DedicatedChannel.target_agent_id", back_populates="target_agent", lazy="select"
+    )

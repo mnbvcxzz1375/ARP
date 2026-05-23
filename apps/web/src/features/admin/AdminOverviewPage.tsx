@@ -7,7 +7,7 @@ import ErrorState from '../../components/ErrorState';
 export default function AdminOverviewPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin/overview'],
-    queryFn: () => api.get('/v1/admin/overview').then((r) => r.data),
+    queryFn: () => api.get('/v1/dashboard/admin/overview').then((r) => r.data),
     refetchInterval: 30000,
   });
 

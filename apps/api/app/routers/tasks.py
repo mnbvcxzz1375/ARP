@@ -62,6 +62,13 @@ async def create_task_endpoint(
         to_agent_number=body.assigned_to,
         idempotency_key=body.idempotency_key,
         payload=body.payload,
+        timeliness_mode=body.timeliness_mode or "normal",
+        ttl_seconds=body.ttl_seconds,
+        deadline_at=body.deadline_at,
+        priority=body.priority if body.priority is not None else 0,
+        max_retry_count=body.max_retry_count,
+        retry_policy=body.retry_policy,
+        route_policy_hint=body.route_policy_hint,
     )
     return _task_to_response(task)
 

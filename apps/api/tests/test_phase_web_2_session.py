@@ -22,6 +22,14 @@ from app.services.dashboard_session_service import (
 )
 
 
+def csrf_headers(client):
+    """Build X-CSRF-Token header from the CSRF cookie stored on the client."""
+    csrf = client.cookies.get("agentnet_csrf")
+    if csrf:
+        return {"X-CSRF-Token": csrf}
+    return {}
+
+
 @pytest.fixture
 async def user_with_key(session: AsyncSession):
     """Create a user with an API key."""
@@ -83,6 +91,48 @@ class TestLogin:
         assert resp.status_code == 403
         assert resp.json()["error"]["code"] == "USER_DISABLED"
 
+    async def test_login_wrong_key_writes_failure_audit(self, client: AsyncClient, user_with_key, session):
+        user, _, _ = user_with_key
+        resp = await client.post("/v1/dashboard/auth/login", json={
+            "username": user.username,
+            "api_key": "wrong-key",
+        })
+        assert resp.status_code == 401
+
+        from app.models.audit_log import AuditLog
+        from sqlalchemy import select
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.login.failure",
+                AuditLog.actor_id == str(user.id),
+            )
+        )
+        log = result.scalar_one_or_none()
+        assert log is not None, "login failure audit should be written for wrong key"
+        assert log.details["reason"] == "invalid_credentials"
+
+    async def test_login_disabled_user_writes_failure_audit(self, client: AsyncClient, user_with_key, session):
+        user, _, plain_key = user_with_key
+        user.is_disabled = True
+        await session.flush()
+        resp = await client.post("/v1/dashboard/auth/login", json={
+            "username": user.username,
+            "api_key": plain_key.decode(),
+        })
+        assert resp.status_code == 403
+
+        from app.models.audit_log import AuditLog
+        from sqlalchemy import select
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.login.failure",
+                AuditLog.actor_id == str(user.id),
+            )
+        )
+        log = result.scalar_one_or_none()
+        assert log is not None, "login failure audit should be written for disabled user"
+        assert log.details["reason"] == "user_disabled"
+
 
 class TestMe:
     async def test_me_unauthenticated(self, client: AsyncClient):
@@ -110,7 +160,7 @@ class TestLogout:
             "username": user.username,
             "api_key": plain_key.decode(),
         })
-        resp = await client.post("/v1/dashboard/auth/logout")
+        resp = await client.post("/v1/dashboard/auth/logout", headers=csrf_headers(client))
         assert resp.status_code == 200
         result = await session.execute(
             select(DashboardSession).where(DashboardSession.user_id == user.id)
@@ -128,11 +178,11 @@ class TestStepUp:
         })
         resp = await client.post("/v1/dashboard/auth/step-up", json={
             "api_key": plain_key.decode(),
-        })
+        }, headers=csrf_headers(client))
         assert resp.status_code == 200
         assert "agentnet_session" in resp.cookies
 
-    async def test_step_up_wrong_key(self, client: AsyncClient, user_with_key):
+    async def test_step_up_wrong_key_writes_failure_audit(self, client: AsyncClient, user_with_key, session):
         user, _, _ = user_with_key
         await client.post("/v1/dashboard/auth/login", json={
             "username": user.username,
@@ -140,9 +190,20 @@ class TestStepUp:
         })
         resp = await client.post("/v1/dashboard/auth/step-up", json={
             "api_key": "wrong-key",
-        })
+        }, headers=csrf_headers(client))
         assert resp.status_code == 403
-        assert resp.json()["error"]["code"] == "INVALID_STEP_UP"
+
+        from app.models.audit_log import AuditLog
+        from sqlalchemy import select
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.step_up.failure",
+                AuditLog.actor_id == str(user.id),
+            )
+        )
+        log = result.scalar_one_or_none()
+        assert log is not None, "step-up failure audit should be written for wrong key"
+        assert log.details["reason"] == "invalid_credentials"
 
 
 class TestSessionService:

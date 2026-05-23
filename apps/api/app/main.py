@@ -19,9 +19,16 @@ from app.routers.ws import router as ws_router
 from app.routers.tasks import router as tasks_router
 from app.routers.connections import router as connections_router
 from app.routers.approvals import router as approvals_router
+from app.routers.routing import router as routing_router
+from app.routers.personal import router as personal_router
 from app.routers.dashboard_auth import router as dashboard_auth_router
 from app.routers.dashboard_user import router as dashboard_user_router
 from app.routers.dashboard_admin import router as dashboard_admin_router
+from app.routers.sla import router as sla_router
+from app.routers.continuity import router as continuity_router
+from app.routers.route_policy import router as route_policy_router
+from app.routers.network_overview import router as network_overview_router
+from app.routers.egress import router as egress_router
 from app.websocket.manager import get_connection_manager
 
 
@@ -32,6 +39,11 @@ OPENAPI_TAGS = [
     {"name": "tasks", "description": "Asynchronous task creation, lookup, messages, and progress history."},
     {"name": "connections", "description": "Cross-agent connection requests and approvals."},
     {"name": "approvals", "description": "Human-in-the-loop high-risk task approvals."},
+    {"name": "routing", "description": "Routing runtime: route decisions, relay nodes, delivery events, and policies."},
+    {"name": "personal", "description": "Personal mode: simplified local-first routing for individual users."},
+    {"name": "sla", "description": "SLA monitoring: targets, violations, metrics, and compliance reports."},
+    {"name": "continuity", "description": "Business continuity: failover configs, circuit breakers, and relay health."},
+    {"name": "dashboard", "description": "Dashboard APIs: network overview, egress logs, and statistics."},
 ]
 
 
@@ -40,6 +52,8 @@ async def lifespan(app: FastAPI):
     import asyncio
     from app.workers.retry_worker import retry_loop
     from app.workers.timeout_worker import timeout_loop
+    from app.workers.sla_monitoring_worker import sla_monitoring_loop
+    from app.workers.continuity_worker import continuity_monitoring_loop
 
     settings = get_settings()
 
@@ -53,13 +67,15 @@ async def lifespan(app: FastAPI):
             max_task_runtime_s=settings.task_max_runtime_s,
         )
     )
+    sla_monitoring_task = asyncio.create_task(sla_monitoring_loop(60.0))
+    continuity_task = asyncio.create_task(continuity_monitoring_loop(30.0))
 
     yield
 
-    for task in (retry_task, timeout_task):
+    for task in (retry_task, timeout_task, sla_monitoring_task, continuity_task):
         task.cancel()
     try:
-        await asyncio.gather(retry_task, timeout_task, return_exceptions=True)
+        await asyncio.gather(retry_task, timeout_task, sla_monitoring_task, continuity_task, return_exceptions=True)
     except Exception:
         pass
 
@@ -130,17 +146,6 @@ def create_app() -> FastAPI:
 
         return await call_next(request)
 
-    # CSRF protection for dashboard mutations
-    @app.middleware("http")
-    async def csrf_middleware(request: Request, call_next):
-        if not request.url.path.startswith("/v1/dashboard/"):
-            return await call_next(request)
-        if request.method in ("GET", "HEAD", "OPTIONS"):
-            return await call_next(request)
-        # CSRF validation is handled by the require_csrf dependency in the router.
-        # This middleware exists as a defense-in-depth layer.
-        return await call_next(request)
-
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(agents_router)
@@ -148,9 +153,16 @@ def create_app() -> FastAPI:
     app.include_router(tasks_router)
     app.include_router(connections_router)
     app.include_router(approvals_router)
+    app.include_router(routing_router)
+    app.include_router(personal_router)
     app.include_router(dashboard_auth_router)
     app.include_router(dashboard_user_router)
     app.include_router(dashboard_admin_router)
+    app.include_router(sla_router)
+    app.include_router(continuity_router)
+    app.include_router(route_policy_router)
+    app.include_router(network_overview_router)
+    app.include_router(egress_router)
     _install_openapi_schema(app)
 
     return app

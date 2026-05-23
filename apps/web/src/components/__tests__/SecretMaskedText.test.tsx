@@ -42,4 +42,19 @@ describe('SecretMaskedText', () => {
     expect(code.textContent).not.toContain('sk-longsecret');
     expect(code.textContent).not.toContain('agt_sk_testtoken');
   });
+
+  it('masks ak_ keys with underscore chars', () => {
+    render(<SecretMaskedText text="ak_abc_def_ghi_jkl_mno_pqr_stu" />);
+    expect(screen.getByText('***')).toBeInTheDocument();
+  });
+
+  it('masks ak_ keys with hyphen chars', () => {
+    render(<SecretMaskedText text="ak_abc-def-ghi-jkl-mno-pqr-stu" />);
+    expect(screen.getByText('***')).toBeInTheDocument();
+  });
+
+  it('masks ak_ keys with mixed urlsafe chars', () => {
+    render(<SecretMaskedText text="ak_aB3_def-xyz_123-QWx_9mn" />);
+    expect(screen.getByText('***')).toBeInTheDocument();
+  });
 });

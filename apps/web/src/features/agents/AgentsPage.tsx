@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import api from '../../api/client';
@@ -29,6 +30,15 @@ export default function AgentsPage() {
           columns={[
             { key: 'name', label: 'Name' },
             { key: 'agent_number', label: 'Agent Number' },
+            {
+              key: 'details',
+              label: '',
+              render: (r: any) => (
+                <Link to={`/app/agents/${r.agent_id}`} className="text-blue-600 hover:underline text-xs font-medium">
+                  View
+                </Link>
+              ),
+            },
             { key: 'runtime', label: 'Runtime' },
             { key: 'status', label: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
             { key: 'inbound_policy', label: 'Policy' },

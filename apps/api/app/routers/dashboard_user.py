@@ -22,7 +22,11 @@ from app.schemas.dashboard import (
     AgentListItem, AgentListResponse, CreateAgentRequest,
     UpdateAgentRequest, AgentDetailResponse,
 )
-from app.services.dashboard_service import get_overview_kpis_cached, get_agent_online_status
+from app.services.dashboard_service import (
+    get_overview_kpis_cached, get_agent_online_status,
+    get_task_delivery_info, get_tasks_delivery_info_batch,
+)
+from app.services.audit_service import write_audit
 from app.services.agent_service import (
     create_agent as _create_agent_service,
     list_agents as _list_agents_service,
@@ -114,6 +118,14 @@ async def create_agent(
         discoverable=body.discoverable,
         capabilities=body.capabilities,
     )
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.agent.create",
+        resource_type="agent",
+        resource_id=str(agent.id),
+    )
     await session.commit()
     return {
         "agent_id": str(agent.id),
@@ -150,12 +162,14 @@ async def get_agent_detail(
             "rotated_at": token.rotated_at,
         }
 
+    online_status = await get_agent_online_status(session, [str(agent.id)])
+
     return AgentDetailResponse(
         agent_id=str(agent.id),
         agent_number=agent.agent_number,
         name=agent.name,
         runtime=agent.runtime,
-        status="online",
+        status="online" if online_status.get(str(agent.id)) else "offline",
         inbound_policy=agent.inbound_policy,
         discoverable=agent.discoverable,
         capabilities=agent.capabilities or [],
@@ -186,7 +200,16 @@ async def update_agent(
         agent.discoverable = body.discoverable
     if body.capabilities is not None:
         agent.capabilities = body.capabilities
-
+    changed_fields = list(body.model_dump(exclude_unset=True).keys())
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.agent.update",
+        resource_type="agent",
+        resource_id=str(agent.id),
+        details={"changed_fields": changed_fields},
+    )
     await session.commit()
     return {"agent_id": str(agent.id), "message": "updated"}
 
@@ -202,6 +225,14 @@ async def delete_agent(
         await _delete_agent_service(session, uuid.UUID(agent_id), ds.user)
     except Exception:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.agent.delete",
+        resource_type="agent",
+        resource_id=str(uuid.UUID(agent_id)),
+    )
     await session.commit()
 
 
@@ -216,6 +247,14 @@ async def rotate_agent_token(
         new_token = await _rotate_agent_token_service(session, uuid.UUID(agent_id), ds.user)
     except Exception:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Agent not found")
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.agent.rotate_token",
+        resource_type="agent",
+        resource_id=str(uuid.UUID(agent_id)),
+    )
     await session.commit()
     return {"agent_id": agent_id, "agent_token": new_token}
 
@@ -249,8 +288,12 @@ async def list_tasks(
     result = await session.execute(stmt)
     tasks = list(result.scalars().all())
 
+    task_ids = [t.id for t in tasks]
+    delivery_info = await get_tasks_delivery_info_batch(session, task_ids)
+
     items = []
     for t in tasks:
+        ds, _rc = delivery_info.get(t.id, ("unknown", 0))
         items.append({
             "task_id": str(t.id),
             "status": t.status,
@@ -260,7 +303,7 @@ async def list_tasks(
             "updated_at": t.updated_at,
             "duration_sec": None,
             "error_code": None,
-            "delivery_status": "delivered",
+            "delivery_status": ds,
         })
 
     return {"tasks": items, "total": total, "offset": offset, "limit": limit}
@@ -299,14 +342,16 @@ async def get_task_detail(
     if task.result:
         result_preview = mask_secrets_obj(task.result)[:500]
 
+    ds, rc = await get_task_delivery_info(session, task.id)
+
     return {
         "task_id": str(task.id),
         "status": task.status,
         "payload_preview": payload_preview,
         "result_preview": result_preview,
         "error_message": task.error_message,
-        "delivery_status": "delivered",
-        "retry_count": 0,
+        "delivery_status": ds,
+        "retry_count": rc,
         "created_at": task.created_at,
         "updated_at": task.updated_at,
     }
@@ -436,7 +481,15 @@ async def accept_approval(
     if approval is None:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Approval not found")
 
-    await _accept_approval(session, approval)
+    await _accept_approval(session, approval.id)
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.approval.accept",
+        resource_type="approval",
+        resource_id=str(approval.id),
+    )
     await session.commit()
     return {"approval_id": str(approval.id), "status": "accepted"}
 
@@ -458,7 +511,15 @@ async def reject_approval(
     if approval is None:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Approval not found")
 
-    await _reject_approval(session, approval)
+    await _reject_approval(session, approval.id)
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.approval.reject",
+        resource_type="approval",
+        resource_id=str(approval.id),
+    )
     await session.commit()
     return {"approval_id": str(approval.id), "status": "rejected"}
 
@@ -476,13 +537,13 @@ async def get_connections(
     agents_info = []
     for agent in ds.user.agents:
         pending = await session.execute(
-            select(func.count(Connection.id)).where(Connection.agent_id == agent.id, Connection.status == "pending")
+            select(func.count(Connection.id)).where(Connection.to_agent_id == agent.id, Connection.status == "pending")
         )
         accepted = await session.execute(
-            select(func.count(Connection.id)).where(Connection.agent_id == agent.id, Connection.status == "accepted")
+            select(func.count(Connection.id)).where(Connection.to_agent_id == agent.id, Connection.status == "accepted")
         )
         rejected = await session.execute(
-            select(func.count(Connection.id)).where(Connection.agent_id == agent.id, Connection.status == "rejected")
+            select(func.count(Connection.id)).where(Connection.to_agent_id == agent.id, Connection.status == "rejected")
         )
         agents_info.append({
             "agent_id": str(agent.id),
@@ -495,16 +556,19 @@ async def get_connections(
 
     agent_ids = [a.id for a in ds.user.agents]
     pending_result = await session.execute(
-        select(Connection).where(Connection.agent_id.in_(agent_ids), Connection.status == "pending").order_by(Connection.created_at.desc())
+        select(Connection, Agent.agent_number)
+        .join(Agent, Agent.id == Connection.from_agent_id)
+        .where(Connection.to_agent_id.in_(agent_ids), Connection.status == "pending")
+        .order_by(Connection.created_at.desc())
     )
     pending_requests = []
-    for c in pending_result.scalars():
+    for conn, requester_number in pending_result:
         pending_requests.append({
-            "connection_id": str(c.id),
-            "agent_number": c.agent_number,
-            "requester_agent": str(c.requester_agent_id),
-            "requested_policy": c.requested_policy or "unknown",
-            "created_at": c.created_at,
+            "connection_id": str(conn.id),
+            "agent_number": requester_number,
+            "requester_agent": str(conn.from_agent_id),
+            "requested_policy": "unknown",
+            "created_at": conn.created_at,
         })
 
     return {"agents": agents_info, "pending_requests": pending_requests}
@@ -520,13 +584,21 @@ async def accept_connection(
     from app.services.connection_service import accept_connection as _accept_connection
 
     result = await session.execute(
-        select(Connection).where(Connection.id == uuid.UUID(connection_id), Connection.agent_id.in_([a.id for a in ds.user.agents]))
+        select(Connection).where(Connection.id == uuid.UUID(connection_id), Connection.to_agent_id.in_([a.id for a in ds.user.agents]))
     )
     conn = result.scalar_one_or_none()
     if conn is None:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Connection not found")
 
-    await _accept_connection(session, conn)
+    await _accept_connection(session, str(conn.id))
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.connection.accept",
+        resource_type="connection",
+        resource_id=str(conn.id),
+    )
     await session.commit()
     return {"connection_id": str(conn.id), "status": "accepted"}
 
@@ -541,13 +613,21 @@ async def reject_connection(
     from app.services.connection_service import reject_connection as _reject_connection
 
     result = await session.execute(
-        select(Connection).where(Connection.id == uuid.UUID(connection_id), Connection.agent_id.in_([a.id for a in ds.user.agents]))
+        select(Connection).where(Connection.id == uuid.UUID(connection_id), Connection.to_agent_id.in_([a.id for a in ds.user.agents]))
     )
     conn = result.scalar_one_or_none()
     if conn is None:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Connection not found")
 
-    await _reject_connection(session, conn)
+    await _reject_connection(session, str(conn.id))
+    await write_audit(
+        session,
+        actor_type="user",
+        actor_id=str(ds.user_id),
+        action="dashboard.connection.reject",
+        resource_type="connection",
+        resource_id=str(conn.id),
+    )
     await session.commit()
     return {"connection_id": str(conn.id), "status": "rejected"}
 
@@ -567,7 +647,15 @@ async def update_firewall(
 
     if body.get("inbound_policy") is not None:
         agent.inbound_policy = body["inbound_policy"]
-
+        await write_audit(
+            session,
+            actor_type="user",
+            actor_id=str(ds.user_id),
+            action="dashboard.firewall.update",
+            resource_type="agent",
+            resource_id=str(agent.id),
+            details={"inbound_policy": body["inbound_policy"]},
+        )
     await session.commit()
     return {"agent_id": str(agent.id), "inbound_policy": agent.inbound_policy}
 
@@ -622,6 +710,6 @@ async def revoke_api_key(
     from app.services.api_key_service import revoke_api_key as _revoke_api_key
 
     allow_last_key = body.get("allow_last_key", False)
-    key = await _revoke_api_key(session, ds.user, uuid.UUID(api_key_id), allow_last_key=allow_last_key)
+    key = await _revoke_api_key(session, ds.user, api_key_id=uuid.UUID(api_key_id), allow_last_key=allow_last_key)
     await session.commit()
     return {"api_key_id": str(key.id), "key_prefix": key.key_prefix, "name": key.name, "revoked_at": key.revoked_at}

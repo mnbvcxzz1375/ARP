@@ -60,3 +60,14 @@ class User(Base):
         lazy="selectin",
         foreign_keys="DashboardSession.revoked_by_user_id",
     )
+    personal_scope: Mapped["PersonalScope"] = relationship(
+        back_populates="user",
+        lazy="selectin",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    network_scopes: Mapped[list["NetworkScope"]] = relationship(
+        back_populates="user",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )

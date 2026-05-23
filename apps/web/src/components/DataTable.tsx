@@ -6,7 +6,7 @@ interface DataTableProps<T> {
   className?: string;
 }
 
-export default function DataTable<T extends Record<string, unknown>>({
+export default function DataTable<T extends object>({
   columns,
   data,
   className,
@@ -31,7 +31,7 @@ export default function DataTable<T extends Record<string, unknown>>({
             <tr key={idx} className="hover:bg-gray-50">
               {columns.map((col) => (
                 <td key={col.key} className="px-4 py-3 text-sm text-gray-900">
-                  {col.render ? col.render(row) : String(row[col.key] ?? '')}
+                  {col.render ? col.render(row) : String((row as Record<string, any>)[col.key] ?? '')}
                 </td>
               ))}
             </tr>

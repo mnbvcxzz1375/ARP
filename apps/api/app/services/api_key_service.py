@@ -85,6 +85,7 @@ async def revoke_api_key(
             )
 
     api_key.is_revoked = True
+    api_key.revoked_at = datetime.now(UTC)
     await session.flush()
     await write_audit(
         session,

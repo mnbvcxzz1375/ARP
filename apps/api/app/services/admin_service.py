@@ -107,7 +107,7 @@ async def get_admin_overview_kpis(session: AsyncSession) -> dict:
         "pending_messages": pending_messages,
         "retry_worker_health": "not_configured",
         "timeout_worker_health": "not_configured",
-        "api_5xx_rate": 0.0,
+        "api_5xx_rate": "not_configured",
     }
 
 

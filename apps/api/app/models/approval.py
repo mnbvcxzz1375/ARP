@@ -35,3 +35,4 @@ class Approval(Base):
     )
 
     task: Mapped["Task"] = relationship(back_populates="approvals")
+    route_leases: Mapped[list["RouteLease"]] = relationship(back_populates="approval", lazy="select", viewonly=True)

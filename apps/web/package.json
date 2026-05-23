@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:ui": "vitest",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.24.1",

@@ -39,11 +39,25 @@ class TaskStatus(StrEnum):
 
 
 class DeliveryStatus(StrEnum):
-    PENDING = "pending"
-    DELIVERED = "delivered"
-    ACKED = "acked"
-    FAILED = "failed"
-    EXPIRED = "expired"
+    """Message delivery status.
+
+    Status flow:
+    1. queued -> route_selected -> delivering -> delivered -> acknowledged
+    2. queued -> route_selected -> delivering -> delivery_failed (retry or expire)
+    3. queued -> expired (TTL exceeded before delivery)
+    """
+    QUEUED = "queued"  # Message queued for offline agent
+    ROUTE_SELECTED = "route_selected"  # Route decision made (Phase 13+)
+    DELIVERING = "delivering"  # Delivery in progress
+    DELIVERED = "delivered"  # Successfully delivered to agent
+    ACKNOWLEDGED = "acknowledged"  # Agent acknowledged receipt
+    DELIVERY_FAILED = "delivery_failed"  # Delivery failed (will retry)
+    EXPIRED = "expired"  # TTL exceeded
+
+    # Legacy aliases for backward compatibility
+    PENDING = "queued"  # Alias for QUEUED
+    ACKED = "acknowledged"  # Alias for ACKNOWLEDGED
+    FAILED = "delivery_failed"  # Alias for DELIVERY_FAILED
 
 
 class InboundPolicy(StrEnum):
@@ -84,6 +98,7 @@ class ErrorCode(StrEnum):
     UNSUPPORTED_MESSAGE_TYPE = "UNSUPPORTED_MESSAGE_TYPE"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
     USER_DISABLED = "USER_DISABLED"
+    EGRESS_BLOCKED = "EGRESS_BLOCKED"
     CSRF_TOKEN_MISSING = "CSRF_TOKEN_MISSING"
     CSRF_TOKEN_INVALID = "CSRF_TOKEN_INVALID"
     INVALID_STEP_UP = "INVALID_STEP_UP"
@@ -91,6 +106,8 @@ class ErrorCode(StrEnum):
     SESSION_EXPIRED = "SESSION_EXPIRED"
     SESSION_REVOKED = "SESSION_REVOKED"
     INVALID_SESSION = "INVALID_SESSION"
+    ROUTE_POLICY_DENIED = "ROUTE_POLICY_DENIED"
+    DATA_BOUNDARY_VIOLATION = "DATA_BOUNDARY_VIOLATION"
 
 
 MESSAGE_TYPES = [item.value for item in MessageType]

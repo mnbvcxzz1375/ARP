@@ -18,6 +18,40 @@ class CreateTaskRequest(BaseModel):
     )
     payload: dict[str, Any] = Field(default_factory=dict, description="Task payload delivered to the target agent.")
 
+    # Timeliness and routing hints (Phase 14)
+    timeliness_mode: str | None = Field(
+        default="normal",
+        description="Timeliness mode: realtime, interactive, normal, batch, or durable. Affects routing decisions.",
+    )
+    ttl_seconds: int | None = Field(
+        default=None,
+        description="Time-to-live in seconds. Task expires if not delivered within this time.",
+    )
+    deadline_at: datetime | None = Field(
+        default=None,
+        description="Absolute deadline timestamp. Task expires if not completed by this time.",
+    )
+    priority: int | None = Field(
+        default=None,
+        ge=0,
+        le=10,
+        description="Task priority (1=highest, 10=lowest). Default is 0 (normal).",
+    )
+    max_retry_count: int | None = Field(
+        default=None,
+        ge=0,
+        description="Maximum number of delivery retries. If omitted, uses system default.",
+    )
+    retry_policy: dict[str, Any] | None = Field(
+        default=None,
+        description="Custom retry policy (backoff strategy, retry intervals, etc.).",
+    )
+    route_policy_hint: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Routing policy hint (e.g., 'prefer_local', 'require_secure', 'cost_optimized').",
+    )
+
 
 class TaskResponse(BaseModel):
     task_id: str = Field(description="Task UUID.")

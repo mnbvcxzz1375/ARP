@@ -16,6 +16,7 @@ from app.models.task import Task
 from app.models.approval import Approval
 from app.models.connection import Connection
 from app.models.user import User
+from app.models.audit_log import AuditLog
 
 
 @pytest.fixture(autouse=True)
@@ -23,6 +24,8 @@ def _mock_dashboard_redis():
     """Mock Redis used by dashboard_service (imported directly, not covered by conftest)."""
     mock = AsyncMock()
     mock.exists = AsyncMock(return_value=0)
+    mock.get = AsyncMock(return_value=None)
+    mock.setex = AsyncMock(return_value=None)
     with patch("app.services.dashboard_service.redis_client", mock):
         yield mock
 
@@ -108,6 +111,14 @@ def make_approval(agent_id, task_id, **overrides):
     return Approval(**kwargs)
 
 
+def csrf_headers(client):
+    """Build X-CSRF-Token header from the CSRF cookie stored on the client."""
+    csrf = client.cookies.get("agentnet_csrf")
+    if csrf:
+        return {"X-CSRF-Token": csrf}
+    return {}
+
+
 # ──────────────────────────────────────────────────────────────────
 # Overview
 # ──────────────────────────────────────────────────────────────────
@@ -171,7 +182,7 @@ class TestAgentEndpoints:
             "name": "new-agent",
             "runtime": "openclaw",
             "inbound_policy": "public",
-        })
+        }, headers=csrf_headers(client))
         assert resp.status_code == 201
         data = resp.json()
         assert "agent_id" in data
@@ -189,12 +200,11 @@ class TestAgentEndpoints:
             "inbound_policy": "contacts_only",
             "discoverable": True,
             "capabilities": ["chat", "tool_use"],
-        })
+        }, headers=csrf_headers(client))
         assert resp.status_code == 201
         data = resp.json()
         assert data["name"] == "full-agent"
 
-    @pytest.mark.skip(reason="Router references token.rotated_at, but AgentToken model has no such field (only created_at, is_revoked, expires_at)")
     async def test_agent_detail(self, client: AsyncClient, dashboard_user):
         user, _, agent, plain_key = dashboard_user
         await login(client, user.username, plain_key.decode())
@@ -203,6 +213,24 @@ class TestAgentEndpoints:
         data = resp.json()
         assert data["agent_id"] == str(agent.id)
         assert data["name"] == agent.name
+        # No Redis presence → status is offline
+        assert data["status"] == "offline"
+
+    async def test_agent_detail_online_when_present(self, client: AsyncClient, dashboard_user):
+        """When Redis presence key exists, detail endpoint returns status=online."""
+        from app.services import dashboard_service
+
+        user, _, agent, plain_key = dashboard_user
+        original_exists = dashboard_service.redis_client.exists
+        dashboard_service.redis_client.exists = AsyncMock(return_value=1)
+        try:
+            await login(client, user.username, plain_key.decode())
+            resp = await client.get(f"/v1/dashboard/agents/{agent.id}")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "online"
+        finally:
+            dashboard_service.redis_client.exists = original_exists
 
     async def test_agent_detail_404_for_other_user(self, client: AsyncClient, dashboard_user, other_user, session):
         user, _, _, plain_key = dashboard_user
@@ -227,22 +255,32 @@ class TestAgentEndpoints:
         resp = await client.get("/v1/dashboard/agents/not-a-uuid")
         assert resp.status_code in (404, 422)
 
-    async def test_update_agent(self, client: AsyncClient, dashboard_user):
+    async def test_update_agent(self, client: AsyncClient, dashboard_user, session: AsyncSession):
         user, _, agent, plain_key = dashboard_user
         await login(client, user.username, plain_key.decode())
         resp = await client.patch(f"/v1/dashboard/agents/{agent.id}", json={
             "name": "updated-name",
-        })
+        }, headers=csrf_headers(client))
         assert resp.status_code == 200
         data = resp.json()
         assert data["agent_id"] == str(agent.id)
+
+        # Verify audit log entry
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.agent.update",
+                AuditLog.actor_id == str(user.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
 
     async def test_update_agent_inbound_policy(self, client: AsyncClient, dashboard_user):
         user, _, agent, plain_key = dashboard_user
         await login(client, user.username, plain_key.decode())
         resp = await client.patch(f"/v1/dashboard/agents/{agent.id}", json={
             "inbound_policy": "contacts_only",
-        })
+        }, headers=csrf_headers(client))
         assert resp.status_code == 200
 
     async def test_update_agent_404_for_other_user(self, client: AsyncClient, dashboard_user, other_user, session):
@@ -261,7 +299,7 @@ class TestAgentEndpoints:
         await login(client, user.username, plain_key.decode())
         resp = await client.patch(f"/v1/dashboard/agents/{other_agent.id}", json={
             "name": "hacked",
-        })
+        }, headers=csrf_headers(client))
         assert resp.status_code == 404
 
     async def test_delete_agent(self, client: AsyncClient, dashboard_user, session):
@@ -274,7 +312,7 @@ class TestAgentEndpoints:
         await session.flush()
 
         await login(client, user.username, plain_key.decode())
-        resp = await client.delete(f"/v1/dashboard/agents/{new_agent.id}")
+        resp = await client.delete(f"/v1/dashboard/agents/{new_agent.id}", headers=csrf_headers(client))
         assert resp.status_code == 204
 
         # Verify agent is gone
@@ -295,13 +333,13 @@ class TestAgentEndpoints:
         await session.flush()
 
         await login(client, user.username, plain_key.decode())
-        resp = await client.delete(f"/v1/dashboard/agents/{other_agent.id}")
+        resp = await client.delete(f"/v1/dashboard/agents/{other_agent.id}", headers=csrf_headers(client))
         assert resp.status_code == 404
 
     async def test_rotate_token(self, client: AsyncClient, dashboard_user):
         user, _, agent, plain_key = dashboard_user
         await login(client, user.username, plain_key.decode())
-        resp = await client.post(f"/v1/dashboard/agents/{agent.id}/rotate-token")
+        resp = await client.post(f"/v1/dashboard/agents/{agent.id}/rotate-token", headers=csrf_headers(client))
         assert resp.status_code == 200
         data = resp.json()
         assert "agent_token" in data
@@ -322,7 +360,7 @@ class TestAgentEndpoints:
         await session.flush()
 
         await login(client, user.username, plain_key.decode())
-        resp = await client.post(f"/v1/dashboard/agents/{other_agent.id}/rotate-token")
+        resp = await client.post(f"/v1/dashboard/agents/{other_agent.id}/rotate-token", headers=csrf_headers(client))
         assert resp.status_code == 404
 
 
@@ -446,6 +484,86 @@ class TestTaskEndpoints:
         data = resp.json()
         assert data["messages"] == []
 
+    async def test_list_tasks_returns_real_delivery_status(self, client: AsyncClient, dashboard_user, session):
+        from app.models.message import Message
+
+        user, _, agent, plain_key = dashboard_user
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="completed",
+        )
+        session.add(task)
+        await session.flush()
+
+        msg = Message(
+            id=uuid.uuid4(),
+            task_id=task.id,
+            message_id="msg-001",
+            type="task_result",
+            delivery_status="acked",
+            retry_count=2,
+        )
+        session.add(msg)
+        await session.flush()
+
+        await login(client, user.username, plain_key.decode())
+        resp = await client.get("/v1/dashboard/tasks")
+        assert resp.status_code == 200
+        data = resp.json()
+        task_data = next(t for t in data["tasks"] if t["task_id"] == str(task.id))
+        assert task_data["delivery_status"] == "acked"
+
+    async def test_task_detail_returns_real_delivery_status(self, client: AsyncClient, dashboard_user, session):
+        from app.models.message import Message
+
+        user, _, agent, plain_key = dashboard_user
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="completed",
+        )
+        session.add(task)
+        await session.flush()
+
+        msg = Message(
+            id=uuid.uuid4(),
+            task_id=task.id,
+            message_id="msg-002",
+            type="task_result",
+            delivery_status="failed",
+            retry_count=5,
+        )
+        session.add(msg)
+        await session.flush()
+
+        await login(client, user.username, plain_key.decode())
+        resp = await client.get(f"/v1/dashboard/tasks/{task.id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["delivery_status"] == "failed"
+        assert data["retry_count"] == 5
+
+    async def test_task_detail_returns_unknown_when_no_message(self, client: AsyncClient, dashboard_user, session):
+        user, _, agent, plain_key = dashboard_user
+        task = Task(
+            id=uuid.uuid4(),
+            created_by=agent.id,
+            assigned_to=agent.id,
+            status="completed",
+        )
+        session.add(task)
+        await session.flush()
+
+        await login(client, user.username, plain_key.decode())
+        resp = await client.get(f"/v1/dashboard/tasks/{task.id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["delivery_status"] == "unknown"
+        assert data["retry_count"] == 0
+
     async def test_task_progress_empty(self, client: AsyncClient, dashboard_user, session):
         user, _, agent, plain_key = dashboard_user
         task = Task(
@@ -500,13 +618,48 @@ class TestApprovalEndpoints:
         data = resp.json()
         assert data["total"] >= 1
 
-    @pytest.mark.skip(reason="Router passes Approval object to accept_approval(service, approval) but service expects approval_id (UUID)")
     async def test_accept_approval(self, client: AsyncClient, dashboard_user, session):
-        pass
+        user, _, agent, plain_key = dashboard_user
+        task = Task(id=uuid.uuid4(), created_by=agent.id, assigned_to=agent.id, status="awaiting_approval")
+        session.add(task)
+        await session.flush()
 
-    @pytest.mark.skip(reason="Router passes Approval object to reject_approval(service, approval) but service expects approval_id (UUID)")
+        approval = make_approval(agent_id=agent.id, task_id=task.id)
+        session.add(approval)
+        await session.flush()
+
+        await login(client, user.username, plain_key.decode())
+        resp = await client.post(f"/v1/dashboard/approvals/{approval.id}/accept", headers=csrf_headers(client))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "accepted"
+
+        # Verify audit log entry
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.approval.accept",
+                AuditLog.actor_id == str(user.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) == 1
+        assert logs[0].actor_type == "user"
+
     async def test_reject_approval(self, client: AsyncClient, dashboard_user, session):
-        pass
+        user, _, agent, plain_key = dashboard_user
+        task = Task(id=uuid.uuid4(), created_by=agent.id, assigned_to=agent.id, status="awaiting_approval")
+        session.add(task)
+        await session.flush()
+
+        approval = make_approval(agent_id=agent.id, task_id=task.id)
+        session.add(approval)
+        await session.flush()
+
+        await login(client, user.username, plain_key.decode())
+        resp = await client.post(f"/v1/dashboard/approvals/{approval.id}/reject", headers=csrf_headers(client))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "rejected"
 
     async def test_approval_404_for_other_user(self, client: AsyncClient, dashboard_user, other_user, session):
         user, _, _, plain_key = dashboard_user
@@ -535,7 +688,7 @@ class TestApprovalEndpoints:
         await session.flush()
 
         await login(client, user.username, plain_key.decode())
-        resp = await client.post(f"/v1/dashboard/approvals/{other_approval.id}/accept")
+        resp = await client.post(f"/v1/dashboard/approvals/{other_approval.id}/accept", headers=csrf_headers(client))
         assert resp.status_code == 404
 
 
@@ -549,36 +702,183 @@ class TestApprovalEndpoints:
 # ──────────────────────────────────────────────────────────────────
 
 class TestConnectionEndpoints:
-    @pytest.mark.skip(reason="Connection model uses from_agent_id/to_agent_id; router references non-existent columns agent_id, requester_agent_id, etc.")
-    async def test_connections_returns_agents(self, client, dashboard_user):
-        pass
+    async def test_connections_returns_agents(self, client: AsyncClient, dashboard_user):
+        user, _, agent, plain_key = dashboard_user
+        await login(client, user.username, plain_key.decode())
+        resp = await client.get("/v1/dashboard/connections")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "agents" in data
+        assert len(data["agents"]) >= 1
+        agent_info = data["agents"][0]
+        assert agent_info["agent_id"] == str(agent.id)
+        assert agent_info["agent_number"] == agent.agent_number
+        assert agent_info["inbound_policy"] == agent.inbound_policy
+        assert "pending_requests" in agent_info
+        assert "accepted_connections" in agent_info
+        assert "rejected_connections" in agent_info
 
-    @pytest.mark.skip(reason="Connection model uses from_agent_id/to_agent_id; router references non-existent columns.")
-    async def test_connections_pending_requests(self, client, dashboard_user, session):
-        pass
+    async def test_connections_pending_requests(self, client: AsyncClient, dashboard_user, other_user, session: AsyncSession):
+        user, _, user_agent, plain_key = dashboard_user
+        other, _, _ = other_user
 
-    @pytest.mark.skip(reason="Connection model uses from_agent_id/to_agent_id; router references non-existent columns.")
-    async def test_accept_connection(self, client, dashboard_user, session):
-        pass
+        requester_agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=other.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}-REQ",
+            name="requester-agent",
+            runtime="python",
+        )
+        session.add(requester_agent)
+        await session.flush()
 
-    @pytest.mark.skip(reason="Connection model uses from_agent_id/to_agent_id; router references non-existent columns.")
-    async def test_reject_connection(self, client, dashboard_user, session):
-        pass
+        conn = Connection(
+            id=uuid.uuid4(),
+            from_agent_id=requester_agent.id,
+            to_agent_id=user_agent.id,
+            status="pending",
+        )
+        session.add(conn)
+        await session.flush()
 
-    @pytest.mark.skip(reason="Connection model uses from_agent_id/to_agent_id; router references non-existent columns.")
-    async def test_connection_404_for_other_user(self, client, dashboard_user, other_user, session):
-        pass
+        await login(client, user.username, plain_key.decode())
+        resp = await client.get("/v1/dashboard/connections")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "pending_requests" in data
+        assert len(data["pending_requests"]) == 1
+        req = data["pending_requests"][0]
+        assert req["agent_number"] == requester_agent.agent_number
+        assert req["requester_agent"] == str(requester_agent.id)
 
-    async def test_update_firewall(self, client: AsyncClient, dashboard_user):
+    async def test_accept_connection(self, client: AsyncClient, dashboard_user, other_user, session: AsyncSession):
+        user, _, user_agent, plain_key = dashboard_user
+        other, _, _ = other_user
+
+        requester_agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=other.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}-ACC",
+            name="req-agent",
+            runtime="python",
+        )
+        session.add(requester_agent)
+        await session.flush()
+
+        conn = Connection(
+            id=uuid.uuid4(),
+            from_agent_id=requester_agent.id,
+            to_agent_id=user_agent.id,
+            status="pending",
+        )
+        session.add(conn)
+        await session.flush()
+
+        await login(client, user.username, plain_key.decode())
+        resp = await client.post(f"/v1/dashboard/connections/{conn.id}/accept", headers=csrf_headers(client))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "accepted"
+
+        # Verify audit log entry
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.connection.accept",
+                AuditLog.actor_id == str(user.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
+        assert logs[0].actor_type == "user"
+
+    async def test_reject_connection(self, client: AsyncClient, dashboard_user, other_user, session: AsyncSession):
+        user, _, user_agent, plain_key = dashboard_user
+        other, _, _ = other_user
+
+        requester_agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=other.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}-REJ",
+            name="req-agent",
+            runtime="python",
+        )
+        session.add(requester_agent)
+        await session.flush()
+
+        conn = Connection(
+            id=uuid.uuid4(),
+            from_agent_id=requester_agent.id,
+            to_agent_id=user_agent.id,
+            status="pending",
+        )
+        session.add(conn)
+        await session.flush()
+
+        await login(client, user.username, plain_key.decode())
+        resp = await client.post(f"/v1/dashboard/connections/{conn.id}/reject", headers=csrf_headers(client))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "rejected"
+
+    async def test_connection_404_for_other_user(self, client: AsyncClient, dashboard_user, other_user, session: AsyncSession):
+        user, _, _, plain_key = dashboard_user
+        other, _, _ = other_user
+
+        other_agent = Agent(
+            id=uuid.uuid4(),
+            owner_id=other.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}-OTH",
+            name="other-agent",
+            runtime="python",
+        )
+        session.add(other_agent)
+        await session.flush()
+
+        requester = Agent(
+            id=uuid.uuid4(),
+            owner_id=other.id,
+            agent_number=f"AN-GLOBAL-{uuid.uuid4().hex[:10].upper()}-REQ2",
+            name="requester",
+            runtime="python",
+        )
+        session.add(requester)
+        await session.flush()
+
+        conn = Connection(
+            id=uuid.uuid4(),
+            from_agent_id=requester.id,
+            to_agent_id=other_agent.id,
+            status="pending",
+        )
+        session.add(conn)
+        await session.flush()
+
+        await login(client, user.username, plain_key.decode())
+        resp = await client.post(f"/v1/dashboard/connections/{conn.id}/accept", headers=csrf_headers(client))
+        assert resp.status_code == 404
+
+    async def test_update_firewall(self, client: AsyncClient, dashboard_user, session: AsyncSession):
         user, _, agent, plain_key = dashboard_user
         await login(client, user.username, plain_key.decode())
         resp = await client.patch(
             f"/v1/dashboard/agents/{agent.id}/firewall",
             json={"inbound_policy": "private"},
+            headers=csrf_headers(client),
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["inbound_policy"] == "private"
+
+        # Verify audit log entry
+        result = await session.execute(
+            select(AuditLog).where(
+                AuditLog.action == "dashboard.firewall.update",
+                AuditLog.actor_id == str(user.id),
+            )
+        )
+        logs = list(result.scalars().all())
+        assert len(logs) >= 1
+        assert logs[0].actor_type == "user"
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -586,9 +886,14 @@ class TestConnectionEndpoints:
 # ──────────────────────────────────────────────────────────────────
 
 class TestApiKeyEndpoints:
-    @pytest.mark.skip(reason="Router references k.revoked_at but ApiKey model uses is_revoked (no revoked_at column)")
     async def test_list_api_keys(self, client: AsyncClient, dashboard_user):
-        pass
+        user, _, _, plain_key = dashboard_user
+        await login(client, user.username, plain_key.decode())
+        resp = await client.get("/v1/dashboard/api-keys")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "api_keys" in data
+        assert "total" in data
 
     async def test_create_api_key(self, client: AsyncClient, dashboard_user):
         user, _, _, plain_key = dashboard_user
@@ -597,7 +902,7 @@ class TestApiKeyEndpoints:
 
         resp = await client.post("/v1/dashboard/api-keys", json={
             "name": "new-deploy-key",
-        })
+        }, headers=csrf_headers(client))
         assert resp.status_code == 201
         data = resp.json()
         assert "api_key" in data  # One-time plain key
@@ -605,13 +910,31 @@ class TestApiKeyEndpoints:
         assert "key_prefix" in data
         assert data["name"] == "new-deploy-key"
 
-    @pytest.mark.skip(reason="Router references k.revoked_at but ApiKey model uses is_revoked (no revoked_at column)")
     async def test_revoke_api_key(self, client: AsyncClient, dashboard_user):
-        pass
+        user, _, _, plain_key = dashboard_user
+        await login(client, user.username, plain_key.decode())
+        # Create a key first
+        create_resp = await client.post("/v1/dashboard/api-keys", json={"name": "revoke-test"}, headers=csrf_headers(client))
+        assert create_resp.status_code == 201
+        key_id = create_resp.json()["api_key_id"]
 
-    @pytest.mark.skip(reason="Router references k.revoked_at but ApiKey model uses is_revoked (no revoked_at column)")
+        # Revoke it
+        resp = await client.post(f"/v1/dashboard/api-keys/{key_id}/revoke", json={"allow_last_key": True}, headers=csrf_headers(client))
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["api_key_id"] == key_id
+
     async def test_cannot_revoke_last_key_without_flag(self, client: AsyncClient, dashboard_user):
-        pass
+        user, _, _, plain_key = dashboard_user
+        await login(client, user.username, plain_key.decode())
+
+        # First list keys and try revoking
+        list_resp = await client.get("/v1/dashboard/api-keys")
+        keys = list_resp.json()["api_keys"]
+        if keys:
+            key_id = keys[0]["api_key_id"]
+            resp = await client.post(f"/v1/dashboard/api-keys/{key_id}/revoke", json={"allow_last_key": False}, headers=csrf_headers(client))
+            assert resp.status_code == 409
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -705,9 +1028,16 @@ class TestCrossUserIsolation:
         data = resp.json()
         assert data["total"] == 0  # should not see other user's approval
 
-    @pytest.mark.skip(reason="Router references k.revoked_at but ApiKey model uses is_revoked (no revoked_at column)")
     async def test_cannot_see_other_user_api_keys(self, client: AsyncClient, dashboard_user, other_user):
-        pass
+        user, _, _, plain_key = dashboard_user
+        other, other_api_key, _ = other_user
+        await login(client, user.username, plain_key.decode())
+        resp = await client.get("/v1/dashboard/api-keys")
+        assert resp.status_code == 200
+        data = resp.json()
+        # Should not see other user's keys
+        for key in data["api_keys"]:
+            assert key["key_prefix"] != other_api_key.key_prefix
 
     async def test_cannot_update_other_user_agent(self, client: AsyncClient, dashboard_user, other_user, session):
         user, _, _, plain_key = dashboard_user
@@ -723,7 +1053,7 @@ class TestCrossUserIsolation:
         await session.flush()
 
         await login(client, user.username, plain_key.decode())
-        resp = await client.patch(f"/v1/dashboard/agents/{other_agent.id}", json={"name": "hacked"})
+        resp = await client.patch(f"/v1/dashboard/agents/{other_agent.id}", json={"name": "hacked"}, headers=csrf_headers(client))
         assert resp.status_code == 404
 
     async def test_cannot_delete_other_user_agent(self, client: AsyncClient, dashboard_user, other_user, session):
@@ -740,5 +1070,5 @@ class TestCrossUserIsolation:
         await session.flush()
 
         await login(client, user.username, plain_key.decode())
-        resp = await client.delete(f"/v1/dashboard/agents/{other_agent.id}")
+        resp = await client.delete(f"/v1/dashboard/agents/{other_agent.id}", headers=csrf_headers(client))
         assert resp.status_code == 404

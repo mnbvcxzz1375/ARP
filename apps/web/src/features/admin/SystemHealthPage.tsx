@@ -20,7 +20,7 @@ function HealthBadge({ status, label }: { status: string; label: string }) {
 export default function SystemHealthPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin/system'],
-    queryFn: () => api.get('/v1/admin/system/health').then((r) => r.data),
+    queryFn: () => api.get('/v1/dashboard/admin/system-health').then((r) => r.data),
     refetchInterval: 10000,
   });
 

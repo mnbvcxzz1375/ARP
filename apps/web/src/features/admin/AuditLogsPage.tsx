@@ -12,7 +12,7 @@ export default function AuditLogsPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin/audit', page, limit],
-    queryFn: () => api.get('/v1/admin/audit-logs', { params: { offset: (page - 1) * limit, limit } }).then((r) => r.data),
+    queryFn: () => api.get('/v1/dashboard/admin/audit-logs', { params: { offset: (page - 1) * limit, limit } }).then((r) => r.data),
   });
 
   if (isLoading) return <LoadingState />;

@@ -233,6 +233,81 @@ class TestSameOwner:
         # Same owner -> should succeed regardless of policy
         assert resp.status_code == 201
 
+    async def test_same_owner_request_approval_allowed(self, client, user_a_key):
+        """Same-owner communication bypasses request_approval without a connection."""
+        # Create two agents under same user, both with request_approval
+        resp_a1 = await client.post(
+            "/v1/agents",
+            json={"name": "Agent R1", "runtime": "test", "inbound_policy": "request_approval"},
+            headers={"X-API-Key": user_a_key},
+        )
+        assert resp_a1.status_code == 201
+        r1_number = resp_a1.json()["agent_number"]
+
+        resp_a2 = await client.post(
+            "/v1/agents",
+            json={"name": "Agent R2", "runtime": "test", "inbound_policy": "request_approval"},
+            headers={"X-API-Key": user_a_key},
+        )
+        assert resp_a2.status_code == 201
+        r2_number = resp_a2.json()["agent_number"]
+
+        # Same-owner task to request_approval agent should succeed without connection
+        resp = await client.post(
+            "/v1/tasks",
+            json={"assigned_to": r1_number, "payload": {"test": True}},
+            headers={"X-API-Key": user_a_key},
+        )
+        assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
+
+    async def test_same_owner_contacts_only_allowed(self, client, user_a_key):
+        """Same-owner communication bypasses contacts_only without a connection."""
+        resp = await client.post(
+            "/v1/agents",
+            json={"name": "Agent C1", "runtime": "test", "inbound_policy": "contacts_only"},
+            headers={"X-API-Key": user_a_key},
+        )
+        assert resp.status_code == 201
+        c1_number = resp.json()["agent_number"]
+
+        resp = await client.post(
+            "/v1/agents",
+            json={"name": "Agent C2", "runtime": "test", "inbound_policy": "contacts_only"},
+            headers={"X-API-Key": user_a_key},
+        )
+        assert resp.status_code == 201
+        c2_number = resp.json()["agent_number"]
+
+        # Same-owner task to contacts_only agent should succeed
+        resp = await client.post(
+            "/v1/tasks",
+            json={"assigned_to": c1_number, "payload": {"test": True}},
+            headers={"X-API-Key": user_a_key},
+        )
+        assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
+
+    async def test_self_send_request_approval_allowed(self, client, user_a_key):
+        """Agent sending a task to itself with request_approval should succeed."""
+        resp = await client.post(
+            "/v1/agents",
+            json={"name": "Self R", "runtime": "test", "inbound_policy": "request_approval"},
+            headers={"X-API-Key": user_a_key},
+        )
+        assert resp.status_code == 201
+        agent_number = resp.json()["agent_number"]
+
+        # Self-send task (same agent)
+        resp = await client.post(
+            "/v1/tasks",
+            json={
+                "assigned_to": agent_number,
+                "from_agent_number": agent_number,
+                "payload": {"test": True},
+            },
+            headers={"X-API-Key": user_a_key},
+        )
+        assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
+
 
 class TestConnectionAPI:
     async def test_request_connection(self, client, user_a_key, user_b_key):

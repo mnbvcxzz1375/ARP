@@ -131,6 +131,7 @@ async def rotate_agent_token(
     old_tokens = list(result.scalars().all())
     for t in old_tokens:
         t.is_revoked = True
+        t.rotated_at = datetime.now(UTC)
 
     raw_token, token_hash, token_prefix = _generate_agent_token()
     new_token = AgentToken(

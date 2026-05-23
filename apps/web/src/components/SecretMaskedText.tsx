@@ -4,7 +4,7 @@ import { Eye, EyeOff } from 'lucide-react';
 const SECRET_PATTERNS = [
   /sk-[A-Za-z0-9]{20,}/g,
   /agt_sk_[A-Za-z0-9_-]{20,}/g,
-  /ak_[A-Za-z0-9]{20,}/g,
+  /ak_[A-Za-z0-9_-]{20,}/g,
 ];
 
 export default function SecretMaskedText({ text, className }: { text: string; className?: string }) {

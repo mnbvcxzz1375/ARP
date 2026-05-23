@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.database import get_session
 from app.dependencies.auth import CurrentSession
+from app.dependencies.csrf import require_csrf
 from app.exceptions import DomainException
 from app.models.api_key import ApiKey
 from app.models.user import User
@@ -66,6 +67,15 @@ async def login(
     api_key = body.get("api_key", "")
 
     if not username or not api_key:
+        await write_audit(
+            session,
+            actor_type="user",
+            actor_id="unknown",
+            action="dashboard.login.failure",
+            resource_type="session",
+            details={"reason": "missing_credentials"},
+        )
+        await session.commit()
         raise DomainException(
             ErrorCode.INVALID_CREDENTIALS,
             "Username and API key are required",
@@ -79,6 +89,15 @@ async def login(
     user = result.scalar_one_or_none()
 
     if user is None:
+        await write_audit(
+            session,
+            actor_type="user",
+            actor_id="unknown",
+            action="dashboard.login.failure",
+            resource_type="session",
+            details={"reason": "invalid_credentials"},
+        )
+        await session.commit()
         raise DomainException(
             ErrorCode.INVALID_CREDENTIALS,
             "Invalid credentials",
@@ -95,6 +114,15 @@ async def login(
     found_key = key_result.scalar_one_or_none()
 
     if found_key is None:
+        await write_audit(
+            session,
+            actor_type="user",
+            actor_id=str(user.id),
+            action="dashboard.login.failure",
+            resource_type="session",
+            details={"reason": "invalid_credentials"},
+        )
+        await session.commit()
         raise DomainException(
             ErrorCode.INVALID_CREDENTIALS,
             "Invalid credentials",
@@ -102,6 +130,15 @@ async def login(
         )
 
     if found_key.expires_at and found_key.expires_at < datetime.now(UTC):
+        await write_audit(
+            session,
+            actor_type="user",
+            actor_id=str(user.id),
+            action="dashboard.login.failure",
+            resource_type="session",
+            details={"reason": "invalid_credentials"},
+        )
+        await session.commit()
         raise DomainException(
             ErrorCode.INVALID_CREDENTIALS,
             "Invalid credentials",
@@ -109,6 +146,15 @@ async def login(
         )
 
     if user.is_disabled:
+        await write_audit(
+            session,
+            actor_type="user",
+            actor_id=str(user.id),
+            action="dashboard.login.failure",
+            resource_type="session",
+            details={"reason": "user_disabled"},
+        )
+        await session.commit()
         raise DomainException(
             ErrorCode.USER_DISABLED,
             "Account has been disabled",
@@ -137,6 +183,7 @@ async def logout(
     response: Response,
     ds: CurrentSession,
     session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_csrf),
 ):
     """Revoke current session, clear cookies."""
     await revoke_session(session, ds, reason="logout")
@@ -161,10 +208,20 @@ async def step_up(
     response: Response,
     ds: CurrentSession,
     session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_csrf),
 ):
     """Re-verify API key to extend step-up window."""
     api_key = body.get("api_key", "")
     if not api_key:
+        await write_audit(
+            session,
+            actor_type="user",
+            actor_id=str(ds.user_id),
+            action="dashboard.step_up.failure",
+            resource_type="session",
+            details={"reason": "missing_credentials"},
+        )
+        await session.commit()
         raise DomainException(
             ErrorCode.INVALID_STEP_UP,
             "Invalid step-up credentials",
@@ -180,6 +237,15 @@ async def step_up(
         )
     )
     if key_result.scalar_one_or_none() is None:
+        await write_audit(
+            session,
+            actor_type="user",
+            actor_id=str(ds.user_id),
+            action="dashboard.step_up.failure",
+            resource_type="session",
+            details={"reason": "invalid_credentials"},
+        )
+        await session.commit()
         raise DomainException(
             ErrorCode.INVALID_STEP_UP,
             "Invalid step-up credentials",

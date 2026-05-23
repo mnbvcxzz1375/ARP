@@ -25,7 +25,7 @@ class AdminOverviewResponse(BaseModel):
     pending_messages: int
     retry_worker_health: str
     timeout_worker_health: str
-    api_5xx_rate: float
+    api_5xx_rate: str
 
 
 # ──────────────────────────────────────────────────────────────────

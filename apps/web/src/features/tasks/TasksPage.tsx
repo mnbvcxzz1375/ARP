@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import api from '../../api/client';
@@ -26,6 +27,15 @@ export default function TasksPage() {
         <DataTable
           columns={[
             { key: 'task_id', label: 'ID', render: (r: any) => r.task_id?.slice(0, 8) },
+            {
+              key: 'details',
+              label: '',
+              render: (r: any) => (
+                <Link to={`/app/tasks/${r.task_id}`} className="text-blue-600 hover:underline text-xs font-medium">
+                  View
+                </Link>
+              ),
+            },
             { key: 'status', label: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
             { key: 'sender_agent', label: 'Sender', render: (r: any) => r.sender_agent?.slice(0, 8) },
             { key: 'target_agent', label: 'Target', render: (r: any) => r.target_agent?.slice(0, 8) },

@@ -171,7 +171,7 @@ apps/web
 
 ```text
 /v1/dashboard/*
-/v1/admin/*
+/v1/dashboard/admin/*
 /v1/dashboard/auth/*
 ```
 
@@ -910,29 +910,31 @@ POST /v1/dashboard/api-keys/{api_key_id}/revoke
 ### Admin APIs
 
 ```text
-GET  /v1/admin/overview
+GET  /v1/dashboard/admin/overview
 
-GET  /v1/admin/users
-GET  /v1/admin/users/{user_id}
-POST /v1/admin/users/{user_id}/disable
-POST /v1/admin/users/{user_id}/enable
-POST /v1/admin/users/{user_id}/revoke-sessions
-POST /v1/admin/users/{user_id}/revoke-api-keys
+GET  /v1/dashboard/admin/users
+GET  /v1/dashboard/admin/users/{user_id}
+POST /v1/dashboard/admin/users/{user_id}/disable
+     # body: {is_disabled: true|false}
+POST /v1/dashboard/admin/users/{user_id}/force-revoke-keys
+     # revokes API keys + active dashboard sessions
 
-GET  /v1/admin/agents
-GET  /v1/admin/agents/{agent_id}
-POST /v1/admin/agents/{agent_id}/disable
-POST /v1/admin/agents/{agent_id}/enable
+GET  /v1/dashboard/admin/agents
+GET  /v1/dashboard/admin/agents/{agent_id}
+POST /v1/dashboard/admin/agents/{agent_id}/disable
+     # body: {status: "offline"|"online"}
 
-GET  /v1/admin/tasks
-GET  /v1/admin/tasks/{task_id}
-POST /v1/admin/tasks/{task_id}/cancel
-POST /v1/admin/tasks/{task_id}/expire
+GET  /v1/dashboard/admin/tasks
+GET  /v1/dashboard/admin/tasks/{task_id}
+POST /v1/dashboard/admin/tasks/{task_id}/cancel
+     # admin: only pending/scheduled; super_admin: any (including running) + step-up
+POST /v1/dashboard/admin/tasks/{task_id}/expire
+     # super_admin only + step-up; terminal states return 400
 
-GET  /v1/admin/audit-logs
-POST /v1/admin/audit-logs/export
+GET  /v1/dashboard/admin/audit-logs
+GET  /v1/dashboard/admin/audit-logs/export
 
-GET  /v1/admin/system/health
+GET  /v1/dashboard/admin/system-health
 ```
 
 ### API 通用规则
@@ -1202,7 +1204,7 @@ Auth/session：
 
 RBAC：
 
-- user cannot access `/v1/admin/*`。
+- user cannot access `/v1/dashboard/admin/*`。
 - admin can read global resources。
 - admin cannot disable user。
 - super_admin can disable user after step-up。

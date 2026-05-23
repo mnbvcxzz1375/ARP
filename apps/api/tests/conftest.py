@@ -83,3 +83,31 @@ async def client(app):
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.fixture
+async def sample_user(session):
+    """Create a sample test user."""
+    from app.models.user import User
+    user = User(username="test_user")
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+@pytest.fixture
+async def sample_agent(session, sample_user):
+    """Create a sample test agent."""
+    from app.models.agent import Agent
+    agent = Agent(
+        agent_number="999999",
+        owner_id=sample_user.id,
+        name="TestAgent",
+        runtime="test",
+        inbound_policy="public",
+    )
+    session.add(agent)
+    await session.commit()
+    await session.refresh(agent)
+    return agent

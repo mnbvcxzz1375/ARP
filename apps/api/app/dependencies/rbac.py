@@ -8,7 +8,7 @@ from app.exceptions import DomainException
 from app.models.dashboard_session import DashboardSession
 from app.models.user import User
 from app.protocol.constants import ErrorCode
-from app.services.rbac_service import PERM_DISABLE_USER, has_permission, has_step_up
+from app.services.rbac_service import has_permission, has_step_up
 
 
 def _forbidden():
@@ -66,19 +66,19 @@ def require_step_up():
     return _check
 
 
-def require_high_risk():
-    """Combined: super_admin + step-up required.
+def require_high_risk(permission: str):
+    """Combined: required permission + step-up required.
 
     Usage:
         @router.post("/disable-user")
         async def disable_user(
             ds: CurrentSession,
-            _: None = Depends(require_high_risk()),
+            _: None = Depends(require_high_risk(PERM_DISABLE_USER)),
         ):
             ...
     """
     def _check(ds: CurrentSession) -> None:
-        if not has_permission(ds.user, PERM_DISABLE_USER):
+        if not has_permission(ds.user, permission):
             _forbidden()
         if not has_step_up(ds):
             _step_up_required()

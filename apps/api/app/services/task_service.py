@@ -31,6 +31,13 @@ async def create_task(
     to_agent_number: str,
     idempotency_key: str | None,
     payload: dict,
+    timeliness_mode: str = "normal",
+    ttl_seconds: int | None = None,
+    deadline_at: datetime | None = None,
+    priority: int = 0,
+    max_retry_count: int | None = None,
+    retry_policy: dict | None = None,
+    route_policy_hint: str | None = None,
 ) -> Task:
     to_agent = await resolve_agent(session, to_agent_number)
 
@@ -58,6 +65,13 @@ async def create_task(
         assigned_to=to_agent_id,
         status=TaskStatus.CREATED.value,
         message_id=str(uuid.uuid4()),
+        timeliness_mode=timeliness_mode,
+        ttl_seconds=ttl_seconds,
+        deadline_at=deadline_at,
+        priority=priority,
+        max_retry_count=max_retry_count,
+        retry_policy=retry_policy,
+        route_policy_hint=route_policy_hint,
     )
     session.add(task)
 
@@ -79,6 +93,9 @@ async def create_task(
         type=MessageType.TASK_REQUEST.value,
         delivery_status=DeliveryStatus.PENDING.value,
         content=payload,
+        ttl_seconds=ttl_seconds,
+        priority=priority,
+        max_retries=max_retry_count if max_retry_count is not None else 3,
     )
     session.add(msg)
 
@@ -103,13 +120,54 @@ async def create_task(
     logger.info("Task created: id=%s from=%s to=%s", task.id, from_agent.agent_number, to_agent_number)
     metrics.TASKS_CREATED_TOTAL.inc()
 
-    # Route: deliver online or queue offline
-    delivery_status = await deliver_task_request(task, msg, to_agent)
+    # Phase 13: Path Optimizer controls delivery (enforced mode)
+    try:
+        from app.services.path_optimizer import select_route, ensure_default_relay_node
+        # Ensure default relay node exists (bootstrap)
+        await ensure_default_relay_node(session)
+
+        # Phase 15: Extract scope/zone information from agents
+        scope_id = from_agent.scope_id or to_agent.scope_id
+        source_zone_id = from_agent.zone_id
+        target_zone_id = to_agent.zone_id
+
+        # Select route - this decision controls actual delivery
+        route_decision = await select_route(
+            session,
+            task=task,
+            from_agent=from_agent,
+            to_agent=to_agent,
+            message_id=msg.message_id,
+            timeliness_mode=timeliness_mode,
+            scope_id=scope_id,
+            source_zone_id=source_zone_id,
+            target_zone_id=target_zone_id,
+        )
+        await session.commit()
+
+        # Route: deliver based on route decision
+        delivery_status = await deliver_task_request(
+            task, msg, to_agent, route_decision=route_decision
+        )
+    except DomainException:
+        # Route selection failed - task cannot be delivered
+        await session.rollback()
+        raise
+    except Exception as e:
+        # Unexpected error in routing
+        logger.error("Route selection failed for task %s: %s", task.id, e, exc_info=True)
+        await session.rollback()
+        raise DomainException(
+            ErrorCode.INVALID_REQUEST,
+            f"Route selection failed: {str(e)}",
+        )
+
     msg.delivery_status = delivery_status
     # Update task status to reflect delivery state
     if delivery_status == DeliveryStatus.DELIVERED.value:
         task.status = TaskStatus.DELIVERED.value
     await session.commit()
+    await session.refresh(task)
     logger.info("Task %s delivery status: %s", task.id, delivery_status)
 
     # Audit: delivery

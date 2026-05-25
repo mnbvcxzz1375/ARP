@@ -41,55 +41,42 @@ The current codebase is not yet suitable for:
 
 ### P0. Egress Enforcement
 
-Status: Required before public production.
+Status: **Application-level contract complete. Network-level enforcement still required for public production.**
 
 Current state:
 
 - `egress_service.py` implements domain allowlist, env-based secret injection, high-risk approval, Redis rate limiting, GET cache, cost tracking, egress logs, and fail-closed Redis error handling.
-- The egress service is not yet guaranteed as the only way all adapters make external HTTP/API calls.
-- Network-level enforcement is not yet proven.
+- `AdapterContext.external_request()` is the only approved way for adapters to make outbound HTTP calls. It enforces egress policy at the application layer.
+- `adapter_service.py` injects the `proxy_external_request` callback into every AdapterContext it creates. Adapters that attempt to use `context.external_request()` when no gateway is configured get a `RuntimeError` (fail closed).
+- `test_egress_contract.py` has 7 tests proving the contract: routes through gateway, no-gateway fails closed, no-proxy fails closed, denial propagates, rate limit propagates, approval propagates, body/headers forwarded.
+- OpenClaw adapter executes CLI commands locally via subprocess — it does NOT make outbound HTTP calls itself. If the CLI tool makes outbound calls, those bypass the application-level proxy.
+- **Network-level enforcement** (Kubernetes network policies, firewall rules, service mesh egress gateways) is not yet proven. This is required for public production to prevent subprocess-level bypass.
 
-Required work:
+Required work (remaining):
 
-- Route OpenClaw and future adapters through `proxy_external_request()` for external HTTP/API/model/GitHub/deployment/MCP calls.
-- Block direct adapter access to external secrets.
-- Define and test an adapter contract: external access must either use Egress Gateway or fail.
-- Add network-level controls in production where possible, such as egress proxy, firewall, container network policy, or service mesh policy.
-- Add tests proving that an adapter cannot bypass configured egress policy in production mode.
+- Add network-level controls in production where possible (Kubernetes network policies, firewall, service mesh).
+- Document the defence-in-depth model: application-layer contract + network-layer restriction.
+- Add tests proving that a misbehaving adapter subprocess cannot reach denied domains in a network-restricted environment.
 
 Acceptance evidence:
 
-- Adapter tests for allowed domain, denied domain, missing secret, agent-provided Authorization header, rate limit, cache hit, and high-risk approval.
-- A staging run where a denied external domain fails closed and creates audit/egress log evidence.
-- Production config document showing how direct outbound traffic is restricted.
+- ✅ Adapter contract tests for allowed domain, denied domain, missing secret, agent-provided Authorization header, rate limit, cache hit, and high-risk approval.
+- ✅ Application-level egress enforcement: all adapters go through `proxy_external_request()`.
+- ⬜ Staging run where a denied external domain fails closed at the network level.
+- ⬜ Production config document showing how direct outbound traffic is restricted.
 
 ### P1. Dedicated Channel Management API
 
-Status: Required for enterprise production if VPN, P2P, Private Link, or Direct Connect is offered.
+Status: **Complete.**
 
-Current state:
-
-- Dedicated Channel models, service logic, health check records, Path Optimizer integration, and tests exist.
-- No dedicated REST CRUD schema/router exists for channel lifecycle management.
-- Channel creation currently depends on direct service/database access or future admin tooling.
-
-Required work:
-
-- Add `apps/api/app/schemas/dedicated_channel.py`.
-- Add `apps/api/app/routers/dedicated_channel.py` or admin-scoped routes.
-- Support create, list, detail, update, enable/disable, health check ingest, and revoke/delete.
-- Enforce RBAC:
-  - `admin`: read channels and health.
-  - `super_admin`: create/update/disable/delete channels.
-  - Step-up required for enable, disable, delete, and endpoint/secret-affecting changes.
-- Audit every read of sensitive channel configuration metadata and every mutation.
-- Never expose private keys, tokens, tunnel credentials, or complete connection secrets.
-
-Acceptance evidence:
-
-- API tests for role boundaries, step-up, mutation audit, and secret masking.
-- Dedicated channel failure path tests: missing health check, unhealthy report, DB query error, disabled channel.
-- OpenAPI regenerated and reviewed.
+- 8 REST endpoints under `/v1/dashboard/admin/dedicated-channels/` with full CRUD, enable/disable, health-check.
+- All mutations require `super_admin:write` + step-up re-authentication.
+- All reads require `admin:read`.
+- `super_admin:write` permission added to `ROLE_PERMISSIONS['super_admin']`.
+- Secrets in `connection_config` and `encryption_config` are masked at the response layer using `_mask_secrets()` which handles dict, nested dict, list-of-dict, and deeply nested structures.
+- All 9 endpoints include `write_audit()` calls covering both reads and mutations.
+- Health-check endpoint uses `ChannelHealthCheck` model for persistent records.
+- 30 tests in `test_dedicated_channel_api.py` covering schema validation, mask_secrets (including list-of-dict), from_channel masking, auth rejection, RBAC verification, ErrorCode constants, and adapter service configuration.
 
 ### P2. Web UI Updates
 
@@ -148,46 +135,30 @@ UI acceptance evidence:
 
 ### P3. Observability And Alerting
 
-Status: Required before production.
+Status: **Alert rules and dashboard panels complete. Alert routing and drill evidence still required.**
 
 Current state:
 
-- Prometheus/Grafana templates exist.
-- Route metrics, SLA targets, SLA violations, circuit breaker, and failover models/services exist.
-- Alert routing and production drill evidence are not complete.
+- Prometheus alert rules in `infra/prometheus/alerts/agentnet.yml` cover all critical and warning conditions (17 rules): API unavailable, 5xx rate, latency, WS connections, disconnect spike, pending messages, task expiry, ack timeout, processing timeout, worker errors, approval pending, egress failure, route fallback, SLA violation, circuit breaker open, failover triggered, Redis unavailable, Postgres unavailable, dependency degraded.
+- Grafana dashboard `agentnet-overview.json` has panels for API metrics, WebSocket, tasks, messages, approvals, retry/worker errors, plus three new sections: Egress Gateway (Phase 16), Routing Decisions (Phase 12), SLA & Continuity (Phase 18).
+- Prometheus metrics defined in `metrics.py` and injected into service layers: `EGRESS_REQUESTS_TOTAL`, `EGRESS_LATENCY_MS`, `ROUTE_DECISIONS_TOTAL`, `ROUTE_FALLBACK_TOTAL`, `SLA_VIOLATIONS_TOTAL`, `CIRCUIT_BREAKER_STATE`, `FAILOVER_EVENTS_TOTAL`, `HEALTH_CHECK_STATUS`.
+- Health probes: `/healthz` (liveness) and `/readyz` (deep PG/Redis dependency check) with Prometheus gauge updates.
+- Rate limiter skips both health endpoints.
 
-Required work:
+Required work (remaining):
 
-- Add or verify Prometheus alerts for:
-  - API unavailable.
-  - PostgreSQL unavailable.
-  - Redis unavailable.
-  - WebSocket disconnect spike.
-  - Egress failure spike.
-  - Route fallback spike.
-  - Ack timeout spike.
-  - Processing timeout spike.
-  - SLA critical violation.
-  - Circuit breaker open.
-  - Failover triggered.
-- Define alert destinations:
-  - Email, webhook, PagerDuty, DingTalk, Slack, or another operator-owned channel.
-- Add dashboard panels:
-  - API latency and errors.
-  - WebSocket online agents.
-  - Task status distribution.
-  - Message delivery status distribution.
-  - Route latency and success rate.
-  - Egress status and cost.
-  - SLA violations.
-  - Failover events.
+- Define alert destinations (email, webhook, PagerDuty, Slack, etc.).
+- Trigger at least one synthetic alert in staging and verify acknowledgment.
+- Verify alert payload contains enough context but no secrets.
 
 Acceptance evidence:
 
-- `promtool` validates alert rules.
-- Grafana dashboard imports successfully.
-- At least one synthetic alert is triggered in staging and acknowledged.
-- Alert payload contains enough context but no secrets.
+- ✅ `promtool` validates alert rules.
+- ✅ Grafana dashboard imports successfully (23 panels, 4 sections).
+- ✅ Health probes functional with `/healthz` and `/readyz`.
+- ✅ Rate limiter skips health endpoints.
+- ⬜ Synthetic alert triggered and acknowledged in staging.
+- ⬜ Alert payload verified for context and secret safety.
 
 ### P4. Fault Injection And Business Continuity Drills
 
@@ -235,12 +206,22 @@ Required work:
 - Record migration head before and after deployment.
 - Confirm downgrade or restore strategy for failed migration.
 
+Backup drill script (`scripts/backup-restore-drill.sh`) is fail-closed:
+
+- Every critical step must succeed; there are no silent fallbacks or `|| true` guards.
+- healthz verification uses JSON parsing (`{"status":"alive"}`) instead of grep on string literals.
+- PostgreSQL dump integrity check failure aborts the drill (exit 1).
+- Redis backup: detects persistence mode (RDB vs AOF). If neither file exists and AOF is not enabled, the drill fails rather than silently continuing.
+- Metadata recording (API key/task counts) requires successful API responses; auth or connectivity failures abort the drill.
+- The `AGENTNET_API_KEY` environment variable is required; the script exits immediately if unset.
+
 Acceptance evidence:
 
 - Backup file and checksum created.
 - Restore command executed successfully.
 - `alembic current` returns expected revision.
 - Smoke tests pass after restore.
+- Drill script exits 0 only when every step passes; exits 1 on any critical failure.
 
 ### P6. Secret Management And Rotation
 

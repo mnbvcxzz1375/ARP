@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import redis as redis_module
 from app.exceptions import DomainException
+from app.metrics import EGRESS_REQUESTS_TOTAL, EGRESS_LATENCY_MS
 from app.models.egress_gateway import EgressGateway
 from app.models.egress_log import EgressLog
 from app.protocol.constants import ErrorCode
@@ -95,9 +96,21 @@ async def proxy_external_request(
             target_domain=urlparse(target_url).netloc,
             status_code=403,
         )
+        blocked_reason = f"Domain not in allowlist for gateway {gateway_id}"
+        await _persist_failure_evidence(
+            session,
+            agent_id=agent_id,
+            gateway_id=gateway_id,
+            task_id=task_id,
+            request_type=request_type,
+            target_url=target_url,
+            status_code=403,
+            latency_ms=None,
+            reason=blocked_reason,
+        )
         raise DomainException(
             ErrorCode.EGRESS_BLOCKED,
-            f"Domain not in allowlist for gateway {gateway_id}",
+            blocked_reason,
             status_code=403,
         )
 
@@ -153,6 +166,10 @@ async def proxy_external_request(
                 cost_estimate=0,
                 approval_id=approval_id,
             )
+            EGRESS_REQUESTS_TOTAL.labels(
+                gateway_id=str(gateway_id), status="200"
+            ).inc()
+            EGRESS_LATENCY_MS.labels(gateway_id=str(gateway_id)).observe(0)
             await write_audit(
                 session,
                 actor_type="agent",
@@ -169,6 +186,7 @@ async def proxy_external_request(
                     "cached": True,
                 },
             )
+            await session.commit()
             return cached_data
 
     # 5. Inject secrets (agent never sees them)
@@ -213,13 +231,26 @@ async def proxy_external_request(
             cost_estimate=None,
             approval_id=approval_id,
         )
+        timeout_reason = f"Request timeout for {target_url}"
+        await _persist_failure_evidence(
+            session,
+            agent_id=agent_id,
+            gateway_id=gateway_id,
+            task_id=task_id,
+            request_type=request_type,
+            target_url=target_url,
+            status_code=504,
+            latency_ms=30000,
+            reason=timeout_reason,
+        )
         raise DomainException(
             ErrorCode.EGRESS_BLOCKED,
-            f"Request timeout for {target_url}",
+            timeout_reason,
             status_code=504,
         )
     except httpx.RequestError as e:
         logger.error("Egress request failed for %s: %s", target_url, e)
+        req_latency_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
         await _log_egress(
             session,
             gateway_id=gateway_id,
@@ -230,13 +261,25 @@ async def proxy_external_request(
             request_size_bytes=len(str(request_body or "")),
             response_size_bytes=0,
             status_code=502,
-            latency_ms=int((datetime.now(UTC) - start_time).total_seconds() * 1000),
+            latency_ms=req_latency_ms,
             cost_estimate=None,
             approval_id=approval_id,
         )
+        req_error_reason = f"Request failed for {target_url}: {str(e)}"
+        await _persist_failure_evidence(
+            session,
+            agent_id=agent_id,
+            gateway_id=gateway_id,
+            task_id=task_id,
+            request_type=request_type,
+            target_url=target_url,
+            status_code=502,
+            latency_ms=req_latency_ms,
+            reason=req_error_reason,
+        )
         raise DomainException(
             ErrorCode.EGRESS_BLOCKED,
-            f"Request failed for {target_url}: {str(e)}",
+            req_error_reason,
             status_code=502,
         )
 
@@ -286,6 +329,13 @@ async def proxy_external_request(
             "latency_ms": latency_ms,
         },
     )
+    await session.commit()
+
+    # 11. Prometheus metrics
+    EGRESS_REQUESTS_TOTAL.labels(
+        gateway_id=str(gateway_id), status=str(status_code)
+    ).inc()
+    EGRESS_LATENCY_MS.labels(gateway_id=str(gateway_id)).observe(latency_ms)
 
     return response_data
 
@@ -414,6 +464,57 @@ async def _estimate_cost(
     return None
 
 
+async def _persist_failure_evidence(
+    session: AsyncSession,
+    *,
+    agent_id: UUID,
+    gateway_id: UUID,
+    task_id: UUID | None,
+    request_type: str,
+    target_url: str,
+    status_code: int,
+    latency_ms: int | None,
+    reason: str,
+) -> None:
+    """Write audit and commit for a failure path so evidence is never lost.
+
+    Must be called AFTER _log_egress (which adds the EgressLog row) and
+    BEFORE raising the DomainException.  Commits egress log + audit atomically.
+    If write_audit or commit fails, raises DomainException(INTERNAL_ERROR) so
+    the original failure is never silently swallowed.
+    """
+    try:
+        await write_audit(
+            session,
+            actor_type="agent",
+            actor_id=str(agent_id),
+            action="egress.request",
+            resource_type="egress_gateway",
+            resource_id=str(gateway_id),
+            task_id=str(task_id) if task_id else None,
+            details={
+                "request_type": request_type,
+                "target_url": target_url,
+                "status_code": status_code,
+                "latency_ms": latency_ms,
+                "reason": reason,
+            },
+        )
+        await session.commit()
+    except DomainException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Failed to persist egress failure evidence for gateway %s: %s",
+            gateway_id, exc,
+        )
+        raise DomainException(
+            ErrorCode.INTERNAL_ERROR,
+            f"Egress failure evidence could not be persisted: {exc}",
+            status_code=503,
+        )
+
+
 async def _log_egress(
     session: AsyncSession,
     *,
@@ -429,7 +530,12 @@ async def _log_egress(
     cost_estimate: int | None = None,
     approval_id: UUID | None = None,
 ) -> None:
-    """Log egress request for audit and cost tracking."""
+    """Log egress request for audit and cost tracking.
+
+    Does NOT commit — the caller is responsible for committing the
+    transaction so that the egress log and any associated audit entry
+    are persisted atomically.
+    """
     log = EgressLog(
         gateway_id=gateway_id,
         task_id=task_id,
@@ -444,7 +550,6 @@ async def _log_egress(
         approval_id=approval_id,
     )
     session.add(log)
-    await session.commit()
 
 
 def _domain_matches(target: str, pattern: str) -> bool:

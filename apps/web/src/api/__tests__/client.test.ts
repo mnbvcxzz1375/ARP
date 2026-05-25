@@ -73,6 +73,14 @@ describe('api client 401 interceptor', () => {
     expect(window.location.href).toBe('');
   });
 
+  it('does not redirect when /auth/me returns 401 (public pages rely on useAuth isError)', async () => {
+    window.location.pathname = '/request-access';
+    const error = make401Error('/v1/dashboard/auth/me');
+
+    await expect(handler(error)).rejects.toBe(error);
+    expect(window.location.href).toBe('');
+  });
+
   it('redirects to /login on 401 from a non-login page', async () => {
     window.location.pathname = '/agents';
     const error = make401Error('/v1/dashboard/agents');

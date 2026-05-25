@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import DomainException
+from app.metrics import ROUTE_DECISIONS_TOTAL, ROUTE_FALLBACK_TOTAL
 from app.models.agent import Agent
 from app.models.connection import Connection
 from app.models.relay_node import RelayNode
@@ -532,6 +533,11 @@ async def select_route(
         applied_policy_id,
     )
 
+    # Prometheus: record route decision
+    ROUTE_DECISIONS_TOTAL.labels(
+        route_type=selected.route_type, fallback="false"
+    ).inc()
+
     return decision
 
 
@@ -672,6 +678,17 @@ async def select_route_shadow(
         selected.final_score or 0.0,
         decision_time_ms,
     )
+
+    # Prometheus: record route decision (shadow mode)
+    is_fallback = bool(rejection_reasons)
+    ROUTE_DECISIONS_TOTAL.labels(
+        route_type=selected.route_type, fallback=str(is_fallback).lower()
+    ).inc()
+    if is_fallback:
+        ROUTE_FALLBACK_TOTAL.labels(
+            original_type="unknown", fallback_type=selected.route_type,
+            reason="; ".join(f"{k}={v}" for k, v in rejection_reasons.items()),
+        ).inc()
 
     return decision
 

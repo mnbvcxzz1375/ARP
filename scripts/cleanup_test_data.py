@@ -4,15 +4,20 @@ Test data cleanup script for AgentNet E2E testing.
 Purges test users, agents, tasks created by the e2e_test_runner.py.
 
 Usage:
-    python scripts/cleanup_test_data.py          # dry-run (list what would be deleted)
-    python scripts/cleanup_test_data.py --run    # actually delete
-    python scripts/cleanup_test_data.py --users-only  # only clean test users
+    AGENTNET_API_KEY=<key> python scripts/cleanup_test_data.py          # dry-run (list what would be deleted)
+    AGENTNET_API_KEY=<key> python scripts/cleanup_test_data.py --run    # actually delete
+    AGENTNET_API_KEY=<key> python scripts/cleanup_test_data.py --users-only  # only clean test users
 """
 import argparse
 import os
 import sys
 
 import httpx
+
+API_KEY = os.getenv("AGENTNET_API_KEY")
+if not API_KEY:
+    print("ERROR: AGENTNET_API_KEY environment variable must be set", file=sys.stderr)
+    sys.exit(1)
 
 API_BASE = os.getenv("AGENTNET_API_BASE", "http://localhost:8000")
 
@@ -97,7 +102,7 @@ def main():
         print("[CLEANUP] Step 4: Checking API key count")
         # Use the main API key to list its own keys
         main_headers = {
-            "Authorization": "Bearer ak_Bg95_c11p9ZRkqJe5CR5wRKvjTukOVJ8VYck3SGZ9HI",
+            "Authorization": f"Bearer {API_KEY}",
         }
         resp = session.get("/v1/auth/api-keys", headers=main_headers)
         if resp.status_code == 200:

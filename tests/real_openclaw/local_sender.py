@@ -4,12 +4,18 @@ Run on local machine.
 """
 import httpx
 import json
+import os
 import sys
 import time
 import uuid
 
+_missing = [v for v in ("AGENTNET_API_KEY",) if not os.environ.get(v)]
+if _missing:
+    print(f"ERROR: required environment variables not set: {', '.join(_missing)}", file=sys.stderr)
+    sys.exit(1)
+
 API_BASE = "http://localhost:8000"
-API_KEY = "ak_Bg95_c11p9ZRkqJe5CR5wRKvjTukOVJ8VYck3SGZ9HI"
+API_KEY = os.environ["AGENTNET_API_KEY"]
 SENDER_AGENT_NUMBER = "AN-GLOBAL-BB05A89F32-ZQ"
 RECEIVER_AGENT_NUMBER = "AN-GLOBAL-295B51BD51-9Z"
 

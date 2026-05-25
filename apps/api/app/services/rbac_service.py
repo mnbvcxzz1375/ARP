@@ -49,8 +49,10 @@ PERM_DISABLE_USER = "user:disable"
 PERM_DISABLE_AGENT = "agent:disable"
 PERM_CANCEL_RUNNING_TASK = "task:cancel:running"
 PERM_FORCE_REVOKE_KEYS = "apikey:revoke:global"
+PERM_APPROVE_ACCESS_REQUEST = "access_request:approve"
 PERM_MODIFY_SECURITY_POLICY = "security:modify"
 PERM_READ_SYSTEM = "system:read"
+PERM_SUPER_ADMIN_WRITE = "super_admin:write"
 
 # Admin general read (dashboard overview, egress logs, etc.)
 PERM_ADMIN_READ = "admin:read"
@@ -95,9 +97,11 @@ _SUPER_ADMIN_PERMS: set[str] = _ADMIN_PERMS | {
     PERM_EXPORT_AUDIT, PERM_DISABLE_USER, PERM_DISABLE_AGENT,
     PERM_CANCEL_RUNNING_TASK, PERM_FORCE_REVOKE_KEYS,
     PERM_MODIFY_SECURITY_POLICY, PERM_READ_SYSTEM,
+    PERM_SUPER_ADMIN_WRITE,
     PERM_POLICY_MANAGE,
     PERM_SLA_MANAGE,
     PERM_CONTINUITY_MANAGE,
+    PERM_APPROVE_ACCESS_REQUEST,
 }
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {

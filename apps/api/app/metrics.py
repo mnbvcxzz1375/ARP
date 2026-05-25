@@ -1,4 +1,8 @@
-"""Prometheus metrics for AgentNet."""
+"""Prometheus metrics for AgentNet.
+
+Includes HTTP, WebSocket, task, message, approval, worker,
+egress, route decision, SLA, circuit breaker, and failover metrics.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +13,7 @@ from fastapi import Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 
+# --- HTTP ---
 HTTP_REQUESTS = Counter(
     "agentnet_http_requests_total",
     "Total HTTP requests.",
@@ -25,6 +30,7 @@ HTTP_ERRORS = Counter(
     ["method", "path", "status"],
 )
 
+# --- WebSocket ---
 WS_CONNECTIONS_ACTIVE = Gauge(
     "agentnet_ws_connections_active",
     "Currently active WebSocket connections.",
@@ -42,26 +48,82 @@ WS_AUTH_FAILURES_TOTAL = Counter(
     "Total WebSocket authentication failures.",
 )
 
+# --- Tasks ---
 TASKS_CREATED_TOTAL = Counter("agentnet_tasks_created_total", "Tasks created.")
 TASKS_COMPLETED_TOTAL = Counter("agentnet_tasks_completed_total", "Tasks completed.")
 TASKS_FAILED_TOTAL = Counter("agentnet_tasks_failed_total", "Tasks failed.")
 TASKS_EXPIRED_TOTAL = Counter("agentnet_tasks_expired_total", "Tasks expired.")
 TASK_DURATION_SECONDS = Histogram("agentnet_task_duration_seconds", "Task duration in seconds.")
 
+# --- Messages ---
 MESSAGES_DELIVERED_TOTAL = Counter("agentnet_messages_delivered_total", "Messages delivered online.")
 MESSAGES_ACKED_TOTAL = Counter("agentnet_messages_acked_total", "Messages acked.")
 MESSAGES_RETRIED_TOTAL = Counter("agentnet_messages_retried_total", "Messages retried.")
 MESSAGES_EXPIRED_TOTAL = Counter("agentnet_messages_expired_total", "Messages expired.")
 PENDING_MESSAGES = Gauge("agentnet_pending_messages", "Pending messages known to the relay.")
 
+# --- Approvals ---
 APPROVALS_PENDING = Gauge("agentnet_approvals_pending", "Pending approvals.")
 APPROVALS_ACCEPTED_TOTAL = Counter("agentnet_approvals_accepted_total", "Approvals accepted.")
 APPROVALS_REJECTED_TOTAL = Counter("agentnet_approvals_rejected_total", "Approvals rejected.")
 APPROVALS_EXPIRED_TOTAL = Counter("agentnet_approvals_expired_total", "Approvals expired.")
 
+# --- Workers ---
 RETRY_WORKER_CYCLES_TOTAL = Counter("agentnet_retry_worker_cycles_total", "Retry worker cycles.")
 TIMEOUT_WORKER_CYCLES_TOTAL = Counter("agentnet_timeout_worker_cycles_total", "Timeout worker cycles.")
 WORKER_ERRORS_TOTAL = Counter("agentnet_worker_errors_total", "Worker errors.", ["worker"])
+
+# --- Egress (Phase 16) ---
+EGRESS_REQUESTS_TOTAL = Counter(
+    "agentnet_egress_requests_total",
+    "Total egress gateway requests.",
+    ["gateway_id", "status"],
+)
+EGRESS_LATENCY_MS = Histogram(
+    "agentnet_egress_latency_ms",
+    "Egress request latency in milliseconds.",
+    ["gateway_id"],
+)
+
+# --- Route decisions (Phase 12) ---
+ROUTE_DECISIONS_TOTAL = Counter(
+    "agentnet_route_decisions_total",
+    "Total route decisions made.",
+    ["route_type", "fallback"],
+)
+ROUTE_FALLBACK_TOTAL = Counter(
+    "agentnet_route_fallbacks_total",
+    "Total route fallback events.",
+    ["original_type", "fallback_type", "reason"],
+)
+
+# --- SLA (Phase 18) ---
+SLA_VIOLATIONS_TOTAL = Counter(
+    "agentnet_sla_violations_total",
+    "Total SLA violations.",
+    ["target_id", "metric_type"],
+)
+
+# --- Circuit breaker (Phase 18) ---
+CIRCUIT_BREAKER_STATE = Gauge(
+    "agentnet_circuit_breaker_state",
+    "Circuit breaker state: 0=closed, 1=half_open, 2=open.",
+    ["relay_id"],
+)
+
+# --- Failover (Phase 18) ---
+FAILOVER_EVENTS_TOTAL = Counter(
+    "agentnet_failover_events_total",
+    "Total failover events triggered.",
+    ["config_id", "trigger"],
+)
+
+# --- Health check gauge ---
+HEALTH_CHECK_STATUS = Gauge(
+    "agentnet_health_check_status",
+    "Health check result: 1=healthy, 0=unhealthy.",
+    ["component"],
+)
 
 
 async def metrics_middleware(request: Request, call_next: Callable):

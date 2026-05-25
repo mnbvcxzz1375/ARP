@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useLogin } from '../../hooks/useAuth';
 import LoadingState from '../../components/LoadingState';
 
@@ -21,8 +22,11 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+          <label htmlFor="login-username" className="block text-sm font-medium text-gray-700 mb-1">Username</label>
           <input
+            id="login-username"
+            name="username"
+            data-testid="login-username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -32,8 +36,11 @@ export default function LoginPage() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+          <label htmlFor="login-api-key" className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
           <input
+            id="login-api-key"
+            name="api_key"
+            data-testid="login-api-key"
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
@@ -57,6 +64,12 @@ export default function LoginPage() {
           {login.isPending ? <LoadingState className="py-0" /> : 'Sign In'}
         </button>
       </form>
+
+      <div className="mt-4 text-center">
+        <Link to="/request-access" className="text-sm text-gray-500 hover:text-gray-700">
+          Need access? Request it here
+        </Link>
+      </div>
     </div>
   );
 }

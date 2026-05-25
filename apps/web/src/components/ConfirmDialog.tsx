@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { cn } from '../lib/utils';
 
 interface ConfirmDialogProps {
@@ -6,8 +7,10 @@ interface ConfirmDialogProps {
   message: string;
   variant?: 'default' | 'danger';
   confirmLabel?: string;
+  cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  children?: ReactNode;
 }
 
 export default function ConfirmDialog({
@@ -16,8 +19,10 @@ export default function ConfirmDialog({
   message,
   variant = 'default',
   confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
   onConfirm,
   onCancel,
+  children,
 }: ConfirmDialogProps) {
   if (!open) return null;
 
@@ -26,17 +31,18 @@ export default function ConfirmDialog({
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
         <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
         <p className="mt-2 text-sm text-gray-600">{message}</p>
+        {children}
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium border rounded hover:bg-gray-50"
+            className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
           >
-            Cancel
+            {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
             className={cn(
-              'px-4 py-2 text-sm font-medium text-white rounded',
+              'px-4 py-2 text-sm font-medium text-white rounded-md',
               variant === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700',
             )}
           >

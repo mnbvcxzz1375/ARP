@@ -205,6 +205,48 @@ class TestStepUp:
         assert log is not None, "step-up failure audit should be written for wrong key"
         assert log.details["reason"] == "invalid_credentials"
 
+    async def test_step_up_expired_key_rejected(self, client: AsyncClient, session):
+        """Step-up with an expired API key returns 403."""
+        from datetime import UTC, datetime, timedelta
+
+        user = User(id=uuid.uuid4(), username=f"expired-stepup-{uuid.uuid4().hex[:8]}")
+        session.add(user)
+        await session.flush()
+
+        expired_key = ApiKey(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            key_hash=hashlib.sha256(b"expired-stepup-key").hexdigest(),
+            key_prefix="ak_exp",
+            name="expired-key",
+            expires_at=datetime.now(UTC) - timedelta(days=1),
+        )
+        session.add(expired_key)
+        await session.flush()
+
+        # Login with a non-expired key first (to get a session)
+        valid_key = ApiKey(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            key_hash=hashlib.sha256(b"valid-stepup-key").hexdigest(),
+            key_prefix="ak_val",
+            name="valid-key",
+        )
+        session.add(valid_key)
+        await session.flush()
+
+        resp = await client.post("/v1/dashboard/auth/login", json={
+            "username": user.username,
+            "api_key": "valid-stepup-key",
+        })
+        assert resp.status_code == 200
+
+        # Try step-up with the expired key
+        resp = await client.post("/v1/dashboard/auth/step-up", json={
+            "api_key": "expired-stepup-key",
+        }, headers=csrf_headers(client))
+        assert resp.status_code == 403
+
 
 class TestSessionService:
     async def test_create_and_find_session(self, session: AsyncSession, user_with_key):

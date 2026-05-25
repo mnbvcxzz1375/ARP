@@ -156,6 +156,7 @@ class AuditLogListItem(BaseModel):
     task_id: str | None
     error_code: str | None
     request_ip: str | None
+    details: dict | None = None
     created_at: datetime
 
 

@@ -1,7 +1,7 @@
 """Admin Dashboard API endpoints — platform-wide visibility and controls."""
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status as http_status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,9 +47,24 @@ from app.services.rbac_service import (
     PERM_CANCEL_PENDING_TASK,
     PERM_EXPORT_AUDIT, PERM_DISABLE_USER, PERM_DISABLE_AGENT,
     PERM_CANCEL_RUNNING_TASK, PERM_FORCE_REVOKE_KEYS,
-    PERM_READ_SYSTEM,
+    PERM_READ_SYSTEM, PERM_APPROVE_ACCESS_REQUEST,
 )
 from app.services.dashboard_session_service import revoke_all_sessions
+from app.services.access_request_service import (
+    list_access_requests,
+    approve_access_request,
+    reject_access_request,
+)
+from app.models.access_request import AccessRequest
+from app.schemas.access_request import (
+    AccessRequestListResponse,
+    AccessRequestListItem,
+    AccessRequestDetailResponse,
+    ApproveAccessRequestBody,
+    RejectAccessRequestBody,
+    ApproveAccessRequestResponse,
+    RejectAccessRequestResponse,
+)
 
 router = APIRouter(
     prefix="/v1/dashboard/admin",
@@ -283,6 +298,11 @@ async def list_agents(
         stmt = stmt.where(Agent.runtime == runtime_filter)
     if search:
         stmt = stmt.where(Agent.name.ilike(f"%{search}%"))
+    if status_filter:
+        if status_filter == "online":
+            stmt = stmt.where(Agent.status == "online")
+        else:
+            stmt = stmt.where(Agent.status != "online")
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar_one()
@@ -294,15 +314,12 @@ async def list_agents(
     items = []
     for a in agents:
         stats = await get_agent_stats(session, str(a.id))
-        status_val = "online" if a.status == "online" else "offline"
-        if status_filter and status_val != status_filter:
-            continue
         items.append(AdminAgentListItem(
             agent_id=str(a.id),
             agent_number=a.agent_number,
             owner_username=a.owner.username if a.owner else "unknown",
             name=a.name,
-            status=status_val,
+            status="online" if a.status == "online" else "offline",
             runtime=a.runtime,
             inbound_policy=a.inbound_policy,
             discoverable=a.discoverable,
@@ -433,7 +450,7 @@ async def list_tasks(
     delivery_info = await get_tasks_delivery_info_batch(session, task_ids)
 
     for t in tasks:
-        ds, _rc = delivery_info.get(t.id, ("unknown", 0))
+        delivery_status, _rc = delivery_info.get(t.id, ("unknown", 0))
         owner_username = await get_task_owner_username(session, t)
         items.append(AdminTaskListItem(
             task_id=str(t.id),
@@ -444,7 +461,7 @@ async def list_tasks(
             created_at=t.created_at,
             updated_at=t.updated_at,
             error_code=None,
-            delivery_status=ds,
+            delivery_status=delivery_status,
         ))
 
     return AdminTaskListResponse(tasks=items, total=total, offset=offset, limit=limit)
@@ -526,9 +543,10 @@ async def cancel_task(
     if task.status == "running":
         # Running tasks require PERM_CANCEL_RUNNING_TASK AND step-up
         if not has_permission(ds.user, PERM_CANCEL_RUNNING_TASK):
-            raise HTTPException(
+            raise DomainException(
+                ErrorCode.INVALID_REQUEST,
+                "Insufficient permissions to cancel running tasks",
                 status_code=http_status.HTTP_403_FORBIDDEN,
-                detail="Insufficient permissions to cancel running tasks",
             )
         if not has_step_up(ds):
             raise DomainException(
@@ -606,6 +624,7 @@ async def list_audit_logs(
     actor_type: str | None = None,
     action: str | None = None,
     resource_type: str | None = None,
+    resource_id: str | None = None,
     _: None = Depends(require_permission(PERM_READ_AUDIT_LOGS)),
 ):
     """List audit log entries."""
@@ -616,6 +635,8 @@ async def list_audit_logs(
         stmt = stmt.where(AuditLog.action == action)
     if resource_type:
         stmt = stmt.where(AuditLog.resource_type == resource_type)
+    if resource_id:
+        stmt = stmt.where(AuditLog.resource_id == resource_id)
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar_one()
@@ -636,6 +657,7 @@ async def list_audit_logs(
             task_id=str(log.task_id) if log.task_id else None,
             error_code=log.error_code,
             request_ip=log.request_ip,
+            details=log.details,
             created_at=log.created_at,
         ))
 
@@ -701,3 +723,186 @@ async def system_health(
     """Platform health: DB, Redis, workers, migration revision."""
     health = await get_system_health(session)
     return SystemHealthResponse(**health)
+
+
+# ──────────────────────────────────────────────────────────────────
+# Access Requests
+# ──────────────────────────────────────────────────────────────────
+
+@router.get("/access-requests", response_model=AccessRequestListResponse)
+async def list_access_requests_admin(
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    status_filter: str | None = None,
+    _: None = Depends(require_permission(PERM_READ_GLOBAL_USERS)),
+):
+    """List access requests. Admin-only."""
+    requests, total = await list_access_requests(
+        session, status_filter=status_filter, offset=offset, limit=limit,
+    )
+    items = [
+        AccessRequestListItem(
+            request_id=str(r.id),
+            applicant_name=r.applicant_name,
+            applicant_email=r.applicant_email,
+            organization=r.organization,
+            requested_mode=r.requested_mode,
+            status=r.status,
+            review_notes=r.review_notes,
+            created_at=r.created_at,
+            reviewed_at=r.reviewed_at,
+        )
+        for r in requests
+    ]
+    return AccessRequestListResponse(
+        access_requests=items, total=total, offset=offset, limit=limit,
+    )
+
+
+@router.get("/access-requests/{request_id}", response_model=AccessRequestDetailResponse)
+async def get_access_request_detail(
+    request_id: str,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_READ_GLOBAL_USERS)),
+):
+    """Get full detail of a single access request. Admin-only."""
+    try:
+        req_uuid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid request ID format",
+        )
+
+    result = await session.execute(select(AccessRequest).where(AccessRequest.id == req_uuid))
+    ar = result.scalar_one_or_none()
+    if ar is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="Access request not found",
+        )
+
+    return AccessRequestDetailResponse(
+        request_id=str(ar.id),
+        applicant_name=ar.applicant_name,
+        applicant_email=ar.applicant_email,
+        organization=ar.organization,
+        requested_mode=ar.requested_mode,
+        use_case=ar.use_case,
+        terms_acknowledged=ar.terms_acknowledged,
+        status=ar.status,
+        review_notes=ar.review_notes,
+        reviewed_by=ar.reviewed_by,
+        reviewed_at=ar.reviewed_at,
+        request_ip=ar.request_ip,
+        created_at=ar.created_at,
+    )
+
+
+@router.get("/access-requests/{request_id}/audit-trail", response_model=AuditLogListResponse)
+async def get_access_request_audit_trail(
+    request_id: str,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    _: None = Depends(require_permission(PERM_READ_AUDIT_LOGS)),
+):
+    """Fetch audit trail for a single access request."""
+    try:
+        req_uuid = uuid.UUID(request_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid request ID format",
+        )
+
+    # Verify the access request exists
+    ar_result = await session.execute(
+        select(AccessRequest).where(AccessRequest.id == req_uuid)
+    )
+    if ar_result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="Access request not found",
+        )
+
+    stmt = select(AuditLog).where(
+        AuditLog.resource_type == "access_request",
+        AuditLog.resource_id == request_id,
+    ).order_by(AuditLog.created_at.desc()).offset(offset).limit(limit)
+
+    count_stmt = select(func.count()).select_from(
+        select(AuditLog).where(
+            AuditLog.resource_type == "access_request",
+            AuditLog.resource_id == request_id,
+        ).subquery()
+    )
+    total = (await session.execute(count_stmt)).scalar_one()
+
+    result = await session.execute(stmt)
+    logs = list(result.scalars().all())
+
+    items = [
+        AuditLogListItem(
+            audit_id=str(log.id),
+            actor_type=log.actor_type,
+            actor_id=str(log.actor_id) if log.actor_id else None,
+            action=log.action,
+            resource_type=log.resource_type,
+            resource_id=str(log.resource_id) if log.resource_id else None,
+            task_id=str(log.task_id) if log.task_id else None,
+            error_code=log.error_code,
+            request_ip=log.request_ip,
+            details=log.details,
+            created_at=log.created_at,
+        )
+        for log in logs
+    ]
+    return AuditLogListResponse(audit_logs=items, total=total, offset=offset, limit=limit)
+
+
+@router.post("/access-requests/{request_id}/approve", response_model=ApproveAccessRequestResponse)
+async def approve_request(
+    request_id: str,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_high_risk(PERM_APPROVE_ACCESS_REQUEST)),
+    body: ApproveAccessRequestBody | None = None,
+):
+    """Approve an access request. Admin-only."""
+    result = await approve_access_request(
+        session,
+        request_id=uuid.UUID(request_id),
+        reviewer_id=str(ds.user_id),
+        review_notes=body.review_notes if body else None,
+    )
+    await session.commit()
+    return result
+
+
+@router.post("/access-requests/{request_id}/reject", response_model=RejectAccessRequestResponse)
+async def reject_request(
+    request_id: str,
+    ds: CurrentSession,
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_high_risk(PERM_APPROVE_ACCESS_REQUEST)),
+    body: RejectAccessRequestBody = Body(...),
+):
+    """Reject an access request. Admin-only. Rejection reason is required."""
+    ar = await reject_access_request(
+        session,
+        request_id=uuid.UUID(request_id),
+        reviewer_id=str(ds.user_id),
+        review_notes=body.review_notes,
+    )
+    await session.commit()
+    return {
+        "request_id": str(ar.id),
+        "status": ar.status,
+        "reviewed_by": ar.reviewed_by,
+        "review_notes": ar.review_notes,
+    }

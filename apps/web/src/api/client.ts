@@ -22,16 +22,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Auth Interceptor: redirect on 401, but skip if already on /login
-// or if the failing request is the login endpoint itself.
+// Auth Interceptor: redirect on 401, but skip if already on /login,
+// if the failing request is the login endpoint itself,
+// or if it's the auth/me probe (public pages handle the error via useAuth).
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       const currentPath = window.location.pathname;
       const isLoginPage = currentPath === '/login';
-      const isLoginRequest = (error.config?.url ?? '').includes('/auth/login');
-      if (!isLoginPage && !isLoginRequest) {
+      const requestUrl = error.config?.url ?? '';
+      const isLoginRequest = requestUrl.includes('/auth/login');
+      const isAuthMeProbe = requestUrl.includes('/auth/me');
+      if (!isLoginPage && !isLoginRequest && !isAuthMeProbe) {
         window.location.href = '/login';
       }
     }

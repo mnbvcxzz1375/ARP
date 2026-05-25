@@ -84,7 +84,18 @@ class Settings(BaseSettings):
         default=10, alias="SESSION_STEP_UP_DURATION_MINUTES",
     )
 
+    # CORS
+    dashboard_allowed_origins: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173",
+        alias="DASHBOARD_ALLOWED_ORIGINS",
+        description="Comma-separated allowed origins for CORS (dashboard dev servers)",
+    )
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.dashboard_allowed_origins.split(",") if o.strip()]
 
 
 @lru_cache

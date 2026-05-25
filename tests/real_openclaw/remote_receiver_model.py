@@ -16,8 +16,13 @@ os.environ["no_proxy"] = os.environ["NO_PROXY"]
 
 import websockets
 
+_missing = [v for v in ("AGENTNET_AGENT_TOKEN",) if not os.environ.get(v)]
+if _missing:
+    print(f"ERROR: required environment variables not set: {', '.join(_missing)}", file=sys.stderr)
+    sys.exit(1)
+
 API_WS_URL = "ws://100.118.246.96:8000/v1/ws"
-AGENT_TOKEN = "agt_sk_FIzxDbBFIH2yC-LrWfwg2FKXN23MNHvK8m_TyoNAPoQ"
+AGENT_TOKEN = os.environ["AGENTNET_AGENT_TOKEN"]
 
 # Use conda openclaw environment
 PYTHON = r"D:\Software\Anaconda3\envs\openclaw\python.exe"

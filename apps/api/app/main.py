@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
@@ -28,7 +29,10 @@ from app.routers.sla import router as sla_router
 from app.routers.continuity import router as continuity_router
 from app.routers.route_policy import router as route_policy_router
 from app.routers.network_overview import router as network_overview_router
+from app.routers.network_topology import router as network_topology_router
 from app.routers.egress import router as egress_router
+from app.routers.dedicated_channels import router as dedicated_channels_router
+from app.routers.public import router as public_router
 from app.websocket.manager import get_connection_manager
 
 
@@ -99,6 +103,21 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.add_exception_handler(DomainException, domain_exception_handler)
+
+    # CORS — must be added before other middleware so preflight responses
+    # are handled without hitting rate-limit / auth checks.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-API-Key",
+            "X-CSRF-Token",
+        ],
+    )
     app.add_api_route(
         "/metrics",
         metrics_endpoint,
@@ -112,7 +131,7 @@ def create_app() -> FastAPI:
     # by the auth layer to avoid DB queries in the middleware stack.
     @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next):
-        if request.url.path in ("/healthz", "/docs", "/openapi.json", "/redoc", "/metrics"):
+        if request.url.path in ("/healthz", "/readyz", "/docs", "/openapi.json", "/redoc", "/metrics"):
             return await call_next(request)
 
         try:
@@ -162,7 +181,10 @@ def create_app() -> FastAPI:
     app.include_router(continuity_router)
     app.include_router(route_policy_router)
     app.include_router(network_overview_router)
+    app.include_router(network_topology_router)
     app.include_router(egress_router)
+    app.include_router(dedicated_channels_router)
+    app.include_router(public_router)
     _install_openapi_schema(app)
 
     return app
@@ -196,7 +218,9 @@ def _install_openapi_schema(app: FastAPI) -> None:
 
         public_operations = {
             ("get", "/healthz"),
+            ("get", "/readyz"),
             ("post", "/v1/auth/register"),
+            ("post", "/v1/public/access-requests"),
         }
         for path, methods in schema.get("paths", {}).items():
             for method, operation in methods.items():

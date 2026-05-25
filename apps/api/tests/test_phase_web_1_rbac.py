@@ -58,11 +58,20 @@ class TestUserRBAC:
 
     async def test_orm_defaults_match_server_defaults(self, session: AsyncSession):
         """ORM defaults for role and is_disabled match the migration server defaults."""
-        result = await session.execute(
-            text("SELECT COUNT(*) FROM users WHERE role <> 'user' OR is_disabled IS DISTINCT FROM false")
+        username = f"rbac-defaults-{uuid.uuid4().hex[:8]}"
+        await session.execute(
+            text("INSERT INTO users (id, username) VALUES (:uid, :username)"),
+            {"uid": str(uuid.uuid4()), "username": username},
         )
-        count = result.scalar_one()
-        assert count == 0, f"Found {count} users with non-default role or is_disabled"
+        await session.flush()
+
+        result = await session.execute(
+            text("SELECT role, is_disabled FROM users WHERE username = :username"),
+            {"username": username},
+        )
+        row = result.one()
+        assert row.role == "user", f"Expected role='user', got '{row.role}'"
+        assert row.is_disabled is False, f"Expected is_disabled=false, got {row.is_disabled}"
 
     async def test_is_disabled_can_be_toggled(self, session: AsyncSession):
         """User's is_disabled can be toggled to True and back."""

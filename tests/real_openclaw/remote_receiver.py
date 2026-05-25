@@ -17,9 +17,14 @@ os.environ["no_proxy"] = os.environ["NO_PROXY"]
 
 import websockets
 
+_missing = [v for v in ("AGENTNET_API_KEY", "AGENTNET_AGENT_TOKEN") if not os.environ.get(v)]
+if _missing:
+    print(f"ERROR: required environment variables not set: {', '.join(_missing)}", file=sys.stderr)
+    sys.exit(1)
+
 API_WS_URL = "ws://100.118.246.96:8000/v1/ws"
-AGENT_TOKEN = "agt_sk_FIzxDbBFIH2yC-LrWfwg2FKXN23MNHvK8m_TyoNAPoQ"
-API_KEY = "ak_Bg95_c11p9ZRkqJe5CR5wRKvjTukOVJ8VYck3SGZ9HI"
+AGENT_TOKEN = os.environ["AGENTNET_AGENT_TOKEN"]
+API_KEY = os.environ["AGENTNET_API_KEY"]
 # Use python as substitute command since openclaw is not installed
 COMMAND = sys.executable
 WORKING_DIR = "C:\\Users\\Andrewhyc\\agentnet_workdir"

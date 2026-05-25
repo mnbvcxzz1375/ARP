@@ -15,6 +15,8 @@ Usage:
 Requires:
     - API running on localhost:8000 (Docker Compose)
     - Remote receiver running on 100.127.164.72 (for real WS tests)
+    - AGENTNET_API_KEY environment variable set (sender API key)
+    - AGENTNET_AGENT_TOKEN environment variable set (receiver agent token)
 """
 from __future__ import annotations
 
@@ -36,11 +38,16 @@ import websockets.asyncio.client
 API_BASE = "http://localhost:8000"
 WS_URL = "ws://localhost:8000/v1/ws"
 
-# Pre-created agents and users
-API_KEY = "ak_Bg95_c11p9ZRkqJe5CR5wRKvjTukOVJ8VYck3SGZ9HI"
+# Pre-created agents and users — credentials from environment
+_missing = [v for v in ("AGENTNET_API_KEY", "AGENTNET_AGENT_TOKEN") if not os.environ.get(v)]
+if _missing:
+    print(f"ERROR: required environment variables not set: {', '.join(_missing)}", file=sys.stderr)
+    sys.exit(1)
+
+API_KEY = os.environ["AGENTNET_API_KEY"]
 SENDER_AGENT_NUMBER = "AN-GLOBAL-BB05A89F32-ZQ"
 RECEIVER_AGENT_NUMBER = "AN-GLOBAL-295B51BD51-9Z"
-AGENT_TOKEN = "agt_sk_FIzxDbBFIH2yC-LrWfwg2FKXN23MNHvK8m_TyoNAPoQ"
+AGENT_TOKEN = os.environ["AGENTNET_AGENT_TOKEN"]
 
 HEADERS = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
@@ -186,7 +193,7 @@ def test_failure_paths(runner: TestRunner):
         async def run_test():
             async with websockets.connect(
                 WS_URL,
-                additional_headers={"Authorization": "Bearer agt_sk_invalid_token_xyz"},
+                additional_headers={"Authorization": "Bearer agt_sk_INVALID_TEST_TOKEN"},
                 close_timeout=2,
             ) as ws:
                 raw = await asyncio.wait_for(ws.recv(), timeout=10)

@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import or_, select
@@ -26,12 +26,21 @@ def generate_api_key() -> tuple[str, str, str]:
     return raw, key_hash, key_prefix
 
 
-async def get_or_create_user(username: str, session: AsyncSession) -> User:
+async def get_or_create_user(
+    username: str,
+    session: AsyncSession,
+) -> User:
+    """Find a User by username, or create one.
+
+    The user gets role='user' by default. Callers can upgrade the role
+    after creation (e.g. to 'admin' for enterprise access).
+    """
     stmt = select(User).where(User.username == username)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
     if user is not None:
         return user
+
     user = User(username=username)
     session.add(user)
     await session.flush()
@@ -39,16 +48,37 @@ async def get_or_create_user(username: str, session: AsyncSession) -> User:
 
 
 async def create_api_key_for_user(
-    user: User, name: str, session: AsyncSession
+    user: User, name: str, session: AsyncSession, *, expires_days: int = 90
 ) -> str:
+    """Create an API key for a user. Returns the raw key (shown once).
+
+    The key is SHA-256 hashed before storage, following the same pattern
+    as the agent API key service. Auto-provisioned keys expire after
+    expires_days (default 90 days).
+    """
+    from app.services.audit_service import write_audit
+
     raw, key_hash, key_prefix = generate_api_key()
+    expires_at = datetime.now(UTC) + timedelta(days=expires_days)
     api_key = ApiKey(
         user_id=user.id,
         key_hash=key_hash,
         key_prefix=key_prefix,
         name=name,
+        expires_at=expires_at,
     )
     session.add(api_key)
+    await session.flush()
+
+    await write_audit(
+        session,
+        actor_type="system",
+        actor_id="auto_provision",
+        action="api_key.created",
+        resource_type="api_key",
+        resource_id=str(api_key.id),
+        details={"key_prefix": key_prefix, "name": name, "user_id": str(user.id)},
+    )
     await session.flush()
     return raw
 

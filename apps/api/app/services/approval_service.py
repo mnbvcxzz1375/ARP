@@ -42,10 +42,9 @@ async def create_approval(
         expires_at=datetime.now(UTC) + timedelta(seconds=expires_in_seconds),
     )
     session.add(approval)
-    await session.commit()
-    await session.refresh(approval)
+    await session.flush()
 
-    # Audit: approval created
+    # Audit: approval created — same transaction as the approval row
     await write_audit(
         session,
         actor_type="agent",
@@ -56,6 +55,8 @@ async def create_approval(
         task_id=str(task_id),
         details={"risk_level": risk_level, "action_kind": action_kind},
     )
+    await session.commit()
+    await session.refresh(approval)
 
     logger.info(
         "Approval created: %s task=%s risk=%s action=%s",
@@ -87,10 +88,9 @@ async def accept_approval(session: AsyncSession, approval_id: UUID) -> Approval:
         ttl = get_settings().task_lease_duration_s
         task.lease_expires_at = datetime.now(UTC) + timedelta(seconds=ttl)
 
-    await session.commit()
-    await session.refresh(approval)
+    await session.flush()
 
-    # Audit: approval accepted
+    # Audit: approval accepted — same transaction
     await write_audit(
         session,
         actor_type="system",
@@ -100,6 +100,8 @@ async def accept_approval(session: AsyncSession, approval_id: UUID) -> Approval:
         resource_id=str(approval.id),
         task_id=str(approval.task_id),
     )
+    await session.commit()
+    await session.refresh(approval)
 
     logger.info("Approval %s accepted, task %s back to running", approval_id, approval.task_id)
     metrics.APPROVALS_PENDING.dec()
@@ -125,10 +127,9 @@ async def reject_approval(session: AsyncSession, approval_id: UUID) -> Approval:
     if task and task.status == TaskStatus.AWAITING_APPROVAL.value:
         task.status = TaskStatus.REJECTED.value
 
-    await session.commit()
-    await session.refresh(approval)
+    await session.flush()
 
-    # Audit: approval rejected
+    # Audit: approval rejected — same transaction
     await write_audit(
         session,
         actor_type="system",
@@ -139,6 +140,8 @@ async def reject_approval(session: AsyncSession, approval_id: UUID) -> Approval:
         task_id=str(approval.task_id),
         error_code=ErrorCode.APPROVAL_REJECTED.value,
     )
+    await session.commit()
+    await session.refresh(approval)
 
     logger.info("Approval %s rejected, task %s set to rejected", approval_id, approval.task_id)
     metrics.APPROVALS_PENDING.dec()

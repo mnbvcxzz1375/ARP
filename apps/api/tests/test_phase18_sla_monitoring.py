@@ -20,7 +20,7 @@ async def test_create_sla_target(session):
     """Test creating an SLA target."""
     target = await sla_service.create_sla_target(
         session,
-        scope_id="global",
+        scope_id="zone:test-create",
         target_name="Global P99 Latency",
         metric_type="latency_p99",
         target_value=500.0,
@@ -31,7 +31,7 @@ async def test_create_sla_target(session):
     await session.commit()
 
     assert target.id is not None
-    assert target.scope_id == "global"
+    assert target.scope_id == "zone:test-create"
     assert target.target_name == "Global P99 Latency"
     assert target.metric_type == "latency_p99"
     assert target.target_value == 500.0
@@ -74,13 +74,15 @@ async def test_calculate_latency_p99_metric(session, sample_user, sample_agent):
     session.add(route_decision)
     await session.flush()
 
-    # Create 100 route metrics with varying latencies
+    # Use a unique zone_id to isolate from other tests' global metrics
+    zone = "test-p99-latency"
     for i in range(100):
         metric = RouteMetric(
             route_decision_id=route_decision.id,
             metric_time=datetime.now(UTC),
             latency_ms=i * 10,  # 0ms to 990ms
             success=True,
+            zone_id=zone,
         )
         session.add(metric)
     await session.commit()
@@ -88,7 +90,7 @@ async def test_calculate_latency_p99_metric(session, sample_user, sample_agent):
     # Calculate P99 (should be around 990ms)
     p99 = await sla_service.calculate_metrics(
         session,
-        scope_id="global",
+        scope_id=f"zone:{zone}",
         metric_type="latency_p99",
         window_seconds=300,
     )
@@ -115,7 +117,8 @@ async def test_calculate_success_rate_metric(session, sample_user, sample_agent)
     session.add(route_decision)
     await session.flush()
 
-    # Create 100 metrics: 95 successful, 5 failed
+    # Use a unique zone_id to isolate from other tests' global metrics
+    zone = "test-success-rate"
     for i in range(100):
         metric = RouteMetric(
             route_decision_id=route_decision.id,
@@ -123,13 +126,14 @@ async def test_calculate_success_rate_metric(session, sample_user, sample_agent)
             latency_ms=100,
             success=(i < 95),  # First 95 are successful
             error_code="TEST_ERROR" if i >= 95 else None,
+            zone_id=zone,
         )
         session.add(metric)
     await session.commit()
 
     success_rate = await sla_service.calculate_metrics(
         session,
-        scope_id="global",
+        scope_id=f"zone:{zone}",
         metric_type="success_rate",
         window_seconds=300,
     )
@@ -141,10 +145,11 @@ async def test_calculate_success_rate_metric(session, sample_user, sample_agent)
 @pytest.mark.asyncio
 async def test_check_sla_compliance_no_violation(session, sample_user, sample_agent):
     """Test SLA compliance check when no violation occurs."""
-    # Create SLA target: P99 < 500ms
+    # Use zone-scoped target to isolate from other tests' global metrics
+    zone = "test-sla-no-viol"
     target = await sla_service.create_sla_target(
         session,
-        scope_id="global",
+        scope_id=f"zone:{zone}",
         target_name="P99 Latency",
         metric_type="latency_p99",
         target_value=500.0,
@@ -175,6 +180,7 @@ async def test_check_sla_compliance_no_violation(session, sample_user, sample_ag
             metric_time=datetime.now(UTC),
             latency_ms=i * 4,  # 0ms to 396ms
             success=True,
+            zone_id=zone,
         )
         session.add(metric)
     await session.commit()
@@ -182,18 +188,21 @@ async def test_check_sla_compliance_no_violation(session, sample_user, sample_ag
     violations = await sla_service.check_sla_compliance(session)
     assert violations == 0
 
-    # Verify no violations were created
-    result = await session.execute(select(SLAViolation))
+    # Verify no violations were created for this target
+    result = await session.execute(
+        select(SLAViolation).where(SLAViolation.target_id == target.id)
+    )
     assert len(result.scalars().all()) == 0
 
 
 @pytest.mark.asyncio
 async def test_check_sla_compliance_warning_violation(session, sample_user, sample_agent):
     """Test SLA compliance check when warning threshold is exceeded."""
-    # Create SLA target: P99 < 500ms, warning at 90% (555ms)
+    # Use zone-scoped target to isolate from other tests' global metrics
+    zone = "test-sla-warn"
     target = await sla_service.create_sla_target(
         session,
-        scope_id="global",
+        scope_id=f"zone:{zone}",
         target_name="P99 Latency",
         metric_type="latency_p99",
         target_value=500.0,
@@ -224,6 +233,7 @@ async def test_check_sla_compliance_warning_violation(session, sample_user, samp
             metric_time=datetime.now(UTC),
             latency_ms=i * 6,  # 0ms to 594ms, P99 ~594ms
             success=True,
+            zone_id=zone,
         )
         session.add(metric)
     await session.commit()
@@ -243,10 +253,11 @@ async def test_check_sla_compliance_warning_violation(session, sample_user, samp
 @pytest.mark.asyncio
 async def test_check_sla_compliance_critical_violation(session, sample_user, sample_agent):
     """Test SLA compliance check when critical threshold is exceeded."""
-    # Create SLA target: P99 < 500ms, critical at 80% (625ms)
+    # Use zone-scoped target to isolate from other tests' global metrics
+    zone = "test-sla-crit"
     target = await sla_service.create_sla_target(
         session,
-        scope_id="global",
+        scope_id=f"zone:{zone}",
         target_name="P99 Latency",
         metric_type="latency_p99",
         target_value=500.0,
@@ -277,6 +288,7 @@ async def test_check_sla_compliance_critical_violation(session, sample_user, sam
             metric_time=datetime.now(UTC),
             latency_ms=i * 7,  # 0ms to 693ms, P99 ~693ms
             success=True,
+            zone_id=zone,
         )
         session.add(metric)
     await session.commit()
@@ -295,10 +307,11 @@ async def test_check_sla_compliance_critical_violation(session, sample_user, sam
 @pytest.mark.asyncio
 async def test_sla_violation_resolution(session, sample_user, sample_agent):
     """Test that violations are resolved when metrics return to normal."""
-    # Create SLA target
+    # Use zone-scoped target to isolate from other tests' global metrics
+    zone = "test-sla-resolve"
     target = await sla_service.create_sla_target(
         session,
-        scope_id="global",
+        scope_id=f"zone:{zone}",
         target_name="P99 Latency",
         metric_type="latency_p99",
         target_value=500.0,
@@ -328,6 +341,7 @@ async def test_sla_violation_resolution(session, sample_user, sample_agent):
             metric_time=violation_time,
             latency_ms=i * 7,  # High latency, P99 ~693ms
             success=True,
+            zone_id=zone,
         )
         session.add(metric)
     await session.commit()
@@ -345,6 +359,7 @@ async def test_sla_violation_resolution(session, sample_user, sample_agent):
             metric_time=resolution_time,
             latency_ms=i % 100,  # Very low latency, cycling 0-99ms
             success=True,
+            zone_id=zone,
         )
         session.add(metric)
     await session.commit()
@@ -364,10 +379,11 @@ async def test_sla_violation_resolution(session, sample_user, sample_agent):
 @pytest.mark.asyncio
 async def test_generate_sla_report(session, sample_user, sample_agent):
     """Test generating SLA compliance report."""
-    # Create SLA target
+    # Use zone-scoped target to isolate from other tests' global metrics
+    zone = "test-sla-report"
     target = await sla_service.create_sla_target(
         session,
-        scope_id="global",
+        scope_id=f"zone:{zone}",
         target_name="P99 Latency",
         metric_type="latency_p99",
         target_value=500.0,
@@ -386,12 +402,12 @@ async def test_generate_sla_report(session, sample_user, sample_agent):
     # Generate report
     report = await sla_service.generate_sla_report(
         session,
-        scope_id="global",
+        scope_id=f"zone:{zone}",
         start_time=datetime.now(UTC) - timedelta(hours=1),
         end_time=datetime.now(UTC),
     )
 
-    assert report["scope_id"] == "global"
+    assert report["scope_id"] == f"zone:{zone}"
     assert report["summary"]["total_targets"] == 1
     assert report["summary"]["targets_with_violations"] == 1
     assert report["summary"]["total_violations"] == 1

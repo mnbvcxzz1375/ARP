@@ -6,9 +6,5 @@ export default function PublicLayout() {
   const { isLoading, isError, data } = useAuth();
   if (isLoading) return <LoadingState />;
   if (!isError && data) return <Navigate to="/app/overview" replace />;
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Outlet />
-    </div>
-  );
+  return <Outlet />;
 }

@@ -26,6 +26,8 @@ from app.models.sla_target import SLATarget
 from app.models.sla_violation import SLAViolation
 from app.models.task import Task
 from app.models.task_progress import TaskProgress
+from app.models.access_request import AccessRequest
+from app.models.personal_scope import PersonalScope
 from app.models.user import User
 
 __all__ = [
@@ -36,4 +38,5 @@ __all__ = [
     "RoutePolicy", "EgressGateway", "EgressLog", "NetworkScope", "NetworkZone",
     "DedicatedChannel", "ChannelHealthCheck", "SLATarget", "SLAViolation",
     "FailoverConfig", "FailoverEvent", "CircuitBreaker",
+    "AccessRequest", "PersonalScope",
 ]

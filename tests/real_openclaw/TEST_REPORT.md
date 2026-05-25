@@ -394,7 +394,9 @@ Agent-14: cycles=300 drops=0 rejects=0 tasks=1  churns=0 avg_lat=5.0ms
 ## 7. 安全说明
 
 - **DashScope API Key**: 所有代码中 0 处明文 key。统一通过 `DASHSCOPE_API_KEY` 环境变量读取
-- **Agent Token**: 测试 token 仅在测试期间有效
+- **AgentNet API Key / Agent Token**: 所有脚本通过环境变量读取，缺失时脚本 fail closed (exit 1)
+  - `AGENTNET_API_KEY` — sender 使用的 API key (ak_...)
+  - `AGENTNET_AGENT_TOKEN` — receiver 使用的 agent token (agt_sk_...)
 - **API Key 管理**: 支持 create / list / rotate / revoke
 - **跨用户隔离**: 已验证 User A 无法访问 User B 的 agent/task/result
 

@@ -1,6 +1,16 @@
 groups:
   - name: agentnet.rules
     rules:
+      # --- API health ---
+      - alert: AgentNetApiUnavailable
+        expr: up{job="agentnet-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: AgentNet API is unavailable
+          description: Prometheus cannot scrape the API /metrics endpoint. The API process may be down or unreachable.
+
       - alert: AgentNetApiHigh5xxRate
         expr: sum(rate(agentnet_http_errors_total[5m])) > 0.05
         for: 5m
@@ -19,6 +29,7 @@ groups:
           summary: AgentNet API p95 latency is high
           description: API p95 latency has remained above 1 second for 10 minutes.
 
+      # --- WebSocket ---
       - alert: AgentNetWebSocketConnectionsZero
         expr: agentnet_ws_connections_active == 0
         for: 30m
@@ -28,6 +39,16 @@ groups:
           summary: No active AgentNet WebSocket connections
           description: Active WebSocket connections have been zero for 30 minutes.
 
+      - alert: AgentNetWebSocketDisconnectSpike
+        expr: increase(agentnet_ws_disconnects_total[5m]) > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet WebSocket disconnect spike
+          description: More than 20 WebSocket disconnections in the last 5 minutes, suggesting a possible connectivity issue.
+
+      # --- Messages & Tasks ---
       - alert: AgentNetPendingMessagesGrowing
         expr: increase(agentnet_pending_messages[15m]) > 100
         for: 15m
@@ -46,6 +67,25 @@ groups:
           summary: AgentNet task expiry rate is high
           description: More than 10 tasks expired in the last 15 minutes.
 
+      - alert: AgentNetAckTimeoutSpike
+        expr: increase(agentnet_messages_expired_total[10m]) > 30
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet ack timeout spike
+          description: More than 30 messages expired (ack timeout) in the last 10 minutes.
+
+      - alert: AgentNetProcessingTimeoutSpike
+        expr: increase(agentnet_timeout_worker_cycles_total[15m]) > 5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet processing timeout spike
+          description: Timeout worker has detected more than 5 timed-out tasks in the last 15 minutes.
+
+      # --- Workers ---
       - alert: AgentNetWorkerErrors
         expr: sum(increase(agentnet_worker_errors_total[5m])) > 0
         for: 5m
@@ -55,6 +95,65 @@ groups:
           summary: AgentNet worker errors detected
           description: Retry or timeout worker errors were recorded.
 
+      # --- Approvals ---
+      - alert: AgentNetApprovalPendingTooLong
+        expr: agentnet_approvals_pending > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet approvals have been pending too long
+          description: One or more approvals have remained pending for more than 30 minutes.
+
+      # --- Egress ---
+      - alert: AgentNetEgressFailureSpike
+        expr: sum(rate(agentnet_egress_requests_total{status=~"429|502|503|504"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet egress failure spike
+          description: Egress gateway failure rate exceeds 10% over the last 5 minutes.
+
+      # --- Routing ---
+      - alert: AgentNetRouteFallbackSpike
+        expr: increase(agentnet_route_fallbacks_total[15m]) > 5
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet route fallback spike
+          description: More than 5 route fallback events in the last 15 minutes, suggesting degraded channel or relay health.
+
+      # --- SLA & Continuity ---
+      - alert: AgentNetSLACriticalViolation
+        expr: increase(agentnet_sla_violations_total[30m]) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: AgentNet SLA critical violation
+          description: An SLA violation has been recorded. Check SLA targets and relay health immediately.
+
+      - alert: AgentNetCircuitBreakerOpen
+        expr: agentnet_circuit_breaker_state == 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet circuit breaker is open
+          description: A circuit breaker has transitioned to open state, blocking traffic through the affected relay.
+
+      - alert: AgentNetFailoverTriggered
+        expr: increase(agentnet_failover_events_total[30m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: AgentNet failover event triggered
+          description: A failover event has been triggered. Check relay health and circuit breaker state.
+
+      # --- Infrastructure ---
       - alert: AgentNetRedisUnavailable
         expr: up{job="redis"} == 0
         for: 2m
@@ -73,11 +172,12 @@ groups:
           summary: AgentNet Postgres exporter unavailable
           description: Prometheus cannot scrape the Postgres exporter; Postgres health should be checked immediately.
 
-      - alert: AgentNetApprovalPendingTooLong
-        expr: agentnet_approvals_pending > 0
-        for: 30m
+      # --- Dependency health ---
+      - alert: AgentNetDependencyDegraded
+        expr: agentnet_health_check_status{component=~"postgresql|redis"} == 0
+        for: 5m
         labels:
           severity: warning
         annotations:
-          summary: AgentNet approvals have been pending too long
-          description: One or more approvals have remained pending for more than 30 minutes.
+          summary: AgentNet dependency degraded
+          description: A critical dependency (PostgreSQL or Redis) is reporting unhealthy via the /readyz endpoint.

@@ -32,6 +32,11 @@ class Agent(Base):
         UUID(as_uuid=True), ForeignKey("network_zones.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
+    # Phase 16: Egress gateway assignment
+    egress_gateway_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("egress_gateways.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

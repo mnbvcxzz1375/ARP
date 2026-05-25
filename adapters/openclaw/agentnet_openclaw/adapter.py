@@ -1,4 +1,14 @@
-﻿"""OpenClaw Adapter: bridges AgentNet tasks to local OpenClaw CLI executions."""
+﻿"""OpenClaw Adapter: bridges AgentNet tasks to local OpenClaw CLI executions.
+
+This adapter runs CLI commands locally via subprocess.  The adapter itself
+does NOT make outbound HTTP calls, but the executed CLI tool may.  For
+production deployments, ensure network-level egress controls (e.g.
+Kubernetes network policies, firewall rules) prevent CLI subprocesses
+from bypassing the platform's egress gateway.  If the CLI tool needs to
+call external APIs, prefer building a custom adapter that uses
+``context.external_request()`` rather than relying on the CLI's own HTTP
+client.
+"""
 
 from __future__ import annotations
 

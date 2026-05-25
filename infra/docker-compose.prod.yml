@@ -152,6 +152,22 @@ services:
     networks:
       - agentnet_internal
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    profiles:
+      - observability
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - agentnet_alertmanager_data:/alertmanager
+    networks:
+      - agentnet_internal
+
   grafana:
     image: grafana/grafana:11.3.0
     restart: unless-stopped
@@ -180,4 +196,5 @@ volumes:
   agentnet_postgres_data:
   agentnet_redis_data:
   agentnet_prometheus_data:
+  agentnet_alertmanager_data:
   agentnet_grafana_data:

@@ -21,13 +21,20 @@ htmlcov/
 .ruff_cache/
 coverage/
 playwright-report/
+blob-report/
 test-results/
 .playwright-mcp/
+*.spec.ts-snapshots/
+!apps/web/e2e/visual-regression.spec.ts-snapshots/
 
 # Environment / secrets
 .env
 .env.*
+*.env.local
+*.env.*.local
 !infra/.env.production.example
+!.env.example
+!.env.*.example
 
 # IDE
 .vscode/
@@ -50,6 +57,11 @@ agentnet_session.json
 test_model_results.json
 reports/
 *.test.log
+*.tmp.log
+*.out.log
+*.err.log
+.tmp_*/
+.tmp_*
 IMPLEMENTATION_STATUS.md
 ROUTING_RUNTIME_PROGRESS.md
 PHASE*-*_COMPLETION_REPORT.md
@@ -60,6 +72,8 @@ aliyun-login.png
 apps/web/node_modules/
 apps/web/dist/
 apps/web/*.tsbuildinfo
+apps/web/.vite/
+apps/web/.cache/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -69,11 +83,19 @@ pnpm-debug.log*
 infra/postgres_data/
 infra/redis_data/
 docker-compose.override.yml
+backups/
+*.dump
+*.rdb
+*.aof
+*.sha256
 
 # Credentials (absolute — never commit real keys/tokens)
 credentials/
 *.pem
 *.key
+*.crt
+*.pfx
+*.p12
 !infra/.env.production.example
 
 # AI assistant config (personal, not project)

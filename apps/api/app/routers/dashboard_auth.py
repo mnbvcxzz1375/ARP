@@ -3,7 +3,7 @@ import hashlib
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Response
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -234,6 +234,7 @@ async def step_up(
             ApiKey.user_id == ds.user_id,
             ApiKey.key_hash == key_hash,
             ApiKey.is_revoked == False,
+            or_(ApiKey.expires_at == None, ApiKey.expires_at > datetime.now(UTC)),
         )
     )
     if key_result.scalar_one_or_none() is None:

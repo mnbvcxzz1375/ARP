@@ -3,6 +3,20 @@
 @tailwind utilities;
 
 :root {
+  /* Design tokens */
+  --color-bg: #ffffff;
+  --color-surface: #f9fafb;
+  --color-border: #e5e7eb;
+  --color-text: #111827;
+  --color-muted: #6b7280;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-route: #4f46e5;
+  --color-audit: #7c3aed;
+  --color-enterprise: #1e293b;
+
+  /* Legacy tokens kept for compatibility */
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
   --border: 214.3 31.8% 91.4%;
@@ -10,4 +24,33 @@
 
 body {
   @apply bg-white text-gray-900 antialiased;
+}
+
+/* Accessible focus states */
+*:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Responsive table scrolling */
+.responsive-table {
+  @apply overflow-x-auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile button fix — prevent overflow */
+@media (max-width: 375px) {
+  .btn-action {
+    @apply text-xs px-2 py-1;
+  }
+}
+
+/* Enterprise sidebar dark theme */
+.enterprise-sidebar {
+  @apply bg-gray-900 text-gray-300;
+}
+
+/* Personal sidebar light theme */
+.personal-sidebar {
+  @apply bg-white text-gray-600 border-r border-gray-200;
 }

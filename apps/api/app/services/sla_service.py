@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import DomainException
+from app.metrics import SLA_VIOLATIONS_TOTAL
 from app.models.route_metric import RouteMetric
 from app.models.sla_target import SLATarget
 from app.models.sla_violation import SLAViolation
@@ -246,6 +247,12 @@ async def record_violation(
     )
     session.add(violation)
     await session.flush()
+
+    # Prometheus: record SLA violation
+    SLA_VIOLATIONS_TOTAL.labels(
+        target_id=str(target_id), metric_type=severity
+    ).inc()
+
     logger.warning(
         "SLA violation detected: target=%s severity=%s metric_value=%s",
         target_id,

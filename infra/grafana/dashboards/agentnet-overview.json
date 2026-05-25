@@ -96,6 +96,145 @@
       "targets": [{ "expr": "up{job=\"redis\"}", "legendFormat": "redis exporter" }],
       "title": "Redis exporter health",
       "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "id": 11,
+      "panels": [],
+      "title": "Egress Gateway (Phase 16)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 25 },
+      "id": 12,
+      "targets": [
+        { "expr": "sum by (gateway_id) (rate(agentnet_egress_requests_total[5m]))", "legendFormat": "{{gateway_id}}" }
+      ],
+      "title": "Egress request rate by gateway",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 25 },
+      "id": 13,
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, gateway_id) (rate(agentnet_egress_latency_ms_bucket[5m])))", "legendFormat": "{{gateway_id}} p95" }
+      ],
+      "title": "Egress p95 latency by gateway",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 25 },
+      "id": 14,
+      "targets": [
+        { "expr": "sum by (gateway_id, status) (rate(agentnet_egress_requests_total{status=~\"429|502|503|504\"}[5m]))", "legendFormat": "{{gateway_id}} {{status}}" }
+      ],
+      "title": "Egress failure rate by gateway",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
+      "id": 15,
+      "panels": [],
+      "title": "Routing Decisions (Phase 12)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 34 },
+      "id": 16,
+      "targets": [
+        { "expr": "sum by (route_type) (rate(agentnet_route_decisions_total[5m]))", "legendFormat": "{{route_type}}" }
+      ],
+      "title": "Route decision rate by type",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 34 },
+      "id": 17,
+      "targets": [
+        { "expr": "sum by (route_type) (rate(agentnet_route_decisions_total{fallback=\"true\"}[5m]))", "legendFormat": "{{route_type}} fallback" }
+      ],
+      "title": "Route fallback rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 34 },
+      "id": 18,
+      "targets": [
+        { "expr": "increase(agentnet_route_fallbacks_total[15m])", "legendFormat": "{{original_type}} -> {{fallback_type}} ({{reason}})" }
+      ],
+      "title": "Route fallback events (15m)",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
+      "id": 19,
+      "panels": [],
+      "title": "SLA & Continuity (Phase 18)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 43 },
+      "id": 20,
+      "targets": [
+        { "expr": "increase(agentnet_sla_violations_total[1h])", "legendFormat": "{{target_id}} {{metric_type}}" }
+      ],
+      "title": "SLA violations (1h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 2 }] }, "mappings": [{ "type": "value", "options": { "0": { "text": "Closed", "color": "green" }, "1": { "text": "Half-Open", "color": "yellow" }, "2": { "text": "Open", "color": "red" } } }] }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 43 },
+      "id": 21,
+      "targets": [
+        { "expr": "agentnet_circuit_breaker_state", "legendFormat": "{{relay_id}}" }
+      ],
+      "title": "Circuit breaker state",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 43 },
+      "id": 22,
+      "targets": [
+        { "expr": "increase(agentnet_failover_events_total[1h])", "legendFormat": "{{config_id}} {{trigger}}" }
+      ],
+      "title": "Failover events (1h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }, "mappings": [{ "type": "value", "options": { "0": { "text": "Unhealthy", "color": "red" }, "1": { "text": "Healthy", "color": "green" } } }] }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 43 },
+      "id": 23,
+      "targets": [
+        { "expr": "agentnet_health_check_status", "legendFormat": "{{component}}" }
+      ],
+      "title": "Dependency health",
+      "type": "stat"
     }
   ],
   "refresh": "10s",
@@ -107,6 +246,6 @@
   "timezone": "browser",
   "title": "AgentNet Overview",
   "uid": "agentnet-overview",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import DomainException
+from app.metrics import CIRCUIT_BREAKER_STATE, FAILOVER_EVENTS_TOTAL
 from app.models.circuit_breaker import CircuitBreaker
 from app.models.failover_config import FailoverConfig
 from app.models.failover_event import FailoverEvent
@@ -217,6 +218,11 @@ async def update_circuit_breaker(
             )
 
     breaker.updated_at = now
+
+    # Prometheus: update circuit breaker state gauge
+    state_value = {"closed": 0, "half_open": 1, "open": 2}.get(breaker.state, 0)
+    CIRCUIT_BREAKER_STATE.labels(relay_id=str(relay_node_id)).set(state_value)
+
     return breaker
 
 
@@ -364,6 +370,11 @@ async def trigger_failover(
             "auto_triggered": auto_triggered,
         },
     )
+
+    # Prometheus: record failover event
+    FAILOVER_EVENTS_TOTAL.labels(
+        config_id=str(config_id), trigger=trigger_reason
+    ).inc()
 
     return event
 

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import SessionLocal
 from app.exceptions import DomainException
+from app.metrics import ROUTE_DECISIONS_TOTAL, ROUTE_FALLBACK_TOTAL
 from app.models.agent import Agent
 from app.models.message import Message
 from app.models.task import Task

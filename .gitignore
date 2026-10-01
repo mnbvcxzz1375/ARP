@@ -35,6 +35,8 @@ test-results/
 !infra/.env.production.example
 !.env.example
 !.env.*.example
+# Demo mode build flag — a build switch, not a secret (VITE_DEMO_MODE=1)
+!apps/web/.env.demo
 
 # IDE
 .vscode/

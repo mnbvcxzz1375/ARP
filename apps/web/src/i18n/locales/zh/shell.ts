@@ -44,6 +44,16 @@ const shell = {
 
   // 公共页脚
   'footer.poweredBy': 'AgentNet 中继平台',
+
+  // 演示模式横幅（仅 VITE_DEMO_MODE 构建）
+  'demo.badge': '演示',
+  'demo.banner': '演示模式 — 数据均为虚构，仅存于内存',
+  'demo.persona.label': '身份',
+  'demo.persona.super_admin': '超级管理员',
+  'demo.persona.org_manager': '组织管理员',
+  'demo.persona.personal': '个人用户',
+  'demo.reset': '重置演示数据',
+  'demo.reset.aria': '重置演示数据世界',
 };
 
 export default shell;

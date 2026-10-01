@@ -8,6 +8,8 @@ import { hasEnterpriseConsoleAccess } from '../lib/permissions';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import { canSeeNavItem, type NavGroup, type NavItem } from './navigation';
 import { rememberDocsOrigin } from '../features/docs/docsEntryMemory';
+import DemoBanner from '../demo/DemoBanner';
+import { isDemoMode } from '../demo';
 
 type Scope = 'personal' | 'enterprise';
 
@@ -438,6 +440,7 @@ export default function DashboardShell({ navGroups, scope }: DashboardShellProps
 
       {/* Main content */}
       <main className="min-w-0 overflow-y-auto bg-pixel-bg pt-[52px] md:pt-0">
+        {isDemoMode() && <DemoBanner />}
         {isEnterprise && (
           <div
             data-testid="enterprise-banner"

@@ -95,6 +95,8 @@ const common = {
   'login.error': '凭据无效。请检查用户名与 API 密钥。',
   'login.requestAccess': '需要访问？在此申请',
   'login.docs': '查看文档',
+  // 演示构建（VITE_DEMO_MODE）
+  'login.demoEntry': '以超级管理员进入演示',
 };
 
 export default common;

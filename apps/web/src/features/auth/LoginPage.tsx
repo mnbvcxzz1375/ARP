@@ -4,6 +4,7 @@ import { DEFAULT_LOGIN_REDIRECT, resolveNextTarget, useLogin } from '../../hooks
 import { useT } from '../../i18n';
 import LoadingState from '../../components/LoadingState';
 import { rememberDocsOrigin } from '../docs/docsEntryMemory';
+import { isDemoMode, personaById } from '../../demo';
 
 /**
  * Pixel restyle of the sign-in page. Single hard-edged surface panel with a
@@ -107,6 +108,30 @@ export default function LoginPage() {
             >
               {login.isPending ? <LoadingState className="py-0" /> : t('common.login.submit')}
             </button>
+
+            {/* Demo builds only: one-click entry as the seeded super admin.
+                The banner persona switcher can then change identity. */}
+            {isDemoMode() && (
+              <button
+                type="button"
+                data-testid="demo-login"
+                onClick={() => {
+                  const p = personaById('super_admin');
+                  setUsername(p.username);
+                  setApiKey(p.apiKey);
+                  login.mutate({
+                    username: p.username,
+                    api_key: p.apiKey,
+                    redirectTarget:
+                      resolveNextTarget(searchParams.get('next')) ?? DEFAULT_LOGIN_REDIRECT,
+                  });
+                }}
+                disabled={login.isPending}
+                className="w-full min-h-[44px] py-2 px-4 bg-pixel-raised text-pixel-fg border-2 border-pixel-line font-pixel text-base hover:border-pixel-accent disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t('common.login.demoEntry')}
+              </button>
+            )}
           </form>
 
           <div className="mt-4 flex flex-col items-center gap-2 text-center">

@@ -97,6 +97,8 @@ const common = {
   'login.error': 'Invalid credentials. Please check your username and API key.',
   'login.requestAccess': 'Need access? Request it here',
   'login.docs': 'Read the docs',
+  // Demo builds only (VITE_DEMO_MODE)
+  'login.demoEntry': 'Enter demo as Super Admin',
 };
 
 export default common;

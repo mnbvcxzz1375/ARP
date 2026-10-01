@@ -1,10 +1,15 @@
 /// <reference types="vite/client" />
 import axios, { type AxiosError } from 'axios';
+import { demoAxiosAdapter, isDemoMode } from '../demo';
 
+// Demo mode (VITE_DEMO_MODE=1): the transport is swapped for the in-memory
+// fixture adapter. Interceptors become harmless no-ops: there is no cookie,
+// and the adapter resolves/rejects like a real backend call would.
 const api = axios.create({
   baseURL: import.meta.env.VITE_AGENTNET_API_BASE || '',
-  withCredentials: true,
+  withCredentials: !isDemoMode(),
   timeout: 30000,
+  adapter: isDemoMode() ? demoAxiosAdapter : undefined,
 });
 
 // CSRF Interceptor: read cookie, set header for mutations

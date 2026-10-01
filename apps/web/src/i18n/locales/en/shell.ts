@@ -44,6 +44,16 @@ const shell = {
 
   // Public footer
   'footer.poweredBy': 'AgentNet Relay Platform',
+
+  // Demo mode banner (VITE_DEMO_MODE builds only)
+  'demo.badge': 'Demo',
+  'demo.banner': 'Demo mode -- all data is fictional and kept in memory',
+  'demo.persona.label': 'Persona',
+  'demo.persona.super_admin': 'Super Admin',
+  'demo.persona.org_manager': 'Org Manager',
+  'demo.persona.personal': 'Personal User',
+  'demo.reset': 'Reset demo data',
+  'demo.reset.aria': 'Reset the demo fixture world',
 };
 
 export default shell;

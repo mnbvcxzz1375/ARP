@@ -7,7 +7,12 @@ vi.mock('../../../api/client', () => ({
   default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
 }));
 
+vi.mock('../../../hooks/useAuth', () => ({
+  useAuth: vi.fn(),
+}));
+
 import api from '../../../api/client';
+import { useAuth } from '../../../hooks/useAuth';
 
 function renderPage() {
   const qc = new QueryClient({
@@ -19,32 +24,58 @@ function renderPage() {
   return render(<QueryClientProvider client={qc}><DedicatedChannelsPage /></QueryClientProvider>);
 }
 
+/** Every channel write is behind require_high_risk("super_admin:write");
+ * the default mock is stepped-up so the write paths run directly. */
+function mockSuperAdmin(stepUp: string | null = '2999-01-01T00:00:00Z') {
+  (useAuth as any).mockReturnValue({
+    data: {
+      user_id: 'u-admin',
+      username: 'admin',
+      role: 'super_admin',
+      step_up_until: stepUp,
+    },
+  });
+}
+
+// Mirrors DedicatedChannelResponse (apps/api/app/schemas/dedicated_channel.py):
+// id / channel_name / channel_type / source_agent_id / target_agent_id /
+// connection_config / encryption_config / bandwidth_mbps / latency_target_ms
+// / enabled / created_at / updated_at. There is no `status` field.
 const mockChannels = [
   {
-    channel_id: 'dc-1',
-    name: 'Kafka Channel',
-    channel_type: 'kafka',
-    status: 'healthy',
-    target_agent_id: 'agent-12345678-abcd',
-    config: { bootstrap_servers: 'kafka:9092', topic: 'events' },
-    last_health_check: '2026-05-24T12:00:00Z',
+    id: 'dc-1',
+    channel_name: 'VPN Channel Alpha',
+    channel_type: 'vpn',
+    source_agent_id: 'agent-12345678-abcd',
+    target_agent_id: 'agent-87654321-efgh',
+    connection_config: { endpoint: 'vpn-edge-1.internal:51820' },
+    encryption_config: { algorithm: 'aes-256-gcm' },
+    bandwidth_mbps: 100,
+    latency_target_ms: 20,
+    enabled: true,
     created_at: '2026-05-24T10:00:00Z',
+    updated_at: '2026-05-24T10:00:00Z',
   },
   {
-    channel_id: 'dc-2',
-    name: 'gRPC Channel',
-    channel_type: 'grpc',
-    status: 'degraded',
-    target_agent_id: 'agent-87654321-efgh',
-    config: { endpoint: 'grpc://grpc.example.com:443' },
-    last_health_check: '2026-05-24T11:00:00Z',
+    id: 'dc-2',
+    channel_name: 'Private Link Beta',
+    channel_type: 'private_link',
+    source_agent_id: 'agent-00000000-0000',
+    target_agent_id: 'agent-11111111-1111',
+    connection_config: { endpoint: 'pls-2.internal' },
+    encryption_config: null,
+    bandwidth_mbps: null,
+    latency_target_ms: null,
+    enabled: false,
     created_at: '2026-05-24T09:00:00Z',
+    updated_at: '2026-05-24T09:00:00Z',
   },
 ];
 
 describe('DedicatedChannelsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSuperAdmin();
   });
 
   it('shows loading state initially', () => {
@@ -67,8 +98,8 @@ describe('DedicatedChannelsPage', () => {
     });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Kafka Channel')).toBeTruthy();
-      expect(screen.getByText('gRPC Channel')).toBeTruthy();
+      expect(screen.getByText('VPN Channel Alpha')).toBeTruthy();
+      expect(screen.getByText('Private Link Beta')).toBeTruthy();
     });
   });
 
@@ -78,16 +109,20 @@ describe('DedicatedChannelsPage', () => {
     });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Kafka Channel')).toBeTruthy();
+      expect(screen.getByText('VPN Channel Alpha')).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText('Add Channel'));
     await waitFor(() => {
-      expect(screen.getByText('Add Channel')).toBeTruthy(); // dialog title
+      expect(screen.getByText('Add Dedicated Channel')).toBeTruthy();
       expect(screen.getByLabelText('Name')).toBeTruthy();
+      expect(screen.getByLabelText('Source Agent ID')).toBeTruthy();
       expect(screen.getByLabelText('Target Agent ID')).toBeTruthy();
       expect(screen.getByLabelText('Channel Type')).toBeTruthy();
-      expect(screen.getByLabelText('Config (JSON)')).toBeTruthy();
+      expect(screen.getByLabelText('Connection Config (JSON)')).toBeTruthy();
+      expect(screen.getByLabelText('Encryption Config (JSON, optional)')).toBeTruthy();
+      expect(screen.getByLabelText('Bandwidth (Mbps)')).toBeTruthy();
+      expect(screen.getByLabelText('Latency Target (ms)')).toBeTruthy();
     });
   });
 
@@ -98,27 +133,29 @@ describe('DedicatedChannelsPage', () => {
     (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Kafka Channel')).toBeTruthy();
+      expect(screen.getByText('VPN Channel Alpha')).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText('Add Channel'));
     await waitFor(() => {
-      expect(screen.getByText('Add Channel')).toBeTruthy(); // dialog title
+      expect(screen.getByText('Add Dedicated Channel')).toBeTruthy();
     });
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New Channel' } });
+    fireEvent.change(screen.getByLabelText('Source Agent ID'), { target: { value: 'agent-src' } });
     fireEvent.change(screen.getByLabelText('Target Agent ID'), { target: { value: 'agent-new' } });
-    fireEvent.change(screen.getByLabelText('Config (JSON)'), {
-      target: { value: '{"endpoint": "kafka:9093"}' },
+    fireEvent.change(screen.getByLabelText('Connection Config (JSON)'), {
+      target: { value: '{"endpoint": "vpn-edge-2.internal:51820"}' },
     });
     fireEvent.click(screen.getByText('Submit'));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/v1/egress/dedicated-channels', {
-        name: 'New Channel',
+      expect(api.post).toHaveBeenCalledWith('/v1/dashboard/admin/dedicated-channels', {
+        channel_name: 'New Channel',
+        channel_type: 'vpn',
+        source_agent_id: 'agent-src',
         target_agent_id: 'agent-new',
-        channel_type: 'kafka',
-        config: { endpoint: 'kafka:9093' },
+        connection_config: { endpoint: 'vpn-edge-2.internal:51820' },
       });
     });
   });
@@ -130,7 +167,7 @@ describe('DedicatedChannelsPage', () => {
     (api.delete as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Kafka Channel')).toBeTruthy();
+      expect(screen.getByText('VPN Channel Alpha')).toBeTruthy();
     });
 
     // Click Delete on first row
@@ -147,7 +184,7 @@ describe('DedicatedChannelsPage', () => {
     fireEvent.click(confirmButtons[confirmButtons.length - 1]);
 
     await waitFor(() => {
-      expect(api.delete).toHaveBeenCalledWith('/v1/egress/dedicated-channels/dc-1');
+      expect(api.delete).toHaveBeenCalledWith('/v1/dashboard/admin/dedicated-channels/dc-1');
     });
   });
 
@@ -158,7 +195,7 @@ describe('DedicatedChannelsPage', () => {
     (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Kafka Channel')).toBeTruthy();
+      expect(screen.getByText('VPN Channel Alpha')).toBeTruthy();
     });
 
     // Click Health Check on first row
@@ -166,7 +203,7 @@ describe('DedicatedChannelsPage', () => {
     fireEvent.click(healthButtons[0]);
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/v1/egress/dedicated-channels/dc-1/health-check');
+      expect(api.post).toHaveBeenCalledWith('/v1/dashboard/admin/dedicated-channels/dc-1/health-check');
     });
   });
 
@@ -174,10 +211,10 @@ describe('DedicatedChannelsPage', () => {
     (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: { channels: mockChannels, total: 2 },
     });
-    (api.put as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+    (api.patch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Kafka Channel')).toBeTruthy();
+      expect(screen.getByText('VPN Channel Alpha')).toBeTruthy();
     });
 
     const editButtons = screen.getAllByText('Edit');
@@ -185,8 +222,13 @@ describe('DedicatedChannelsPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Edit Dedicated Channel')).toBeTruthy();
-      expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Kafka Channel');
-      expect((screen.getByLabelText('Target Agent ID') as HTMLInputElement).value).toBe('agent-12345678-abcd');
+      expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('VPN Channel Alpha');
+      expect((screen.getByLabelText('Source Agent ID') as HTMLInputElement).value).toBe(
+        'agent-12345678-abcd',
+      );
+      expect((screen.getByLabelText('Target Agent ID') as HTMLInputElement).value).toBe(
+        'agent-87654321-efgh',
+      );
     });
   });
 
@@ -196,15 +238,15 @@ describe('DedicatedChannelsPage', () => {
     });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('Kafka Channel')).toBeTruthy();
+      expect(screen.getByText('VPN Channel Alpha')).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText('Add Channel'));
     await waitFor(() => {
-      expect(screen.getByText('Add Channel')).toBeTruthy(); // dialog title
+      expect(screen.getByText('Add Dedicated Channel')).toBeTruthy();
     });
 
-    fireEvent.change(screen.getByLabelText('Config (JSON)'), {
+    fireEvent.change(screen.getByLabelText('Connection Config (JSON)'), {
       target: { value: 'not-valid-json' },
     });
     fireEvent.click(screen.getByText('Submit'));

@@ -145,11 +145,11 @@ describe('demo GET surface (page contracts)', () => {
 
   it('egress gateways, dedicated channels + health checks', async () => {
     expect(((await get('/v1/egress/gateways')) as { gateways: unknown[]; total: number }).total).toBe(3);
-    const ch = (await get('/v1/egress/dedicated-channels', { offset: 0, limit: 20 })) as {
+    const ch = (await get('/v1/dashboard/admin/dedicated-channels', { offset: 0, limit: 20 })) as {
       channels: { id: string }[];
     };
     expect(ch.channels.length).toBe(3);
-    const checks = (await get(`/v1/egress/dedicated-channels/${ch.channels[0].id}/health-checks`)) as unknown[];
+    const checks = (await get(`/v1/dashboard/admin/dedicated-channels/${ch.channels[0].id}/health-checks`)) as unknown[];
     expect(checks.length).toBeGreaterThan(0);
   });
 
@@ -157,8 +157,8 @@ describe('demo GET surface (page contracts)', () => {
     expect(((await get('/v1/routes/policies')) as { policies: unknown[] }).policies.length).toBe(3);
     const dec = (await get('/v1/routes/decisions', { offset: 0, limit: 20, task_id: 'nope' })) as { decisions: unknown[] };
     expect(dec.decisions).toHaveLength(0);
-    expect(((await get('/v1/routes/relay-nodes')) as { nodes: unknown[] }).nodes.length).toBe(4);
-    const degraded = (await get('/v1/routes/relay-nodes', { offset: 0, limit: 20, status: 'degraded' })) as { nodes: { status: string }[] };
+    expect(((await get('/v1/relay-nodes')) as { nodes: unknown[] }).nodes.length).toBe(4);
+    const degraded = (await get('/v1/relay-nodes', { offset: 0, limit: 20, status: 'degraded' })) as { nodes: { status: string }[] };
     expect(degraded.nodes).toHaveLength(1);
   });
 
@@ -256,20 +256,20 @@ describe('demo write paths', () => {
   });
 
   it('dedicated channel create + health check + delete', async () => {
-    const created = await demoApi.post('/v1/egress/dedicated-channels', {
+    const created = await demoApi.post('/v1/dashboard/admin/dedicated-channels', {
       channel_name: 'probe-vpn',
       channel_type: 'vpn',
       source_agent_id: getDemoStore().world.agents[0].agent_id,
       target_agent_id: getDemoStore().world.agents[1].agent_id,
     });
     const id = (created.data as { id: string }).id;
-    const check = await demoApi.post(`/v1/egress/dedicated-channels/${id}/health-check`);
+    const check = await demoApi.post(`/v1/dashboard/admin/dedicated-channels/${id}/health-check`);
     expect((check.data as { status: string }).status).toBe('healthy');
-    await demoApi.delete(`/v1/egress/dedicated-channels/${id}`);
-    expect(((await get('/v1/egress/dedicated-channels')) as { channels: unknown[] }).channels.length).toBe(3); // 3 initial + 1 created - 1 deleted
+    await demoApi.delete(`/v1/dashboard/admin/dedicated-channels/${id}`);
+    expect(((await get('/v1/dashboard/admin/dedicated-channels')) as { channels: unknown[] }).channels.length).toBe(3); // 3 initial + 1 created - 1 deleted
   });
 
-  it('route policy create + patch enabled; relay node create + delete', async () => {
+  it('route policy create + patch enabled; relay node register', async () => {
     const created = await demoApi.post('/v1/routes/policies', {
       policy_name: 'Probe Policy',
       priority: 5,
@@ -279,9 +279,15 @@ describe('demo write paths', () => {
     const patched = await demoApi.patch(`/v1/routes/policies/${id}`, { enabled: false });
     expect((patched.data as { enabled: boolean }).enabled).toBe(false);
 
-    const node = await demoApi.post('/v1/routes/relay-nodes', { node_name: 'probe-relay', node_type: 'central' });
-    await demoApi.delete(`/v1/routes/relay-nodes/${(node.data as { id: string }).id}`);
-    expect(((await get('/v1/routes/relay-nodes')) as { nodes: unknown[] }).nodes.length).toBe(4);
+    // RegisterRelayNodeRequest: register is the only write path for relay
+    // nodes — the API has no update or delete for them.
+    const node = await demoApi.post('/v1/relay-nodes/register', {
+      node_name: 'probe-relay',
+      node_type: 'central',
+      capabilities: ['task_delivery'],
+    });
+    expect((node.data as { node_name: string }).node_name).toBe('probe-relay');
+    expect(((await get('/v1/relay-nodes')) as { nodes: unknown[] }).nodes.length).toBe(5);
   });
 
   it('org member add/patch/delete', async () => {

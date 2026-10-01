@@ -27,7 +27,7 @@ export default function FormDialog({
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-lg p-6 mx-4 bg-pixel-surface border-2 border-pixel-fg shadow-pixel">
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 mx-4 bg-pixel-surface border-2 border-pixel-fg shadow-pixel">
         <h3 className="font-display text-pixel-lg text-pixel-fg">{title}</h3>
         <div className="mt-4 space-y-4">{children}</div>
         <div className="flex justify-end gap-3 mt-6">

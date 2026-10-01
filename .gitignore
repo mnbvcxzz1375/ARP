@@ -73,6 +73,7 @@ aliyun-login.png
 # Frontend build
 apps/web/node_modules/
 apps/web/dist/
+apps/web/dist-demo/
 apps/web/*.tsbuildinfo
 apps/web/.vite/
 apps/web/.cache/

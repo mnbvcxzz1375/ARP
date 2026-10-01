@@ -6,7 +6,6 @@ import DataTable from '../../components/DataTable';
 import Pagination from '../../components/Pagination';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
-import ConfirmDialog from '../../components/ConfirmDialog';
 import FormDialog from '../../components/FormDialog';
 import {
   ErrorBanner,
@@ -20,23 +19,55 @@ import {
 import { cn } from '../../lib/utils';
 import { PIXEL_CHIP } from '../../lib/tokens';
 
+/**
+ * Form contract: POST/GET /v1/routes/policies, PATCH /v1/routes/policies/{id}
+ * (apps/api/app/schemas/route_policy.py — RoutePolicyCreate/Update carry
+ * policy_name, description, priority, scope_id, source_zone_id, target_zone_id,
+ * allowed_route_types, denied_route_types, require_approval, risk_level,
+ * data_boundary_rules, enabled). The response keys fields `id`,
+ * `policy_name`, `_zone_id` — there is no delete endpoint and no PUT.
+ */
 interface PolicyForm {
-  name: string;
-  source_zone: string;
-  dest_zone: string;
-  priority: number | '';
-  relay_type_preference: string;
+  policy_name: string;
+  description: string;
+  priority: string;
+  source_zone_id: string;
+  target_zone_id: string;
+  allowed_route_types: string;
+  denied_route_types: string;
+  require_approval: boolean;
+  risk_level: string;
   enabled: boolean;
 }
 
+const RISK_LEVELS = ['low', 'medium', 'high', 'critical'] as const;
+const RISK_LABEL_KEYS: Record<string, string> = {
+  low: 'enterprise.policies.risk.low',
+  medium: 'enterprise.policies.risk.medium',
+  high: 'enterprise.policies.risk.high',
+  critical: 'enterprise.policies.risk.critical',
+};
+
 const emptyForm: PolicyForm = {
-  name: '',
-  source_zone: '',
-  dest_zone: '',
-  priority: '',
-  relay_type_preference: 'central_relay',
+  policy_name: '',
+  description: '',
+  priority: '100',
+  source_zone_id: '',
+  target_zone_id: '',
+  allowed_route_types: '',
+  denied_route_types: '',
+  require_approval: false,
+  risk_level: 'low',
   enabled: true,
 };
+
+function splitList(raw: string): string[] | undefined {
+  const items = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return items.length ? items : undefined;
+}
 
 export default function RoutePoliciesPage() {
   const queryClient = useQueryClient();
@@ -49,8 +80,6 @@ export default function RoutePoliciesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<PolicyForm>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
-
-  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['route-policies', page, limit],
@@ -77,7 +106,7 @@ export default function RoutePoliciesPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, body }: { id: string; body: object }) =>
-      api.put(`/v1/routes/policies/${id}`, body),
+      api.patch(`/v1/routes/policies/${id}`, body),
     onSuccess: () => {
       setFormOpen(false);
       setEditingId(null);
@@ -98,15 +127,7 @@ export default function RoutePoliciesPage() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/v1/routes/policies/${id}`),
-    onSuccess: () => {
-      setDeleteId(null);
-      queryClient.invalidateQueries({ queryKey: ['route-policies'] });
-    },
-  });
-
-  const isMutating = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+  const isMutating = createMutation.isPending || updateMutation.isPending;
 
   const handleOpenCreate = () => {
     setEditingId(null);
@@ -116,13 +137,19 @@ export default function RoutePoliciesPage() {
   };
 
   const handleOpenEdit = (row: any) => {
-    setEditingId(row.policy_id);
+    setEditingId(row.id);
+    const join = (v: unknown) =>
+      Array.isArray(v) ? (v as string[]).join(', ') : '';
     setForm({
-      name: row.name || '',
-      source_zone: row.source_zone || '',
-      dest_zone: row.dest_zone || '',
-      priority: row.priority ?? '',
-      relay_type_preference: row.relay_type_preference || 'central_relay',
+      policy_name: row.policy_name || '',
+      description: row.description || '',
+      priority: row.priority != null ? String(row.priority) : '',
+      source_zone_id: row.source_zone_id || '',
+      target_zone_id: row.target_zone_id || '',
+      allowed_route_types: join(row.allowed_route_types),
+      denied_route_types: join(row.denied_route_types),
+      require_approval: !!row.require_approval,
+      risk_level: row.risk_level || 'low',
       enabled: row.enabled ?? true,
     });
     setFormError(null);
@@ -130,14 +157,19 @@ export default function RoutePoliciesPage() {
   };
 
   const handleSubmit = () => {
-    const body = {
-      name: form.name,
-      source_zone: form.source_zone,
-      dest_zone: form.dest_zone,
-      priority: form.priority === '' ? undefined : Number(form.priority),
-      relay_type_preference: form.relay_type_preference,
+    const body: Record<string, unknown> = {
+      policy_name: form.policy_name.trim(),
+      priority: form.priority.trim() === '' ? 100 : Number(form.priority),
+      require_approval: form.require_approval,
       enabled: form.enabled,
     };
+    if (form.description.trim()) body.description = form.description.trim();
+    if (form.source_zone_id.trim()) body.source_zone_id = form.source_zone_id.trim();
+    if (form.target_zone_id.trim()) body.target_zone_id = form.target_zone_id.trim();
+    const allowed = splitList(form.allowed_route_types);
+    if (allowed) body.allowed_route_types = allowed;
+    const denied = splitList(form.denied_route_types);
+    if (denied) body.denied_route_types = denied;
     if (editingId) {
       updateMutation.mutate({ id: editingId, body });
     } else {
@@ -167,23 +199,71 @@ export default function RoutePoliciesPage() {
         <DataTable
           className="border-0"
           columns={[
-            { key: 'name', label: t('enterprise.table.name') },
-            { key: 'source_zone', label: t('enterprise.policies.table.sourceZone'), render: (r: any) => r.source_zone || '-' },
-            { key: 'dest_zone', label: t('enterprise.policies.table.destZone'), render: (r: any) => r.dest_zone || '-' },
+            { key: 'policy_name', label: t('enterprise.table.name'), render: (r: any) => r.policy_name || '-' },
             { key: 'priority', label: t('enterprise.policies.table.priority'), render: (r: any) => r.priority ?? '-' },
             {
-              key: 'relay_type_preference',
-              label: t('enterprise.policies.table.relayType'),
-              render: (r: any) => <NeutralChip>{r.relay_type_preference || '-'}</NeutralChip>,
+              key: 'source_zone_id',
+              label: t('enterprise.policies.table.sourceZone'),
+              render: (r: any) => (r.source_zone_id ? r.source_zone_id.slice(0, 8) + '…' : '-'),
+            },
+            {
+              key: 'target_zone_id',
+              label: t('enterprise.policies.table.targetZone'),
+              render: (r: any) => (r.target_zone_id ? r.target_zone_id.slice(0, 8) + '…' : '-'),
+            },
+            {
+              key: 'allowed_route_types',
+              label: t('enterprise.policies.table.allowedTypes'),
+              render: (r: any) => (
+                <div className="flex flex-wrap gap-1">
+                  {(r.allowed_route_types ?? []).length
+                    ? (r.allowed_route_types as string[]).map((rt) => (
+                        <NeutralChip key={rt}>{rt}</NeutralChip>
+                      ))
+                    : '-'}
+                </div>
+              ),
+            },
+            {
+              key: 'denied_route_types',
+              label: t('enterprise.policies.table.deniedTypes'),
+              render: (r: any) => (
+                <div className="flex flex-wrap gap-1">
+                  {(r.denied_route_types ?? []).length
+                    ? (r.denied_route_types as string[]).map((rt) => (
+                        <NeutralChip key={rt}>{rt}</NeutralChip>
+                      ))
+                    : '-'}
+                </div>
+              ),
+            },
+            {
+              key: 'risk_level',
+              label: t('enterprise.policies.table.riskLevel'),
+              render: (r: any) =>
+                r.risk_level ? (
+                  <NeutralChip>
+                    {RISK_LABEL_KEYS[r.risk_level] ? t(RISK_LABEL_KEYS[r.risk_level]) : r.risk_level}
+                  </NeutralChip>
+                ) : (
+                  '-'
+                ),
+            },
+            {
+              key: 'require_approval',
+              label: t('enterprise.policies.table.requireApproval'),
+              render: (r: any) => (
+                <span className={r.require_approval ? PIXEL_CHIP.warn : PIXEL_CHIP.neutral}>
+                  {r.require_approval ? t('enterprise.value.yes') : t('enterprise.value.no')}
+                </span>
+              ),
             },
             {
               key: 'enabled',
               label: t('enterprise.table.enabled'),
               render: (r: any) => (
                 <button
-                  onClick={() =>
-                    toggleMutation.mutate({ id: r.policy_id, enabled: !r.enabled })
-                  }
+                  onClick={() => toggleMutation.mutate({ id: r.id, enabled: !r.enabled })}
                   className={cn(
                     'inline-flex cursor-pointer items-center px-2 py-0.5 font-pixel text-sm leading-none border-2 border-[#191a26]',
                     r.enabled ? PIXEL_CHIP.ok : PIXEL_CHIP.neutral,
@@ -206,9 +286,6 @@ export default function RoutePoliciesPage() {
                 <div className="flex gap-2">
                   <PixButton variant="ghost" compact onClick={() => handleOpenEdit(r)}>
                     {t('enterprise.action.edit')}
-                  </PixButton>
-                  <PixButton variant="danger" compact onClick={() => setDeleteId(r.policy_id)}>
-                    {t('enterprise.action.delete')}
                   </PixButton>
                 </div>
               ),
@@ -240,26 +317,17 @@ export default function RoutePoliciesPage() {
           <input
             id="rp-name"
             type="text"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            value={form.policy_name}
+            onChange={(e) => setForm({ ...form, policy_name: e.target.value })}
             className={PIXEL_INPUT}
           />
         </PixelField>
-        <PixelField label={t('enterprise.policies.form.sourceZone')} htmlFor="rp-source-zone">
+        <PixelField label={t('enterprise.policies.form.description')} htmlFor="rp-description">
           <input
-            id="rp-source-zone"
+            id="rp-description"
             type="text"
-            value={form.source_zone}
-            onChange={(e) => setForm({ ...form, source_zone: e.target.value })}
-            className={PIXEL_INPUT}
-          />
-        </PixelField>
-        <PixelField label={t('enterprise.policies.form.destZone')} htmlFor="rp-dest-zone">
-          <input
-            id="rp-dest-zone"
-            type="text"
-            value={form.dest_zone}
-            onChange={(e) => setForm({ ...form, dest_zone: e.target.value })}
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
             className={PIXEL_INPUT}
           />
         </PixelField>
@@ -267,25 +335,77 @@ export default function RoutePoliciesPage() {
           <input
             id="rp-priority"
             type="number"
+            min="0"
             value={form.priority}
-            onChange={(e) =>
-              setForm({ ...form, priority: e.target.value === '' ? '' : Number(e.target.value) })
-            }
+            onChange={(e) => setForm({ ...form, priority: e.target.value })}
             className={PIXEL_INPUT}
           />
         </PixelField>
-        <PixelField label={t('enterprise.policies.form.relayTypePreference')} htmlFor="rp-relay-type">
+        <PixelField label={t('enterprise.policies.form.sourceZone')} htmlFor="rp-source-zone">
+          <input
+            id="rp-source-zone"
+            type="text"
+            value={form.source_zone_id}
+            onChange={(e) => setForm({ ...form, source_zone_id: e.target.value })}
+            className={PIXEL_INPUT}
+          />
+        </PixelField>
+        <PixelField label={t('enterprise.policies.form.targetZone')} htmlFor="rp-dest-zone">
+          <input
+            id="rp-dest-zone"
+            type="text"
+            value={form.target_zone_id}
+            onChange={(e) => setForm({ ...form, target_zone_id: e.target.value })}
+            className={PIXEL_INPUT}
+          />
+        </PixelField>
+        <PixelField label={t('enterprise.policies.form.allowedTypes')} htmlFor="rp-allowed">
+          <input
+            id="rp-allowed"
+            type="text"
+            value={form.allowed_route_types}
+            onChange={(e) => setForm({ ...form, allowed_route_types: e.target.value })}
+            className={PIXEL_INPUT}
+          />
+        </PixelField>
+        <PixelField label={t('enterprise.policies.form.deniedTypes')} htmlFor="rp-denied">
+          <input
+            id="rp-denied"
+            type="text"
+            value={form.denied_route_types}
+            onChange={(e) => setForm({ ...form, denied_route_types: e.target.value })}
+            className={PIXEL_INPUT}
+          />
+        </PixelField>
+        <PixelField label={t('enterprise.policies.form.riskLevel')} htmlFor="rp-risk">
           <select
-            id="rp-relay-type"
-            value={form.relay_type_preference}
-            onChange={(e) => setForm({ ...form, relay_type_preference: e.target.value })}
+            id="rp-risk"
+            value={form.risk_level}
+            onChange={(e) => setForm({ ...form, risk_level: e.target.value })}
             className={PIXEL_INPUT}
           >
-            <option value="central_relay">{t('enterprise.policies.relayType.centralRelay')}</option>
-            <option value="edge">{t('enterprise.policies.relayType.edge')}</option>
-            <option value="dedicated">{t('enterprise.policies.relayType.dedicated')}</option>
+            {RISK_LEVELS.map((rl) => (
+              <option key={rl} value={rl}>
+                {t(RISK_LABEL_KEYS[rl])}
+              </option>
+            ))}
           </select>
         </PixelField>
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            id="rp-approval"
+            checked={form.require_approval}
+            onChange={(e) => setForm({ ...form, require_approval: e.target.checked })}
+            className="h-5 w-5 accent-pixel-accent"
+          />
+          <label
+            htmlFor="rp-approval"
+            className="font-pixel text-pixel-sm uppercase tracking-pixel text-pixel-muted"
+          >
+            {t('enterprise.policies.form.requireApproval')}
+          </label>
+        </div>
         <div className="flex items-center gap-3">
           <input
             type="checkbox"
@@ -302,16 +422,6 @@ export default function RoutePoliciesPage() {
           </label>
         </div>
       </FormDialog>
-
-      <ConfirmDialog
-        open={deleteId !== null}
-        title={t('enterprise.policies.confirm.deleteTitle')}
-        message={t('enterprise.policies.confirm.deleteMessage')}
-        variant="danger"
-        confirmLabel={t('enterprise.action.delete')}
-        onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
-        onCancel={() => setDeleteId(null)}
-      />
     </div>
   );
 }

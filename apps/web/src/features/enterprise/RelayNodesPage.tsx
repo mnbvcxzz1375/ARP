@@ -7,7 +7,6 @@ import Pagination from '../../components/Pagination';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
-import ConfirmDialog from '../../components/ConfirmDialog';
 import FormDialog from '../../components/FormDialog';
 import {
   ErrorBanner,
@@ -21,20 +20,30 @@ import {
 } from '../connections/pixel-ui';
 import { cn } from '../../lib/utils';
 
+/**
+ * Form contract: GET /v1/relay-nodes, POST /v1/relay-nodes/register
+ * (apps/api/app/schemas/routing.py RegisterRelayNodeRequest — node_name,
+ * node_type, region, zone, capabilities, max_capacity, metadata). The API
+ * has no update/delete for relay nodes: lifecycle is register + heartbeat.
+ */
 interface RelayNodeForm {
-  name: string;
-  endpoint: string;
+  node_name: string;
+  node_type: string;
+  region: string;
   zone: string;
-  relay_type: string;
-  capacity: number | '';
+  max_capacity: string;
+  capabilities: string;
 }
 
+const NODE_TYPES = ['central', 'personal_edge', 'local_edge', 'regional', 'egress', 'dedicated'] as const;
+
 const emptyForm: RelayNodeForm = {
-  name: '',
-  endpoint: '',
+  node_name: '',
+  node_type: 'central',
+  region: '',
   zone: '',
-  relay_type: 'central_relay',
-  capacity: '',
+  max_capacity: '',
+  capabilities: 'task_delivery',
 };
 
 /**
@@ -63,17 +72,14 @@ export default function RelayNodesPage() {
   const limit = 20;
 
   const [formOpen, setFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<RelayNodeForm>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
-
-  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['relay-nodes', page, limit, nodeType, status],
     queryFn: () =>
       api
-        .get('/v1/routes/relay-nodes', {
+        .get('/v1/relay-nodes', {
           params: {
             offset: (page - 1) * limit,
             limit,
@@ -85,7 +91,7 @@ export default function RelayNodesPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (body: object) => api.post('/v1/routes/relay-nodes', body),
+    mutationFn: (body: object) => api.post('/v1/relay-nodes/register', body),
     onSuccess: () => {
       setFormOpen(false);
       setFormError(null);
@@ -97,64 +103,27 @@ export default function RelayNodesPage() {
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: object }) =>
-      api.put(`/v1/routes/relay-nodes/${id}`, body),
-    onSuccess: () => {
-      setFormOpen(false);
-      setEditingId(null);
-      setFormError(null);
-      queryClient.invalidateQueries({ queryKey: ['relay-nodes'] });
-    },
-    onError: (err: unknown) => {
-      const detail = (err as any)?.response?.data?.detail;
-      setFormError(detail || (err as any)?.message || t('enterprise.relayNodes.error.update'));
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/v1/routes/relay-nodes/${id}`),
-    onSuccess: () => {
-      setDeleteId(null);
-      queryClient.invalidateQueries({ queryKey: ['relay-nodes'] });
-    },
-  });
-
-  const isMutating = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+  const isMutating = createMutation.isPending;
 
   const handleOpenCreate = () => {
-    setEditingId(null);
     setForm(emptyForm);
     setFormError(null);
     setFormOpen(true);
   };
 
-  const handleOpenEdit = (row: any) => {
-    setEditingId(row.node_id);
-    setForm({
-      name: row.node_name || '',
-      endpoint: row.endpoint || '',
-      zone: row.zone || '',
-      relay_type: row.node_type || 'central_relay',
-      capacity: row.capacity ?? '',
-    });
-    setFormError(null);
-    setFormOpen(true);
-  };
-
   const handleSubmit = () => {
-    const body = {
-      name: form.name,
-      endpoint: form.endpoint,
-      zone: form.zone,
-      relay_type: form.relay_type,
-      capacity: form.capacity === '' ? undefined : Number(form.capacity),
+    const body: Record<string, unknown> = {
+      node_name: form.node_name.trim(),
+      node_type: form.node_type,
+      capabilities: form.capabilities
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean),
     };
-    if (editingId) {
-      updateMutation.mutate({ id: editingId, body });
-    } else {
-      createMutation.mutate(body);
-    }
+    if (form.region.trim()) body.region = form.region.trim();
+    if (form.zone.trim()) body.zone = form.zone.trim();
+    if (form.max_capacity.trim()) body.max_capacity = Number(form.max_capacity);
+    createMutation.mutate(body);
   };
 
   // The header renders before/while the query resolves: an error or a slow
@@ -257,22 +226,8 @@ export default function RelayNodesPage() {
               render: (r: any) =>
                 r.last_heartbeat_at ? formatDateTime(r.last_heartbeat_at) : '-',
             },
-            {
-              key: 'actions',
-              label: '',
-              render: (r: any) => (
-                <div className="flex gap-2">
-                  <PixButton variant="ghost" compact onClick={() => handleOpenEdit(r)}>
-                    {t('enterprise.action.edit')}
-                  </PixButton>
-                  <PixButton variant="danger" compact onClick={() => setDeleteId(r.node_id)}>
-                    {t('enterprise.action.delete')}
-                  </PixButton>
-                </div>
-              ),
-            },
           ]}
-          data={data?.relay_nodes ?? []}
+          data={data?.nodes ?? []}
         />
           <Pagination
             offset={(page - 1) * limit}
@@ -285,10 +240,9 @@ export default function RelayNodesPage() {
 
       <FormDialog
         open={formOpen}
-        title={editingId ? t('enterprise.relayNodes.form.editTitle') : t('enterprise.relayNodes.form.createTitle')}
+        title={t('enterprise.relayNodes.form.createTitle')}
         onClose={() => {
           setFormOpen(false);
-          setEditingId(null);
           setFormError(null);
         }}
         onSubmit={handleSubmit}
@@ -299,17 +253,31 @@ export default function RelayNodesPage() {
           <input
             id="rn-name"
             type="text"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            value={form.node_name}
+            onChange={(e) => setForm({ ...form, node_name: e.target.value })}
             className={PIXEL_INPUT}
           />
         </PixelField>
-        <PixelField label={t('enterprise.relayNodes.form.endpoint')} htmlFor="rn-endpoint">
+        <PixelField label={t('enterprise.relayNodes.form.nodeType')} htmlFor="rn-node-type">
+          <select
+            id="rn-node-type"
+            value={form.node_type}
+            onChange={(e) => setForm({ ...form, node_type: e.target.value })}
+            className={PIXEL_INPUT}
+          >
+            {NODE_TYPES.map((nt) => (
+              <option key={nt} value={nt}>
+                {NODE_TYPE_LABEL_KEYS[nt] ? t(NODE_TYPE_LABEL_KEYS[nt]) : nt}
+              </option>
+            ))}
+          </select>
+        </PixelField>
+        <PixelField label={t('enterprise.relayNodes.form.region')} htmlFor="rn-region">
           <input
-            id="rn-endpoint"
-            type="url"
-            value={form.endpoint}
-            onChange={(e) => setForm({ ...form, endpoint: e.target.value })}
+            id="rn-region"
+            type="text"
+            value={form.region}
+            onChange={(e) => setForm({ ...form, region: e.target.value })}
             className={PIXEL_INPUT}
           />
         </PixelField>
@@ -322,39 +290,26 @@ export default function RelayNodesPage() {
             className={PIXEL_INPUT}
           />
         </PixelField>
-        <PixelField label={t('enterprise.relayNodes.form.relayType')} htmlFor="rn-relay-type">
-          <select
-            id="rn-relay-type"
-            value={form.relay_type}
-            onChange={(e) => setForm({ ...form, relay_type: e.target.value })}
-            className={PIXEL_INPUT}
-          >
-            <option value="central_relay">{t('enterprise.relayNodes.relayType.centralRelay')}</option>
-            <option value="edge">{t('enterprise.relayNodes.relayType.edge')}</option>
-          </select>
-        </PixelField>
-        <PixelField label={t('enterprise.relayNodes.form.capacity')} htmlFor="rn-capacity">
+        <PixelField label={t('enterprise.relayNodes.form.maxCapacity')} htmlFor="rn-capacity">
           <input
             id="rn-capacity"
             type="number"
-            value={form.capacity}
-            onChange={(e) =>
-              setForm({ ...form, capacity: e.target.value === '' ? '' : Number(e.target.value) })
-            }
+            min="0"
+            value={form.max_capacity}
+            onChange={(e) => setForm({ ...form, max_capacity: e.target.value })}
+            className={PIXEL_INPUT}
+          />
+        </PixelField>
+        <PixelField label={t('enterprise.relayNodes.form.capabilities')} htmlFor="rn-capabilities">
+          <input
+            id="rn-capabilities"
+            type="text"
+            value={form.capabilities}
+            onChange={(e) => setForm({ ...form, capabilities: e.target.value })}
             className={PIXEL_INPUT}
           />
         </PixelField>
       </FormDialog>
-
-      <ConfirmDialog
-        open={deleteId !== null}
-        title={t('enterprise.relayNodes.confirm.deleteTitle')}
-        message={t('enterprise.relayNodes.confirm.deleteMessage')}
-        variant="danger"
-        confirmLabel={t('enterprise.action.delete')}
-        onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
-        onCancel={() => setDeleteId(null)}
-      />
     </div>
   );
 }

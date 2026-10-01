@@ -19,28 +19,53 @@ function renderPage() {
   return render(<QueryClientProvider client={qc}><RoutePoliciesPage /></QueryClientProvider>);
 }
 
+// Mirrors RoutePolicyResponse (apps/api/app/schemas/route_policy.py):
+// id / policy_name / description / priority / scope_id / source_zone_id /
+// target_zone_id / allowed_route_types / denied_route_types /
+// require_approval / risk_level / data_boundary_rules / enabled. The API
+// exposes POST + PATCH only — there is no PUT and no DELETE.
 const mockPolicies = [
   {
-    policy_id: 'rp-1',
-    name: 'US to EU Policy',
-    source_zone: 'us-east',
-    dest_zone: 'eu-west',
+    id: 'rp-1',
+    policy_name: 'Deny Personal Edge',
+    description: 'Personal edge relays never carry enterprise traffic.',
     priority: 10,
-    relay_type_preference: 'central_relay',
+    scope_id: null,
+    source_zone_id: null,
+    target_zone_id: null,
+    allowed_route_types: null,
+    denied_route_types: ['personal_edge'],
+    require_approval: false,
+    risk_level: 'low',
+    data_boundary_rules: null,
     enabled: true,
     created_at: '2026-05-24T12:00:00Z',
+    updated_at: '2026-05-24T12:00:00Z',
   },
   {
-    policy_id: 'rp-2',
-    name: 'Internal Policy',
-    source_zone: 'zone-1',
-    dest_zone: 'zone-2',
-    priority: 5,
-    relay_type_preference: 'edge',
+    id: 'rp-2',
+    policy_name: 'Central Relay Default',
+    description: null,
+    priority: 50,
+    scope_id: null,
+    source_zone_id: 'z1000001-0000-4000-8000-000000000002',
+    target_zone_id: null,
+    allowed_route_types: ['central_relay'],
+    denied_route_types: null,
+    require_approval: false,
+    risk_level: 'medium',
+    data_boundary_rules: null,
     enabled: false,
     created_at: '2026-05-24T11:00:00Z',
+    updated_at: '2026-05-24T11:00:00Z',
   },
 ];
+
+function mockList() {
+  (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+    data: { policies: mockPolicies, total: 2 },
+  });
+}
 
 describe('RoutePoliciesPage', () => {
   beforeEach(() => {
@@ -62,104 +87,75 @@ describe('RoutePoliciesPage', () => {
   });
 
   it('renders policies from API', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { policies: mockPolicies, total: 2 },
-    });
+    mockList();
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('US to EU Policy')).toBeTruthy();
-      expect(screen.getByText('Internal Policy')).toBeTruthy();
+      expect(screen.getByText('Deny Personal Edge')).toBeTruthy();
+      expect(screen.getByText('Central Relay Default')).toBeTruthy();
+      expect(screen.getByText('personal_edge')).toBeTruthy();
+      expect(screen.getByText('central_relay')).toBeTruthy();
     });
   });
 
   it('opens Add Policy dialog when button is clicked', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { policies: mockPolicies, total: 2 },
-    });
+    mockList();
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('US to EU Policy')).toBeTruthy();
+      expect(screen.getByText('Deny Personal Edge')).toBeTruthy();
     });
 
-    fireEvent.click(screen.getByText('Add Policy'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Policy' }));
     await waitFor(() => {
-      expect(screen.getByText('Add Policy')).toBeTruthy(); // dialog title
-      expect(screen.getByLabelText('Name')).toBeTruthy();
-      expect(screen.getByLabelText('Source Zone')).toBeTruthy();
-      expect(screen.getByLabelText('Dest Zone')).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Add Route Policy' })).toBeTruthy();
+      expect(screen.getByLabelText('Policy Name')).toBeTruthy();
+      expect(screen.getByLabelText('Description')).toBeTruthy();
+      expect(screen.getByLabelText('Source Zone ID')).toBeTruthy();
+      expect(screen.getByLabelText('Target Zone ID')).toBeTruthy();
       expect(screen.getByLabelText('Priority')).toBeTruthy();
-      expect(screen.getByLabelText('Relay Type Preference')).toBeTruthy();
+      expect(screen.getByLabelText('Allowed Route Types (comma-separated)')).toBeTruthy();
+      expect(screen.getByLabelText('Denied Route Types (comma-separated)')).toBeTruthy();
+      expect(screen.getByLabelText('Risk Level')).toBeTruthy();
     });
   });
 
   it('calls POST API when dialog is submitted', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { policies: mockPolicies, total: 2 },
-    });
+    mockList();
     (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('US to EU Policy')).toBeTruthy();
+      expect(screen.getByText('Deny Personal Edge')).toBeTruthy();
     });
 
-    fireEvent.click(screen.getByText('Add Policy'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Policy' }));
     await waitFor(() => {
-      expect(screen.getByText('Add Policy')).toBeTruthy(); // dialog title
+      expect(screen.getByRole('heading', { name: 'Add Route Policy' })).toBeTruthy();
     });
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New Policy' } });
-    fireEvent.change(screen.getByLabelText('Source Zone'), { target: { value: 'zone-a' } });
-    fireEvent.change(screen.getByLabelText('Dest Zone'), { target: { value: 'zone-b' } });
-    fireEvent.click(screen.getByText('Submit'));
+    fireEvent.change(screen.getByLabelText('Policy Name'), { target: { value: 'New Policy' } });
+    fireEvent.change(screen.getByLabelText('Source Zone ID'), { target: { value: 'zone-a' } });
+    fireEvent.change(screen.getByLabelText('Denied Route Types (comma-separated)'), {
+      target: { value: 'personal_edge, local_edge' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/v1/routes/policies', {
-        name: 'New Policy',
-        source_zone: 'zone-a',
-        dest_zone: 'zone-b',
-        priority: undefined,
-        relay_type_preference: 'central_relay',
+        policy_name: 'New Policy',
+        priority: 100,
+        require_approval: false,
         enabled: true,
+        source_zone_id: 'zone-a',
+        denied_route_types: ['personal_edge', 'local_edge'],
       });
     });
   });
 
-  it('opens ConfirmDialog when Delete is clicked and calls DELETE on confirm', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { policies: mockPolicies, total: 2 },
-    });
-    (api.delete as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByText('US to EU Policy')).toBeTruthy();
-    });
-
-    // Click Delete on first row
-    const deleteButtons = screen.getAllByText('Delete');
-    fireEvent.click(deleteButtons[0]);
-
-    await waitFor(() => {
-      expect(screen.getByText('Delete Route Policy')).toBeTruthy();
-      expect(screen.getByText(/are you sure you want to delete/i)).toBeTruthy();
-    });
-
-    // Confirm delete
-    const confirmButtons = screen.getAllByText('Delete');
-    fireEvent.click(confirmButtons[confirmButtons.length - 1]);
-
-    await waitFor(() => {
-      expect(api.delete).toHaveBeenCalledWith('/v1/routes/policies/rp-1');
-    });
-  });
-
   it('calls PATCH API when enabled toggle is clicked', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { policies: mockPolicies, total: 2 },
-    });
+    mockList();
     (api.patch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('US to EU Policy')).toBeTruthy();
+      expect(screen.getByText('Deny Personal Edge')).toBeTruthy();
     });
 
     // Find the enabled toggle (button showing "Yes" for the enabled policy)
@@ -172,23 +168,51 @@ describe('RoutePoliciesPage', () => {
   });
 
   it('opens Edit dialog pre-filled with existing data', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { policies: mockPolicies, total: 2 },
-    });
-    (api.put as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+    mockList();
+    (api.patch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
     renderPage();
     await waitFor(() => {
-      expect(screen.getByText('US to EU Policy')).toBeTruthy();
+      expect(screen.getByText('Deny Personal Edge')).toBeTruthy();
     });
 
     const editButtons = screen.getAllByText('Edit');
     fireEvent.click(editButtons[0]);
 
     await waitFor(() => {
-      expect(screen.getByText('Edit Route Policy')).toBeTruthy();
-      expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('US to EU Policy');
-      expect((screen.getByLabelText('Source Zone') as HTMLInputElement).value).toBe('us-east');
-      expect((screen.getByLabelText('Dest Zone') as HTMLInputElement).value).toBe('eu-west');
+      expect(screen.getByRole('heading', { name: 'Edit Route Policy' })).toBeTruthy();
+      expect((screen.getByLabelText('Policy Name') as HTMLInputElement).value).toBe(
+        'Deny Personal Edge',
+      );
+      expect((screen.getByLabelText('Denied Route Types (comma-separated)') as HTMLInputElement).value).toBe(
+        'personal_edge',
+      );
+      expect((screen.getByLabelText('Source Zone ID') as HTMLInputElement).value).toBe('');
+      expect(screen.getByLabelText('Requires Approval')).not.toBeChecked();
+    });
+  });
+
+  it('submits edit via PATCH with only changed fields', async () => {
+    mockList();
+    (api.patch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Deny Personal Edge')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getAllByText('Edit')[0]);
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Edit Route Policy' })).toBeTruthy();
+    });
+
+    fireEvent.change(screen.getByLabelText('Policy Name'), { target: { value: 'Renamed Policy' } });
+    fireEvent.change(screen.getByLabelText('Priority'), { target: { value: '25' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+
+    await waitFor(() => {
+      expect(api.patch).toHaveBeenCalledWith(
+        '/v1/routes/policies/rp-1',
+        expect.objectContaining({ policy_name: 'Renamed Policy', priority: 25 }),
+      );
     });
   });
 });

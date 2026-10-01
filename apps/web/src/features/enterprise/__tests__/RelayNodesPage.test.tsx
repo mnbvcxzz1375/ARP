@@ -19,11 +19,16 @@ function renderPage() {
   return render(<QueryClientProvider client={qc}><RelayNodesPage /></QueryClientProvider>);
 }
 
+// Mirrors RelayNodeResponse (apps/api/app/schemas/routing.py): id / node_name
+// / node_type / status / current_load / queue_depth / avg_latency_ms /
+// success_rate / capabilities / max_capacity / region / zone /
+// last_heartbeat_at / extra_metadata / enabled. The API exposes register +
+// heartbeat only — there is no update or delete endpoint for relay nodes.
 const mockNodes = [
   {
-    node_id: 'rn-1',
+    id: 'rn-1',
     node_name: 'Central Relay A',
-    node_type: 'central_relay',
+    node_type: 'central',
     status: 'healthy',
     current_load: 45,
     queue_depth: 3,
@@ -32,12 +37,10 @@ const mockNodes = [
     region: 'us-east',
     zone: 'zone-1',
     enabled: true,
-    endpoint: 'wss://relay.example.com',
-    capacity: 100,
     last_heartbeat_at: '2026-05-24T12:00:00Z',
   },
   {
-    node_id: 'rn-2',
+    id: 'rn-2',
     node_name: 'Edge Node B',
     node_type: 'edge',
     status: 'degraded',
@@ -48,11 +51,15 @@ const mockNodes = [
     region: 'eu-west',
     zone: 'zone-2',
     enabled: false,
-    endpoint: 'wss://edge.example.com',
-    capacity: 50,
     last_heartbeat_at: '2026-05-24T11:00:00Z',
   },
 ];
+
+function mockList() {
+  (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+    data: { nodes: mockNodes, total: 2 },
+  });
+}
 
 describe('RelayNodesPage', () => {
   beforeEach(() => {
@@ -73,10 +80,8 @@ describe('RelayNodesPage', () => {
     });
   });
 
-  it('renders relay nodes from API', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { relay_nodes: mockNodes, total: 2 },
-    });
+  it('renders relay nodes from the `nodes` list field', async () => {
+    mockList();
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Central Relay A')).toBeTruthy();
@@ -85,9 +90,7 @@ describe('RelayNodesPage', () => {
   });
 
   it('opens Add Relay Node dialog when button is clicked', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { relay_nodes: mockNodes, total: 2 },
-    });
+    mockList();
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Central Relay A')).toBeTruthy();
@@ -97,17 +100,16 @@ describe('RelayNodesPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Add Relay Node' })).toBeTruthy();
       expect(screen.getByLabelText('Name')).toBeTruthy();
-      expect(screen.getByLabelText('Endpoint')).toBeTruthy();
+      expect(screen.getByLabelText('Node Type')).toBeTruthy();
+      expect(screen.getByLabelText('Region')).toBeTruthy();
       expect(screen.getByLabelText('Zone')).toBeTruthy();
-      expect(screen.getByLabelText('Relay Type')).toBeTruthy();
-      expect(screen.getByLabelText('Capacity')).toBeTruthy();
+      expect(screen.getByLabelText('Max Capacity')).toBeTruthy();
+      expect(screen.getByLabelText('Capabilities (comma-separated)')).toBeTruthy();
     });
   });
 
-  it('calls POST API when dialog is submitted', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { relay_nodes: mockNodes, total: 2 },
-    });
+  it('calls register POST API when dialog is submitted', async () => {
+    mockList();
     (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
     renderPage();
     await waitFor(() => {
@@ -120,98 +122,48 @@ describe('RelayNodesPage', () => {
     });
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New Node' } });
-    fireEvent.change(screen.getByLabelText('Endpoint'), { target: { value: 'wss://new.example.com' } });
+    fireEvent.change(screen.getByLabelText('Region'), { target: { value: 'ap-southeast' } });
     fireEvent.change(screen.getByLabelText('Zone'), { target: { value: 'zone-3' } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/v1/routes/relay-nodes', {
-        name: 'New Node',
-        endpoint: 'wss://new.example.com',
+      expect(api.post).toHaveBeenCalledWith('/v1/relay-nodes/register', {
+        node_name: 'New Node',
+        node_type: 'central',
+        capabilities: ['task_delivery'],
+        region: 'ap-southeast',
         zone: 'zone-3',
-        relay_type: 'central_relay',
-        capacity: undefined,
       });
     });
   });
 
-  it('opens ConfirmDialog when Delete is clicked and calls DELETE on confirm', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { relay_nodes: mockNodes, total: 2 },
-    });
-    (api.delete as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+  it('splits capabilities on commas and omits blank optional fields', async () => {
+    mockList();
+    (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Central Relay A')).toBeTruthy();
     });
 
-    // Click Delete on first row
-    const deleteButtons = screen.getAllByText('Delete');
-    fireEvent.click(deleteButtons[0]);
-
+    fireEvent.click(screen.getByRole('button', { name: 'Add Relay Node' }));
     await waitFor(() => {
-      expect(screen.getByText('Delete Relay Node')).toBeTruthy();
-      expect(screen.getByText(/are you sure you want to delete/i)).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Add Relay Node' })).toBeTruthy();
     });
 
-    // Confirm delete
-    const confirmButtons = screen.getAllByText('Delete');
-    // The last Delete button is the confirm button in the dialog
-    fireEvent.click(confirmButtons[confirmButtons.length - 1]);
-
-    await waitFor(() => {
-      expect(api.delete).toHaveBeenCalledWith('/v1/routes/relay-nodes/rn-1');
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Caps Node' } });
+    fireEvent.change(screen.getByLabelText('Capabilities (comma-separated)'), {
+      target: { value: 'task_delivery, file_transfer ,  ' },
     });
-  });
-
-  it('opens Edit dialog pre-filled with existing data', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { relay_nodes: mockNodes, total: 2 },
-    });
-    (api.put as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByText('Central Relay A')).toBeTruthy();
-    });
-
-    // Click Edit on first row
-    const editButtons = screen.getAllByText('Edit');
-    fireEvent.click(editButtons[0]);
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Edit Relay Node' })).toBeTruthy();
-      expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Central Relay A');
-      expect((screen.getByLabelText('Endpoint') as HTMLInputElement).value).toBe('wss://relay.example.com');
-      expect((screen.getByLabelText('Zone') as HTMLInputElement).value).toBe('zone-1');
-    });
-  });
-
-  it('calls PUT API when edit dialog is submitted', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { relay_nodes: mockNodes, total: 2 },
-    });
-    (api.put as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByText('Central Relay A')).toBeTruthy();
-    });
-
-    // Open edit dialog
-    const editButtons = screen.getAllByText('Edit');
-    fireEvent.click(editButtons[0]);
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Edit Relay Node' })).toBeTruthy();
-    });
-
-    // Modify name
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Node' } });
+    fireEvent.change(screen.getByLabelText('Max Capacity'), { target: { value: '42' } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
     await waitFor(() => {
-      expect(api.put).toHaveBeenCalledWith('/v1/routes/relay-nodes/rn-1', expect.objectContaining({
-        name: 'Updated Node',
-      }));
+      expect(api.post).toHaveBeenCalledWith('/v1/relay-nodes/register', {
+        node_name: 'Caps Node',
+        node_type: 'central',
+        capabilities: ['task_delivery', 'file_transfer'],
+        max_capacity: 42,
+      });
     });
   });
 });

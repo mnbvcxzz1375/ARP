@@ -597,7 +597,7 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
       total: world.gateways.length,
     };
   }
-  if (url === '/v1/egress/dedicated-channels') {
+  if (url === '/v1/dashboard/admin/dedicated-channels') {
     const offset = num(params, 'offset', 0);
     const limit = num(params, 'limit', 20);
     const typeFilter = param(params, 'channel_type');
@@ -606,7 +606,7 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
     const sliced = pageSlice(channels, offset, limit);
     return { channels: sliced.items, total: sliced.total, offset: sliced.offset, limit: sliced.limit };
   }
-  if ((m = match(url, '/v1/egress/dedicated-channels/([0-9a-zA-Z-]+)/health-checks'))) {
+  if ((m = match(url, '/v1/dashboard/admin/dedicated-channels/([0-9a-zA-Z-]+)/health-checks'))) {
     const ch = world.channels.find((c) => c.id === m![1]);
     if (!ch) return rejectDemo(404, 'channel not found');
     return ch.health_checks;
@@ -633,7 +633,7 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
     const sliced = pageSlice(decisions, offset, limit);
     return { decisions: sliced.items, total: sliced.total, offset: sliced.offset, limit: sliced.limit };
   }
-  if (url === '/v1/routes/relay-nodes') {
+  if (url === '/v1/relay-nodes') {
     const offset = num(params, 'offset', 0);
     const limit = num(params, 'limit', 20);
     const nodeType = param(params, 'node_type');
@@ -978,7 +978,7 @@ function handleMutation(method: string, url: string, body?: unknown): Promise<Re
   }
 
   // ── dedicated channels CRUD ──────────────────────────────────────
-  if (method === 'post' && url === '/v1/egress/dedicated-channels') {
+  if (method === 'post' && url === '/v1/dashboard/admin/dedicated-channels') {
     const b = body as Record<string, unknown>;
     const ch: DemoChannel = {
       id: crypto.randomUUID(),
@@ -999,7 +999,7 @@ function handleMutation(method: string, url: string, body?: unknown): Promise<Re
     world.channels.unshift(ch);
     return ok201(ch);
   }
-  if (method === 'put' && (m = match(url, '/v1/egress/dedicated-channels/([0-9a-zA-Z-]+)'))) {
+  if (method === 'patch' && (m = match(url, '/v1/dashboard/admin/dedicated-channels/([0-9a-zA-Z-]+)'))) {
     const ch = world.channels.find((c) => c.id === m![1]);
     if (!ch) return rejectDemo(404, 'channel not found');
     const b = body as Record<string, unknown>;
@@ -1009,7 +1009,7 @@ function handleMutation(method: string, url: string, body?: unknown): Promise<Re
     ch.updated_at = new Date().toISOString();
     return ok(ch);
   }
-  if (method === 'post' && (m = match(url, '/v1/egress/dedicated-channels/([0-9a-zA-Z-]+)/health-check'))) {
+  if (method === 'post' && (m = match(url, '/v1/dashboard/admin/dedicated-channels/([0-9a-zA-Z-]+)/health-check'))) {
     const ch = world.channels.find((c) => c.id === m![1]);
     if (!ch) return rejectDemo(404, 'channel not found');
     const check = {
@@ -1024,7 +1024,7 @@ function handleMutation(method: string, url: string, body?: unknown): Promise<Re
     ch.health_checks.unshift(check);
     return ok(check);
   }
-  if (method === 'delete' && (m = match(url, '/v1/egress/dedicated-channels/([0-9a-zA-Z-]+)'))) {
+  if (method === 'delete' && (m = match(url, '/v1/dashboard/admin/dedicated-channels/([0-9a-zA-Z-]+)'))) {
     const idx = world.channels.findIndex((c) => c.id === m![1]);
     if (idx < 0) return rejectDemo(404, 'channel not found');
     world.channels.splice(idx, 1);
@@ -1054,27 +1054,24 @@ function handleMutation(method: string, url: string, body?: unknown): Promise<Re
     world.policies.unshift(policy);
     return ok(policy);
   }
-  if (method === 'put' && (m = match(url, '/v1/routes/policies/([0-9a-zA-Z-]+)'))) {
-    const policy = world.policies.find((p) => p.id === m![1]);
-    if (!policy) return rejectDemo(404, 'policy not found');
-    Object.assign(policy, body as Record<string, unknown>, { updated_at: new Date().toISOString() });
-    return ok(policy);
-  }
   if (method === 'patch' && (m = match(url, '/v1/routes/policies/([0-9a-zA-Z-]+)'))) {
     const policy = world.policies.find((p) => p.id === m![1]);
     if (!policy) return rejectDemo(404, 'policy not found');
     const b = body as Record<string, unknown>;
     if (typeof b.enabled === 'boolean') policy.enabled = b.enabled;
+    if (typeof b.policy_name === 'string') policy.policy_name = b.policy_name;
+    if (b.description !== undefined) policy.description = (b.description as string) ?? null;
+    if (typeof b.priority === 'number') policy.priority = b.priority;
+    if (b.source_zone_id !== undefined) policy.source_zone_id = (b.source_zone_id as string) ?? null;
+    if (b.target_zone_id !== undefined) policy.target_zone_id = (b.target_zone_id as string) ?? null;
+    if (b.allowed_route_types !== undefined) policy.allowed_route_types = (b.allowed_route_types as string[]) ?? null;
+    if (b.denied_route_types !== undefined) policy.denied_route_types = (b.denied_route_types as string[]) ?? null;
+    if (typeof b.require_approval === 'boolean') policy.require_approval = b.require_approval;
+    if (typeof b.risk_level === 'string') policy.risk_level = b.risk_level as DemoPolicy['risk_level'];
     policy.updated_at = new Date().toISOString();
     return ok(policy);
   }
-  if (method === 'delete' && (m = match(url, '/v1/routes/policies/([0-9a-zA-Z-]+)'))) {
-    const idx = world.policies.findIndex((p) => p.id === m![1]);
-    if (idx < 0) return rejectDemo(404, 'policy not found');
-    world.policies.splice(idx, 1);
-    return ok204();
-  }
-  if (method === 'post' && url === '/v1/routes/relay-nodes') {
+  if (method === 'post' && url === '/v1/relay-nodes/register') {
     const b = body as Record<string, unknown>;
     const node: DemoRelayNode = {
       id: crypto.randomUUID(),
@@ -1097,18 +1094,6 @@ function handleMutation(method: string, url: string, body?: unknown): Promise<Re
     };
     world.relayNodes.unshift(node);
     return ok201(node);
-  }
-  if (method === 'put' && (m = match(url, '/v1/routes/relay-nodes/([0-9a-zA-Z-]+)'))) {
-    const node = world.relayNodes.find((n) => n.id === m![1]);
-    if (!node) return rejectDemo(404, 'relay node not found');
-    Object.assign(node, body as Record<string, unknown>, { updated_at: new Date().toISOString() });
-    return ok(node);
-  }
-  if (method === 'delete' && (m = match(url, '/v1/routes/relay-nodes/([0-9a-zA-Z-]+)'))) {
-    const idx = world.relayNodes.findIndex((n) => n.id === m![1]);
-    if (idx < 0) return rejectDemo(404, 'relay node not found');
-    world.relayNodes.splice(idx, 1);
-    return ok204();
   }
 
   // ── org members ──────────────────────────────────────────────────

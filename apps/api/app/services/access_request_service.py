@@ -1,15 +1,18 @@
 """Business logic for public access requests -- fail-closed, no mock success."""
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import DomainException
 from app.models.access_request import AccessRequest
 from app.models.network_scope import NetworkScope
+from app.models.organization import Organization, OrganizationMember
 from app.models.user import User
 from app.protocol.constants import ErrorCode
 from app.services.audit_service import write_audit
@@ -35,7 +38,10 @@ async def create_access_request(
             status_code=400,
         )
 
-    # Prevent duplicate pending requests from same email for same mode
+    # Prevent duplicate pending requests from same email for same mode.
+    # This check is advisory; the partial unique index
+    # uq_access_requests_pending_email_mode is the authoritative guard
+    # against concurrent duplicate submissions.
     dup = await session.execute(
         select(AccessRequest).where(
             AccessRequest.applicant_email == applicant_email,
@@ -60,7 +66,16 @@ async def create_access_request(
         request_ip=request_ip,
     )
     session.add(ar)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError:
+        # A concurrent submission won the race for (email, mode) pending.
+        await session.rollback()
+        raise DomainException(
+            ErrorCode.INVALID_REQUEST,
+            "A pending request already exists for this email and access mode.",
+            status_code=409,
+        )
 
     await write_audit(
         session,
@@ -97,6 +112,112 @@ async def list_access_requests(
     return list(result.scalars().all()), total
 
 
+def _slugify(value: str) -> str:
+    """Derive an organization slug from a name or email.
+
+    Lowercase, alphanumeric segments separated by single hyphens, capped
+    at 64 characters (the Organization.slug column width). Returns an
+    empty string when nothing usable can be derived.
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", (value or "").lower()).strip("-")
+    return slug[:64]
+
+
+async def _get_or_create_organization(
+    session: AsyncSession,
+    *,
+    org_name: str | None,
+    applicant_email: str,
+    creator_id: uuid.UUID,
+) -> Organization:
+    """Create an organization with a unique slug derived from its name.
+
+    The slug is derived from the organization name (falling back to the
+    applicant email) and made unique by appending a numeric suffix when
+    the derived slug is already taken by an organization the applicant
+    does not already manage. An existing org the applicant already
+    manages is reused, which keeps re-approvals idempotent; an org
+    belonging to someone else is never reused — the applicant gets a
+    distinct organization instead.
+    """
+    base = _slugify(org_name) if org_name else ""
+    if not base:
+        base = _slugify(applicant_email)
+    if not base:
+        base = f"org-{uuid.uuid4().hex[:12]}"
+
+    candidate = base
+    suffix = 2
+    while True:
+        result = await session.execute(
+            select(Organization).where(Organization.slug == candidate)
+        )
+        existing = result.scalar_one_or_none()
+        if existing is None:
+            break
+
+        # Slug is taken. If the applicant already manages this org this is
+        # a re-approval — reuse it. Otherwise never attach the applicant
+        # to someone else's organization; derive a new candidate slug.
+        member_result = await session.execute(
+            select(OrganizationMember).where(
+                OrganizationMember.org_id == existing.id,
+                OrganizationMember.user_id == creator_id,
+            )
+        )
+        if member_result.scalar_one_or_none() is not None:
+            return existing
+
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+        if suffix > 64:
+            raise DomainException(
+                ErrorCode.INTERNAL_ERROR,
+                "Could not derive a unique organization slug.",
+                status_code=500,
+            )
+
+    org = Organization(
+        name=org_name if org_name else applicant_email,
+        slug=candidate,
+        created_by_user_id=creator_id,
+    )
+    session.add(org)
+    await session.flush()
+    return org
+
+
+async def _ensure_org_manager(
+    session: AsyncSession,
+    *,
+    org: Organization,
+    user_id: uuid.UUID,
+) -> None:
+    """Add the applicant as an org manager, or upgrade an existing membership.
+
+    Respects the UNIQUE(org_id, user_id) constraint: an existing membership
+    row is updated to 'manager' instead of re-inserted.
+    """
+    result = await session.execute(
+        select(OrganizationMember).where(
+            OrganizationMember.org_id == org.id,
+            OrganizationMember.user_id == user_id,
+        )
+    )
+    member = result.scalar_one_or_none()
+    if member is None:
+        session.add(
+            OrganizationMember(
+                org_id=org.id,
+                user_id=user_id,
+                role="manager",
+            )
+        )
+    elif member.role != "manager":
+        member.role = "manager"
+    await session.flush()
+
+
 async def approve_access_request(
     session: AsyncSession,
     request_id: uuid.UUID,
@@ -106,9 +227,16 @@ async def approve_access_request(
     """Approve an access request and auto-provision a User + API key.
 
     Returns a dict with: request_id, status, reviewed_by, user_id, api_key (plain text, shown once),
-    scope_id (for enterprise requests, None for personal).
+    scope_id (for enterprise requests, None for personal), org_id (for enterprise requests, None for personal).
     If user already exists, no new user is created but a new API key is still issued.
     If any provisioning step fails, the request remains pending (fail-closed).
+
+    Enterprise provisioning no longer grants the platform 'admin' role —
+    that conflated platform administration with organization management.
+    Instead it creates (or reuses) an Organization, adds the applicant as
+    an org 'manager', and attaches their enterprise NetworkScope to the
+    org. Org-scoped permissions are derived from membership, and revoking
+    the membership or disabling the organization removes them.
     """
     ar = await _get_or_fail(session, request_id, for_update=True)
     if ar.status != "pending":
@@ -126,25 +254,55 @@ async def approve_access_request(
     )
 
     scope_id: str | None = None
+    org_id: str | None = None
 
-    # If enterprise mode, upgrade role to admin, re-enable if disabled, and create NetworkScope
+    # Re-enable a disabled user on approval — both modes issue an API key,
+    # and authenticate() rejects keys of disabled users, so approving a
+    # request for a still-disabled user would provision a dead key.
+    if user.is_disabled:
+        user.is_disabled = False
+
+    # If enterprise mode, provision an Organization + manager membership +
+    # an enterprise NetworkScope. The user's platform role stays 'user';
+    # org authority is modeled by the OrganizationMember role instead.
     if ar.requested_mode == "enterprise":
-        if user.role == "user":
-            user.role = "admin"
-        if user.is_disabled:
-            user.is_disabled = False
-        await session.flush()
-
-        # Create enterprise NetworkScope owned by the provisioned user
-        scope_name = ar.organization if ar.organization else ar.applicant_email
-        scope = NetworkScope(
-            user_id=user.id,
-            scope_name=scope_name,
-            scope_type="enterprise",
+        org = await _get_or_create_organization(
+            session,
+            org_name=ar.organization,
+            applicant_email=ar.applicant_email,
+            creator_id=user.id,
         )
-        session.add(scope)
-        await session.flush()
-        scope_id = str(scope.id)
+        await _ensure_org_manager(session, org=org, user_id=user.id)
+
+        # Backfill org_id on the applicant's existing enterprise scopes;
+        # create one attached to the org if they have none.
+        scope_result = await session.execute(
+            select(NetworkScope).where(
+                NetworkScope.user_id == user.id,
+                NetworkScope.scope_type == "enterprise",
+            )
+        )
+        scopes = list(scope_result.scalars().all())
+        if not scopes:
+            scope_name = ar.organization if ar.organization else ar.applicant_email
+            scopes = [
+                NetworkScope(
+                    user_id=user.id,
+                    org_id=org.id,
+                    scope_name=scope_name,
+                    scope_type="enterprise",
+                )
+            ]
+            session.add(scopes[0])
+            await session.flush()
+        else:
+            for scope in scopes:
+                if scope.org_id is None:
+                    scope.org_id = org.id
+            await session.flush()
+
+        org_id = str(org.id)
+        scope_id = str(scopes[0].id)
 
     # Issue a new API key for the user
     raw_api_key = await create_api_key_for_user(
@@ -166,6 +324,8 @@ async def approve_access_request(
     }
     if scope_id is not None:
         audit_details["scope_id"] = scope_id
+    if org_id is not None:
+        audit_details["org_id"] = org_id
 
     await write_audit(
         session,
@@ -184,6 +344,7 @@ async def approve_access_request(
         "user_id": str(user.id),
         "api_key": raw_api_key,
         "scope_id": scope_id,
+        "org_id": org_id,
     }
 
 

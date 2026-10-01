@@ -68,6 +68,24 @@ async def agent_b_request_approval(client, user_b_key):
     return resp.json()
 
 
+async def _ensure_caller_agent(client, api_key, name="Caller A"):
+    """Give the calling user an agent.
+
+    Registration always creates a fresh account (usernames are non-unique
+    display labels since migration 0030), so a user can no longer inherit
+    an agent that an earlier test created for the same registered name.
+    Tests that act as the calling side must create their own sender
+    agent instead of relying on cross-test user reuse.
+    """
+    resp = await client.post(
+        "/v1/agents",
+        json={"name": name, "runtime": "test"},
+        headers={"X-API-Key": api_key},
+    )
+    assert resp.status_code == 201
+    return resp.json()
+
+
 class TestSecurityModeNegotiation:
     def test_compatible_modes(self):
         result = negotiate_security_mode(
@@ -115,6 +133,7 @@ class TestInboundPolicyPrivate:
 
 class TestInboundPolicyRequestApproval:
     async def test_request_approval_creates_pending(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         # Agent B (request_approval) for user B
         resp_b = await client.post(
             "/v1/agents",
@@ -135,6 +154,7 @@ class TestInboundPolicyRequestApproval:
         assert "connection_id" in resp.json()["error"]["details"]
 
     async def test_accepted_connection_allows_task(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         # Agent B (request_approval) for user B
         resp_b = await client.post(
             "/v1/agents",
@@ -171,6 +191,7 @@ class TestInboundPolicyRequestApproval:
         assert resp.json()["status"] == "created"
 
     async def test_rejected_connection_blocks_task(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         # Set up B with request_approval
         resp_b = await client.post(
             "/v1/agents",
@@ -311,6 +332,7 @@ class TestSameOwner:
 
 class TestConnectionAPI:
     async def test_request_connection(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         resp_b = await client.post(
             "/v1/agents",
             json={"name": "Target", "runtime": "test"},
@@ -333,6 +355,7 @@ class TestConnectionAPI:
         assert "id" in data
 
     async def test_list_connections(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         resp_b = await client.post(
             "/v1/agents",
             json={"name": "Target2", "runtime": "test"},
@@ -356,6 +379,7 @@ class TestConnectionAPI:
         assert len(data["connections"]) >= 1
 
     async def test_accept_connection(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         resp_b = await client.post(
             "/v1/agents",
             json={"name": "Target3", "runtime": "test"},
@@ -380,6 +404,7 @@ class TestConnectionAPI:
         assert resp.json()["allowed_capabilities"] == ["code_analysis"]
 
     async def test_reject_connection(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         resp_b = await client.post(
             "/v1/agents",
             json={"name": "Target4", "runtime": "test"},
@@ -409,6 +434,7 @@ class TestInboundPolicyContactsOnly:
     """Tests for InboundPolicy.CONTACTS_ONLY."""
 
     async def test_contacts_only_blocks_stranger(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         # Agent B (contacts_only) for user B
         resp_b = await client.post(
             "/v1/agents",
@@ -428,6 +454,7 @@ class TestInboundPolicyContactsOnly:
         assert resp.json()["error"]["code"] == ErrorCode.CONNECTION_APPROVAL_REQUIRED.value
 
     async def test_contacts_only_allows_existing_connection(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         # Agent B (contacts_only) for user B
         resp_b = await client.post(
             "/v1/agents",
@@ -463,6 +490,7 @@ class TestInboundPolicyPublic:
     """Tests for InboundPolicy.PUBLIC."""
 
     async def test_public_allows_cross_user(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         # Agent B (public) for user B
         resp_b = await client.post(
             "/v1/agents",
@@ -481,6 +509,7 @@ class TestInboundPolicyPublic:
         assert resp.status_code == 201
 
     async def test_public_any_authenticated_can_connect(self, client, user_a_key, user_b_key):
+        await _ensure_caller_agent(client, user_a_key)
         # Agent B (public) for user B
         resp_b = await client.post(
             "/v1/agents",

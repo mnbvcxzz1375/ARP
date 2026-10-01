@@ -47,7 +47,11 @@ async def create_network_scope(
     user_result = await session.execute(select(User).where(User.id == user_id))
     user = user_result.scalar_one_or_none()
     if not user:
-        raise DomainException(ErrorCode.INVALID_REQUEST, f"User {user_id} not found")
+        raise DomainException(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            f"User {user_id} not found",
+            status_code=404,
+        )
 
     # Validate scope_type
     valid_scope_types = ["personal", "enterprise"]
@@ -103,7 +107,11 @@ async def get_network_scope(
     scope = result.scalar_one_or_none()
 
     if not scope:
-        raise DomainException(ErrorCode.INVALID_REQUEST, f"Network scope {scope_id} not found")
+        raise DomainException(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            f"Network scope {scope_id} not found",
+            status_code=404,
+        )
 
     return scope
 
@@ -166,7 +174,11 @@ async def create_network_zone(
     scope_result = await session.execute(select(NetworkScope).where(NetworkScope.id == scope_id))
     scope = scope_result.scalar_one_or_none()
     if not scope:
-        raise DomainException(ErrorCode.INVALID_REQUEST, f"Network scope {scope_id} not found")
+        raise DomainException(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            f"Network scope {scope_id} not found",
+            status_code=404,
+        )
 
     # Validate zone_type
     valid_zone_types = ["local", "regional", "global", "local_edge", "central", "cloud", "egress"]
@@ -184,7 +196,9 @@ async def create_network_zone(
         parent_zone = parent_result.scalar_one_or_none()
         if not parent_zone:
             raise DomainException(
-                ErrorCode.INVALID_REQUEST, f"Parent zone {parent_zone_id} not found"
+                ErrorCode.RESOURCE_NOT_FOUND,
+                f"Parent zone {parent_zone_id} not found",
+                status_code=404,
             )
 
         # Verify parent zone belongs to same scope
@@ -241,7 +255,11 @@ async def get_network_zone(
     zone = result.scalar_one_or_none()
 
     if not zone:
-        raise DomainException(ErrorCode.INVALID_REQUEST, f"Network zone {zone_id} not found")
+        raise DomainException(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            f"Network zone {zone_id} not found",
+            status_code=404,
+        )
 
     return zone
 
@@ -269,7 +287,11 @@ async def get_zones_in_scope(
     scope_result = await session.execute(select(NetworkScope).where(NetworkScope.id == scope_id))
     scope = scope_result.scalar_one_or_none()
     if not scope:
-        raise DomainException(ErrorCode.INVALID_REQUEST, f"Network scope {scope_id} not found")
+        raise DomainException(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            f"Network scope {scope_id} not found",
+            status_code=404,
+        )
 
     query = select(NetworkZone).where(NetworkZone.scope_id == scope_id)
 

@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import Cookie, Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_session
 from app.dependencies.auth import get_current_session
 from app.models.dashboard_session import DashboardSession
@@ -11,9 +12,15 @@ from app.services.csrf_service import validate_csrf
 
 
 async def get_csrf_cookie(
-    csrf_token: Annotated[str | None, Cookie(alias="agentnet_csrf")] = None,
+    csrf_token: Annotated[
+        str | None, Cookie(alias=get_settings().csrf_cookie_name)
+    ] = None,
 ) -> str | None:
-    """Extract the CSRF token from the non-HttpOnly cookie."""
+    """Extract the CSRF token from the non-HttpOnly cookie.
+
+    The cookie name comes from settings so it always matches the name
+    dashboard_auth writes at login/logout time.
+    """
     return csrf_token
 
 

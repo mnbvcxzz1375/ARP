@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import DomainException
@@ -23,6 +23,14 @@ async def create_api_key(
     name: str,
     expires_at: datetime | None = None,
 ) -> tuple[ApiKey, str]:
+    if expires_at is not None and expires_at <= datetime.now(UTC):
+        # A past expiry would be rejected by authenticate() on first use,
+        # handing the user an instantly-dead key.
+        raise DomainException(
+            ErrorCode.INVALID_REQUEST,
+            "expires_at must be in the future",
+            status_code=400,
+        )
     raw, key_hash, key_prefix = generate_api_key()
     api_key = ApiKey(
         user_id=user.id,
@@ -75,7 +83,12 @@ async def revoke_api_key(
         return api_key
 
     if not allow_last_key:
-        active_count = await _active_api_key_count(session, user, exclude_id=api_key.id)
+        # Lock this user's key rows for the duration of the transaction so two
+        # concurrent revokes cannot both pass the "last active key" check and
+        # lock the user out (check-then-act race).
+        active_count = await _active_api_key_count(
+            session, user, exclude_id=api_key.id, for_update=True
+        )
         if active_count == 0:
             raise DomainException(
                 ErrorCode.INVALID_REQUEST,
@@ -104,13 +117,24 @@ async def _active_api_key_count(
     user: User,
     *,
     exclude_id: uuid.UUID | None = None,
+    for_update: bool = False,
 ) -> int:
+    """Count the user's active (unrevoked, unexpired) keys.
+
+    With for_update=True the user's key rows are locked (SELECT ... FOR UPDATE)
+    so the count cannot be raced by a concurrent revoke of another key.
+    Returns the count of matching rows, optionally excluding one key id.
+    """
     now = datetime.now(UTC)
-    stmt = select(func.count()).select_from(ApiKey).where(
-        ApiKey.user_id == user.id,
-        ApiKey.is_revoked == False,
-        or_(ApiKey.expires_at == None, ApiKey.expires_at > now),
-    )
+    stmt = select(ApiKey).where(ApiKey.user_id == user.id)
     if exclude_id is not None:
         stmt = stmt.where(ApiKey.id != exclude_id)
-    return int((await session.execute(stmt)).scalar_one())
+    if for_update:
+        stmt = stmt.with_for_update()
+    result = await session.execute(stmt)
+    keys = list(result.scalars().all())
+    return sum(
+        1
+        for k in keys
+        if not k.is_revoked and (k.expires_at is None or k.expires_at > now)
+    )

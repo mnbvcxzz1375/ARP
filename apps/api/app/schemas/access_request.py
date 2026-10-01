@@ -73,6 +73,8 @@ class ApproveAccessRequestResponse(BaseModel):
     user_id: str
     api_key: str
     scope_id: str | None = None
+    # Organization provisioned for enterprise requests (None for personal).
+    org_id: str | None = None
 
 
 class RejectAccessRequestResponse(BaseModel):

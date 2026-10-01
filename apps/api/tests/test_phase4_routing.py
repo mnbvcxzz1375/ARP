@@ -61,7 +61,15 @@ class TestAgentResolution:
         assert resp.json()["status"] == "created"
 
     async def test_resolve_invalid_agent(self, client, user_api_key):
-        # Test via REST API - POST task to nonexistent agent
+        # Test via REST API - POST task to nonexistent agent. The caller
+        # needs a sender agent first: registration always creates a fresh
+        # account now (usernames are non-unique labels).
+        resp_a = await client.post(
+            "/v1/agents",
+            json={"name": "Caller", "runtime": "test"},
+            headers={"X-API-Key": user_api_key},
+        )
+        assert resp_a.status_code == 201
         resp = await client.post(
             "/v1/tasks",
             json={"assigned_to": "AN-GLOBAL-NONEXIST99", "payload": {}},
@@ -206,6 +214,13 @@ class TestRoutingIntegration:
         )
 
     async def test_task_for_nonexistent_agent_fails(self, client, user_api_key):
+        # Caller needs a sender agent (see test_resolve_invalid_agent).
+        resp_a = await client.post(
+            "/v1/agents",
+            json={"name": "Caller", "runtime": "test"},
+            headers={"X-API-Key": user_api_key},
+        )
+        assert resp_a.status_code == 201
         resp = await client.post(
             "/v1/tasks",
             json={"assigned_to": "AN-GLOBAL-FAKE999", "payload": {}},

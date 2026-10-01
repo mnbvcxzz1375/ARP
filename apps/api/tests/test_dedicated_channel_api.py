@@ -291,45 +291,39 @@ class TestAdapterServiceConfig:
         assert key_a != key_none
         assert key_b != key_none
 
-    def test_dispatch_task_fails_without_task_uuid(self):
+    async def test_dispatch_task_fails_without_task_uuid(self):
         """dispatch_task must fail if metadata lacks task_uuid."""
         from app.services.adapter_service import dispatch_task
         from app.exceptions import DomainException
 
         session = AsyncMock()
         with pytest.raises(DomainException) as exc_info:
-            import asyncio
-            asyncio.get_event_loop().run_until_complete(
-                dispatch_task(
-                    session,
-                    task_id="t1",
-                    agent_id="a1",
-                    adapter_type="openclaw",
-                    content=[],
-                    metadata={"agent_uuid": "some-uuid"},
-                    adapter_config={"working_dir": "/test"},
-                )
+            await dispatch_task(
+                session,
+                task_id="t1",
+                agent_id="a1",
+                adapter_type="openclaw",
+                content=[],
+                metadata={"agent_uuid": "some-uuid"},
+                adapter_config={"working_dir": "/test"},
             )
         assert "task_uuid" in str(exc_info.value.message)
 
-    def test_dispatch_task_fails_without_agent_uuid(self):
+    async def test_dispatch_task_fails_without_agent_uuid(self):
         """dispatch_task must fail if metadata lacks agent_uuid."""
         from app.services.adapter_service import dispatch_task
         from app.exceptions import DomainException
 
         session = AsyncMock()
         with pytest.raises(DomainException) as exc_info:
-            import asyncio
-            asyncio.get_event_loop().run_until_complete(
-                dispatch_task(
-                    session,
-                    task_id="t1",
-                    agent_id="a1",
-                    adapter_type="openclaw",
-                    content=[],
-                    metadata={"task_uuid": "some-uuid"},
-                    adapter_config={"working_dir": "/test"},
-                )
+            await dispatch_task(
+                session,
+                task_id="t1",
+                agent_id="a1",
+                adapter_type="openclaw",
+                content=[],
+                metadata={"task_uuid": "some-uuid"},
+                adapter_config={"working_dir": "/test"},
             )
         assert "agent_uuid" in str(exc_info.value.message)
 

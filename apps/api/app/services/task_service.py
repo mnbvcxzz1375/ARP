@@ -13,7 +13,11 @@ from app.exceptions import DomainException
 from app.models.task import Task, VALID_TRANSITIONS
 from app.models.message import Message
 from app.models.agent import Agent
-from app.services.routing_service import deliver_task_request, resolve_agent
+from app.services.routing_service import (
+    deliver_task_request,
+    resolve_agent,
+    RETRY_BACKOFF_BASE_S,
+)
 from app.protocol.constants import ErrorCode, TaskStatus, MessageType, DeliveryStatus
 from app import metrics
 
@@ -166,6 +170,10 @@ async def create_task(
     # Update task status to reflect delivery state
     if delivery_status == DeliveryStatus.DELIVERED.value:
         task.status = TaskStatus.DELIVERED.value
+        # Arm the retry worker: an online-delivered message that is never
+        # acked must be picked up by retry_unacked_messages(). Without this,
+        # next_retry_at stays NULL and the retry filter never matches.
+        msg.next_retry_at = datetime.now(UTC) + timedelta(seconds=RETRY_BACKOFF_BASE_S)
     await session.commit()
     await session.refresh(task)
     logger.info("Task %s delivery status: %s", task.id, delivery_status)
@@ -367,22 +375,46 @@ async def record_progress(
     # Create progress entry
     from app.models.task_progress import TaskProgress
 
-    # Get next seq
-    max_seq = await session.execute(
-        select(func.coalesce(func.max(TaskProgress.seq), 0)).where(TaskProgress.task_id == task.id)
-    )
-    next_seq = max_seq.scalar_one() + 1
+    task_status = task.status
 
-    entry = TaskProgress(
-        task_id=task.id,
-        seq=next_seq,
-        status=task.status,
-        progress_pct=progress_pct,
-        message=message,
-        data=data,
-    )
-    session.add(entry)
-    await session.commit()
+    # Concurrent progress reports may compute the same max(seq)+1; the
+    # (task_id, seq) unique constraint turns that into a retryable failure
+    # instead of a silent duplicate.
+    next_seq = 0
+    for attempt in range(3):
+        max_seq = await session.execute(
+            select(func.coalesce(func.max(TaskProgress.seq), 0)).where(
+                TaskProgress.task_id == task.id
+            )
+        )
+        next_seq = max_seq.scalar_one() + 1
+
+        entry = TaskProgress(
+            task_id=task.id,
+            seq=next_seq,
+            status=task_status,
+            progress_pct=progress_pct,
+            message=message,
+            data=data,
+        )
+        session.add(entry)
+        try:
+            await session.commit()
+            break
+        except IntegrityError:
+            await session.rollback()
+            if attempt == 2:
+                raise DomainException(
+                    ErrorCode.INVALID_REQUEST,
+                    f"Progress seq collision on task {task.id}; retry the request",
+                    status_code=409,
+                )
+            # Re-apply lease updates lost to the rollback before retrying.
+            task.last_progress_at = datetime.now(UTC)
+            task.lease_expires_at = datetime.now(UTC) + timedelta(
+                seconds=_lease_duration()
+            )
+
     await session.refresh(task)
 
     logger.info("Task %s progress: seq=%d pct=%s", task.id, next_seq, progress_pct)

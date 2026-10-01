@@ -176,8 +176,14 @@ class ConnectionManager:
         *,
         track_pending: bool = False,
     ) -> bool:
-        """Send a message to all active connections of an agent.
+        """Send a message to the agent — once, on the first reachable connection.
 
+        Fanning out to every connection previously delivered (and queued) a
+        duplicate for each extra connection, causing double task execution.
+        Delivery is now single-shot: if that connection drops before the
+        agent acks, the un-acked message is redelivered on session resume or
+        by the retry worker. Falls through to the next connection when a
+        send fails.
         Returns True if at least one connection received the message.
         """
         async with self._lock:
@@ -194,6 +200,7 @@ class ConnectionManager:
                     await store_pending_message(agent_id, state.session_id, message)
                 await state.websocket.send_text(message)
                 sent = True
+                break
             except Exception:
                 logger.debug(
                     "Failed to send to connection %s for agent %s",

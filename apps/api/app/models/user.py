@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -26,7 +27,10 @@ class User(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    username: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    # Non-unique display label: the user_id (UUID) is the canonical
+    # identifier. Login resolves the user by API key, and the UI
+    # disambiguates same-named users with a short user_id suffix.
+    username: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -45,6 +49,13 @@ class User(Base):
         nullable=False,
         default=False,
         server_default=sa.text("false"),
+    )
+    locale: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    preferences: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=sa.text("'{}'"),
     )
 
     api_keys: Mapped[list["ApiKey"]] = relationship(back_populates="user", lazy="selectin")
@@ -70,4 +81,12 @@ class User(Base):
         back_populates="user",
         lazy="select",
         cascade="all, delete-orphan",
+    )
+    # Organization memberships (OrganizationMember rows, which carry the
+    # manager/member role). Not the user-level UserRole.
+    organizations: Mapped[list["OrganizationMember"]] = relationship(
+        back_populates="user",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )

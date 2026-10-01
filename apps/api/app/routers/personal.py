@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.exceptions import DomainException
-from app.services.auth import authenticate
+from app.dependencies.auth import authenticate_session_or_key
 from app.models.agent import Agent
 from app.models.personal_scope import PersonalScope
 from app.models.relay_node import RelayNode
@@ -36,7 +36,7 @@ router = APIRouter(prefix="/v1/personal", tags=["personal"])
 
 @router.get("/scope", response_model=PersonalScopeResponse)
 async def get_personal_scope(
-    current_user: Annotated[User, Depends(authenticate)],
+    current_user: Annotated[User, Depends(authenticate_session_or_key)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Get personal scope configuration for current user.
@@ -76,7 +76,7 @@ async def get_personal_scope(
 @router.patch("/scope", response_model=PersonalScopeResponse)
 async def update_personal_scope(
     update: PersonalScopeUpdate,
-    current_user: Annotated[User, Depends(authenticate)],
+    current_user: Annotated[User, Depends(authenticate_session_or_key)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Update personal scope configuration."""
@@ -126,7 +126,7 @@ async def update_personal_scope(
 @router.post("/edge-relay/register", response_model=PersonalEdgeRelayResponse, status_code=status.HTTP_201_CREATED)
 async def register_edge_relay(
     register_req: PersonalEdgeRelayRegister,
-    current_user: Annotated[User, Depends(authenticate)],
+    current_user: Annotated[User, Depends(authenticate_session_or_key)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Register a personal edge relay."""
@@ -164,7 +164,7 @@ async def register_edge_relay(
 @router.post("/edge-relay/heartbeat", response_model=PersonalEdgeRelayResponse)
 async def edge_relay_heartbeat(
     heartbeat: PersonalEdgeRelayHeartbeat,
-    current_user: Annotated[User, Depends(authenticate)],
+    current_user: Annotated[User, Depends(authenticate_session_or_key)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ):
     """Process heartbeat from personal edge relay."""
@@ -200,7 +200,7 @@ async def edge_relay_heartbeat(
 
 @router.get("/edge-relays", response_model=list[PersonalEdgeRelayResponse])
 async def list_edge_relays(
-    current_user: Annotated[User, Depends(authenticate)],
+    current_user: Annotated[User, Depends(authenticate_session_or_key)],
     session: Annotated[AsyncSession, Depends(get_session)],
     only_healthy: bool = False,
 ):

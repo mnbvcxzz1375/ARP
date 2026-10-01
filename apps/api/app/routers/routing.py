@@ -16,7 +16,7 @@ from app.models.relay_node import RelayNode
 from app.models.route_decision import RouteDecision
 from app.models.task import Task
 from app.protocol.constants import ErrorCode
-from app.services.auth import authenticate
+from app.dependencies.auth import authenticate_session_or_key
 from app.schemas.routing import (
     MessageDeliveryEventListResponse,
     MessageDeliveryEventResponse,
@@ -38,7 +38,7 @@ async def list_route_decisions(
     offset: int = Query(0, ge=0, description="Result offset"),
     limit: int = Query(20, ge=1, le=100, description="Page size"),
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
 ) -> RouteDecisionListResponse:
     """List route decisions with optional task filter.
 
@@ -106,7 +106,7 @@ async def list_route_decisions(
 async def get_route_decision(
     route_decision_id: str,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
 ) -> RouteDecisionResponse:
     """Get a specific route decision by ID.
 
@@ -168,7 +168,7 @@ async def list_relay_nodes(
     offset: int = Query(0, ge=0, description="Result offset"),
     limit: int = Query(20, ge=1, le=100, description="Page size"),
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
 ) -> RelayNodeListResponse:
     """List relay nodes with optional filters."""
     stmt = select(RelayNode)
@@ -220,7 +220,7 @@ async def list_relay_nodes(
 async def register_relay_node(
     req: RegisterRelayNodeRequest,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
 ) -> RelayNodeResponse:
     """Register a new relay node.
 
@@ -294,7 +294,7 @@ async def relay_node_heartbeat(
     relay_node_id: str,
     req: RelayNodeHeartbeatRequest,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
 ) -> RelayNodeResponse:
     """Update relay node health metrics via heartbeat."""
     try:
@@ -369,7 +369,7 @@ async def relay_node_heartbeat(
 async def list_task_delivery_events(
     task_id: str,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
 ) -> MessageDeliveryEventListResponse:
     """List delivery events for a specific task (delivery timeline).
 
@@ -449,7 +449,7 @@ async def list_task_delivery_events(
 async def list_task_route_decisions(
     task_id: str,
     session: AsyncSession = Depends(get_session),
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
 ) -> RouteDecisionListResponse:
     """List route decisions for a specific task.
 

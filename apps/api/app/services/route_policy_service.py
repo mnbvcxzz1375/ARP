@@ -90,6 +90,7 @@ async def evaluate_route_policy(
 
     # Evaluate policies in priority order
     last_allow_result = None
+    constrained_allow_result = None
     for policy in policies:
         result = _evaluate_single_policy(
             policy,
@@ -114,7 +115,10 @@ async def evaluate_route_policy(
         # Policy allows - track this result
         last_allow_result = result
 
-        # If policy has constraints (approval or risk level), return immediately
+        # If policy has constraints (approval or risk level), remember it but
+        # DO NOT return early: a lower-priority policy may still deny this
+        # route, and denials take precedence over allow-with-constraints.
+        # Keep the first constrained result so it wins if nothing denies.
         if result.require_approval or result.risk_level:
             logger.info(
                 "Route policy %s (%s) allows route_type=%s with constraints: approval=%s risk=%s",
@@ -124,18 +128,21 @@ async def evaluate_route_policy(
                 result.require_approval,
                 result.risk_level,
             )
-            return result
+            if constrained_allow_result is None:
+                constrained_allow_result = result
 
-    # All policies allow - return the last policy's result (which includes policy_id)
-    if last_allow_result:
+    # All policies allow - prefer a constrained allow (approval/risk) over the
+    # plain last allow, since the caller needs the constraint information.
+    final_result = constrained_allow_result or last_allow_result
+    if final_result:
         logger.debug(
-            "All route policies allow route_type=%s from=%s to=%s (last_policy=%s)",
+            "All route policies allow route_type=%s from=%s to=%s (policy=%s)",
             route_type,
             from_agent.agent_number,
             to_agent.agent_number,
-            last_allow_result.policy_id,
+            final_result.policy_id,
         )
-        return last_allow_result
+        return final_result
 
     # No policies evaluated (shouldn't happen, but handle gracefully)
     logger.debug(

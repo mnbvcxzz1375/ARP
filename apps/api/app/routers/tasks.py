@@ -10,7 +10,7 @@ from app.exceptions import DomainException
 from app.protocol.constants import ErrorCode
 from app.schemas.task import CreateTaskRequest, TaskResponse, TaskListResponse
 from app.schemas.message import MessageResponse, MessageListResponse
-from app.services.auth import authenticate
+from app.dependencies.auth import authenticate_session_or_key
 from app.services.task_service import create_task, get_task, list_tasks
 from app.services.message_service import list_task_messages
 from app.models.user import User
@@ -52,7 +52,7 @@ async def _get_calling_agent(
 )
 async def create_task_endpoint(
     body: CreateTaskRequest,
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
     session: AsyncSession = Depends(get_session),
 ):
     agent = await _get_calling_agent(session, user, agent_number=body.from_agent_number)
@@ -83,7 +83,7 @@ async def list_tasks_endpoint(
     status: str | None = Query(default=None),
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
     session: AsyncSession = Depends(get_session),
 ):
     tasks, total = await list_tasks(session, user_id=user.id, status=status, offset=offset, limit=limit)
@@ -103,7 +103,7 @@ async def list_tasks_endpoint(
 )
 async def get_task_endpoint(
     task_id: str,
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -124,7 +124,7 @@ async def get_task_messages_endpoint(
     task_id: str,
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
-    user: User = Depends(authenticate),
+    user: User = Depends(authenticate_session_or_key),
     session: AsyncSession = Depends(get_session),
 ):
     try:
@@ -181,7 +181,7 @@ async def get_task_progress_endpoint(
     task_id: str,
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
-    user: "User" = Depends(authenticate),
+    user: "User" = Depends(authenticate_session_or_key),
     session: AsyncSession = Depends(get_session),
 ):
     from app.services.task_service import list_task_progress

@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -43,7 +44,14 @@ async def get_or_create_user(
 
     user = User(username=username)
     session.add(user)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError:
+        # Concurrent registration of the same username won the race;
+        # roll back the failed insert and return the winning row.
+        await session.rollback()
+        result = await session.execute(stmt)
+        user = result.scalar_one()
     return user
 
 
@@ -105,6 +113,8 @@ async def authenticate(
             ApiKey.key_hash == key_hash,
             ApiKey.is_revoked == False,
             or_(ApiKey.expires_at == None, ApiKey.expires_at > datetime.now(UTC)),
+            # A disabled user must not retain API access even with a valid key
+            User.is_disabled == False,
         )
     )
     result = await session.execute(stmt)

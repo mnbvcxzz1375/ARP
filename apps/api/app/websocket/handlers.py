@@ -68,6 +68,25 @@ async def _handle_ack(ws, msg, conn_state):
     # No response needed for ack
 
 
+def _ensure_task_owner(task, conn_state) -> None:
+    """Verify the connected agent is the one this task was assigned to.
+
+    Without this check any authenticated agent could mutate another
+    agent's task (accept/progress/result/fail) by guessing task_id.
+    Raises DomainException(AGENT_FORBIDDEN) when the task belongs to
+    another agent.
+    """
+    from app.exceptions import DomainException
+    from app.protocol.constants import ErrorCode
+
+    if task.assigned_to is None or task.assigned_to != conn_state.agent_id:
+        raise DomainException(
+            ErrorCode.AGENT_FORBIDDEN,
+            f"Task {task.id} is not assigned to agent {conn_state.agent_id}",
+            status_code=403,
+        )
+
+
 async def _handle_task_accepted(ws, msg, conn_state):
     task_id = msg.payload.get("task_id")
     if not task_id:
@@ -78,7 +97,8 @@ async def _handle_task_accepted(ws, msg, conn_state):
     from app.services.task_service import get_task, accept_task
     async with SessionLocal() as session:
         task = await get_task(session, UUID(task_id))
-        task = await accept_task(session, task)
+        _ensure_task_owner(task, conn_state)
+        task = await accept_task(session, task, agent_id=conn_state.agent_id)
     await ws.send_text(build_ack(msg.message_id))
 
 
@@ -92,6 +112,7 @@ async def _handle_task_progress(ws, msg, conn_state):
     from app.services.task_service import get_task, record_progress
     async with SessionLocal() as session:
         task = await get_task(session, UUID(task_id))
+        _ensure_task_owner(task, conn_state)
         task = await record_progress(
             session, task,
             progress_pct=msg.payload.get("progress_pct"),
@@ -111,6 +132,7 @@ async def _handle_task_heartbeat(ws, msg, conn_state):
     from app.services.task_service import get_task, heartbeat_task
     async with SessionLocal() as session:
         task = await get_task(session, UUID(task_id))
+        _ensure_task_owner(task, conn_state)
         task = await heartbeat_task(session, task, conn_state.agent_id)
     await ws.send_text(build_ack(msg.message_id))
 
@@ -125,6 +147,7 @@ async def _handle_task_result(ws, msg, conn_state):
     from app.services.task_service import get_task, complete_task
     async with SessionLocal() as session:
         task = await get_task(session, UUID(task_id))
+        _ensure_task_owner(task, conn_state)
         task = await complete_task(session, task, result=msg.payload.get("result"))
     await ws.send_text(build_ack(msg.message_id))
 
@@ -139,6 +162,7 @@ async def _handle_task_failed(ws, msg, conn_state):
     from app.services.task_service import get_task, fail_task
     async with SessionLocal() as session:
         task = await get_task(session, UUID(task_id))
+        _ensure_task_owner(task, conn_state)
         task = await fail_task(
             session, task,
             error_message=msg.payload.get("error_message"),
@@ -156,6 +180,7 @@ async def _handle_approval_request(ws, msg, conn_state):
     from app.services.task_service import get_task, request_approval
     async with SessionLocal() as session:
         task = await get_task(session, UUID(task_id))
+        _ensure_task_owner(task, conn_state)
         task = await request_approval(
             session, task,
             risk_level=msg.payload.get("risk_level", "medium"),

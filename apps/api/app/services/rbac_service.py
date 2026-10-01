@@ -3,10 +3,18 @@
 No role string comparison should appear in routers. All permission checks
 go through has_permission() or the require_* dependencies.
 """
+import logging
+import uuid
 from datetime import UTC, datetime
 
-from app.models.user import User, UserRole
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.dashboard_session import DashboardSession
+from app.models.organization import Organization, OrganizationMember
+from app.models.user import User, UserRole
+
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────
 # Permission constants
@@ -69,6 +77,20 @@ PERM_SLA_MANAGE = "sla:manage"
 PERM_CONTINUITY_READ = "continuity:read"
 PERM_CONTINUITY_MANAGE = "continuity:manage"
 
+# Organization-scoped permissions (org domain). These are granted by
+# OrganizationMember.role, NOT by the platform UserRole. The ':org' suffix
+# marks them as organization-scoped so frontend guards can distinguish
+# them from the global platform permissions above.
+PERM_OVERVIEW_READ_ORG = "overview:read:org"
+PERM_AGENT_READ_ORG = "agent:read:org"
+PERM_TASK_READ_ORG = "task:read:org"
+PERM_APPROVAL_HANDLE_ORG = "approval:handle:org"
+PERM_CONNECTION_READ_ORG = "connection:read:org"
+PERM_POLICY_READ_ORG = "policy:read:org"
+PERM_SLA_READ_ORG = "sla:read:org"
+PERM_AUDIT_READ_ORG = "audit:read:org"
+PERM_ORG_MANAGE = "org:manage"
+
 # ──────────────────────────────────────────────────────────────────
 # Role-to-permission mapping
 # ──────────────────────────────────────────────────────────────────
@@ -109,6 +131,108 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     UserRole.ADMIN.value: _ADMIN_PERMS,
     UserRole.SUPER_ADMIN.value: _SUPER_ADMIN_PERMS,
 }
+
+# ──────────────────────────────────────────────────────────────────
+# Organization membership permissions (org domain)
+# ──────────────────────────────────────────────────────────────────
+
+# An org manager can read everything scoped to their organization and
+# handle org-scoped approvals, plus manage the organization itself.
+ORG_MANAGER_PERMISSIONS: list[str] = [
+    PERM_OVERVIEW_READ_ORG,
+    PERM_AGENT_READ_ORG,
+    PERM_TASK_READ_ORG,
+    PERM_APPROVAL_HANDLE_ORG,
+    PERM_CONNECTION_READ_ORG,
+    PERM_POLICY_READ_ORG,
+    PERM_SLA_READ_ORG,
+    PERM_AUDIT_READ_ORG,
+    PERM_ORG_MANAGE,
+]
+
+# A plain org member (employee) gets read-only access to the org overview.
+ORG_MEMBER_PERMISSIONS: list[str] = [
+    PERM_OVERVIEW_READ_ORG,
+]
+
+ORG_ROLE_PERMISSIONS: dict[str, list[str]] = {
+    "manager": ORG_MANAGER_PERMISSIONS,
+    "member": ORG_MEMBER_PERMISSIONS,
+}
+
+
+async def resolve_user_permissions(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+) -> list[str]:
+    """Resolve the full permission list for a user.
+
+    Platform role permissions (ROLE_PERMISSIONS, keyed by UserRole) are
+    unioned with the org-domain permissions derived from the user's
+    OrganizationMember rows. Only memberships of non-disabled
+    organizations count — disabling an org revokes its permissions
+    (fail-closed degradation path).
+
+    Fail-closed: ANY exception while reading the membership table (or an
+    unknown platform role) results in an empty permission list. Permission
+    resolution must never silently degrade to a partial-but-elevated set.
+    """
+    try:
+        user_result = await session.execute(
+            select(User).where(User.id == user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if user is None or user.is_disabled:
+            return []
+
+        platform_perms = ROLE_PERMISSIONS.get(user.role)
+        if platform_perms is None:
+            # Unknown platform role: refuse to resolve anything.
+            logger.warning(
+                "resolve_user_permissions: unknown role %r for user %s; "
+                "returning no permissions",
+                user.role,
+                user_id,
+            )
+            return []
+
+        perms: set[str] = set(platform_perms)
+
+        # Org-domain permissions from membership rows. Memberships of
+        # disabled organizations are excluded so that disabling an org
+        # immediately revokes its permissions.
+        member_result = await session.execute(
+            select(OrganizationMember.role)
+            .join(Organization, OrganizationMember.org_id == Organization.id)
+            .where(
+                OrganizationMember.user_id == user_id,
+                Organization.is_disabled.is_(False),
+            )
+        )
+        for (org_role,) in member_result.all():
+            org_perms = ORG_ROLE_PERMISSIONS.get(org_role)
+            if org_perms is None:
+                # Unknown org role on a row: skip that row rather than
+                # aborting the whole resolution, but log it.
+                logger.warning(
+                    "resolve_user_permissions: unknown org role %r for "
+                    "user %s; skipping membership",
+                    org_role,
+                    user_id,
+                )
+                continue
+            perms.update(org_perms)
+
+        return sorted(perms)
+    except Exception:
+        # Fail-closed: any failure in permission resolution yields an
+        # empty list rather than a partial or elevated one.
+        logger.exception(
+            "resolve_user_permissions: resolution failed for user %s; "
+            "returning no permissions",
+            user_id,
+        )
+        return []
 
 
 def has_permission(user: User, permission: str) -> bool:

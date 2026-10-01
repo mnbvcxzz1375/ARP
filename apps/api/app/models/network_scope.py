@@ -20,6 +20,15 @@ class NetworkScope(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
+    # Owning organization for enterprise scopes (NULL for personal
+    # scopes; kept nullable so user_id-based personal scopes keep working).
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Scope identification
     scope_name: Mapped[str] = mapped_column(String(128), nullable=False)
     scope_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
@@ -44,6 +53,9 @@ class NetworkScope(Base):
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="network_scopes", lazy="selectin")
+    org: Mapped["Organization | None"] = relationship(
+        back_populates="network_scopes", lazy="selectin"
+    )
     zones: Mapped[list["NetworkZone"]] = relationship(
         back_populates="scope", lazy="select", cascade="all, delete-orphan", passive_deletes=True
     )

@@ -98,6 +98,24 @@ async def create_dedicated_channel(
     return channel
 
 
+def _coerce_float(value) -> float | None:
+    """Coerce a health-report metric to float, or None if not numeric.
+
+    Admin-supplied connection_config values may arrive as strings
+    (e.g. "12.5"); without coercion the "{:.1f}" log formatting and the
+    numeric column would raise TypeError and roll back the whole
+    health-check record.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
 async def verify_channel_health(
     session: AsyncSession,
     channel_id: uuid.UUID,
@@ -151,9 +169,11 @@ async def verify_channel_health(
                 error_message = "Dedicated channel health_check is missing or invalid"
             else:
                 status = raw_status
-                latency_ms = health_report.get("latency_ms")
-                packet_loss_percent = health_report.get("packet_loss_percent")
-                bandwidth_mbps = health_report.get("bandwidth_mbps")
+                latency_ms = _coerce_float(health_report.get("latency_ms"))
+                packet_loss_percent = _coerce_float(
+                    health_report.get("packet_loss_percent")
+                )
+                bandwidth_mbps = _coerce_float(health_report.get("bandwidth_mbps"))
                 error_message = health_report.get("error_message")
 
     # Create health check record

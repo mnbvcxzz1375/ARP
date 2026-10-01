@@ -16,6 +16,7 @@ from app.models.message import Message
 from app.models.message_delivery_event import MessageDeliveryEvent
 from app.models.network_scope import NetworkScope
 from app.models.network_zone import NetworkZone
+from app.models.organization import Organization, OrganizationMember
 from app.models.relay_node import RelayNode
 from app.models.route_decision import RouteDecision
 from app.models.route_lease import RouteLease
@@ -39,4 +40,5 @@ __all__ = [
     "DedicatedChannel", "ChannelHealthCheck", "SLATarget", "SLAViolation",
     "FailoverConfig", "FailoverEvent", "CircuitBreaker",
     "AccessRequest", "PersonalScope",
+    "Organization", "OrganizationMember",
 ]

@@ -1,6 +1,8 @@
 """Tests for public access request API — success, duplicate, failure, admin review."""
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from httpx import AsyncClient
 
@@ -303,8 +305,17 @@ async def test_unauthenticated_admin_access_requests_fails(client: AsyncClient, 
 
 
 async def test_approve_enterprise_creates_network_scope(client: AsyncClient, session):
-    """Approving an enterprise request upgrades role to admin, creates enterprise NetworkScope,
-    and returns scope_id in response and audit."""
+    """Approving an enterprise request provisions an Organization (applicant as
+    manager) and an enterprise NetworkScope attached to it, and returns
+    scope_id in response and audit.
+
+    Updated for the org-RBAC contract: the applicant's platform role stays
+    'user'. Enterprise authority is no longer modeled by upgrading the
+    user to platform 'admin' — that conflated platform administration
+    with organization management (the "platform admin impersonates org
+    manager" problem). Org-scoped permissions now derive from the
+    OrganizationMember 'manager' row instead.
+    """
     admin = await _create_admin_with_session(client, session)
 
     create_resp = await client.post(
@@ -328,18 +339,35 @@ async def test_approve_enterprise_creates_network_scope(client: AsyncClient, ses
     data = resp.json()
     assert data["status"] == "approved"
     assert data["scope_id"] is not None
+    assert data["org_id"] is not None
 
     from sqlalchemy import select
     from app.models.user import User as UserModel
     from app.models.network_scope import NetworkScope
+    from app.models.organization import Organization, OrganizationMember
 
     user_result = await session.execute(
         select(UserModel).where(UserModel.username == "enterprise@example.com")
     )
     provisioned_user = user_result.scalar_one()
-    assert provisioned_user.role == "admin"
+    # Platform role must stay 'user' — org authority comes from membership.
+    assert provisioned_user.role == "user"
 
-    # Verify NetworkScope was created
+    # Verify the Organization was created and the applicant is its manager
+    org_result = await session.execute(
+        select(Organization).where(Organization.id == uuid.UUID(data["org_id"]))
+    )
+    org = org_result.scalar_one()
+    assert org.slug == "acme-corp"
+    member_result = await session.execute(
+        select(OrganizationMember).where(
+            OrganizationMember.org_id == org.id,
+            OrganizationMember.user_id == provisioned_user.id,
+        )
+    )
+    assert member_result.scalar_one().role == "manager"
+
+    # Verify NetworkScope was created and attached to the organization
     scope_result = await session.execute(
         select(NetworkScope).where(NetworkScope.user_id == provisioned_user.id)
     )
@@ -347,6 +375,7 @@ async def test_approve_enterprise_creates_network_scope(client: AsyncClient, ses
     assert scope.scope_type == "enterprise"
     assert scope.scope_name == "Acme Corp"
     assert scope.user_id == provisioned_user.id
+    assert scope.org_id == org.id
     assert str(scope.id) == data["scope_id"]
 
     # Verify audit includes scope_id
@@ -358,6 +387,7 @@ async def test_approve_enterprise_creates_network_scope(client: AsyncClient, ses
     )
     audit = audit_result.scalar_one()
     assert audit.details["scope_id"] == data["scope_id"]
+    assert audit.details["org_id"] == data["org_id"]
 
 
 async def test_approve_enterprise_scope_name_uses_email(client: AsyncClient, session):

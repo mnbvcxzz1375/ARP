@@ -339,7 +339,33 @@ async def update_network_zone(
     if body.zone_name is not None:
         zone.zone_name = body.zone_name
     if body.parent_zone_id is not None:
-        zone.parent_zone_id = _parse_uuid(body.parent_zone_id, "parent zone ID")
+        parent_uuid = _parse_uuid(body.parent_zone_id, "parent zone ID")
+        # Preserve the hierarchy invariant enforced at create time: a
+        # parent zone must exist and belong to the same scope as this zone.
+        parent_result = await session.execute(
+            select(NetworkZone).where(NetworkZone.id == parent_uuid)
+        )
+        parent_zone = parent_result.scalar_one_or_none()
+        if parent_zone is None:
+            raise DomainException(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                f"Parent zone {parent_uuid} not found",
+                status_code=404,
+            )
+        if parent_zone.scope_id != zone.scope_id:
+            raise DomainException(
+                ErrorCode.INVALID_REQUEST,
+                f"Parent zone {parent_uuid} does not belong to scope {zone.scope_id}",
+                status_code=400,
+            )
+        # Guard against self-parenting cycles.
+        if parent_uuid == zone_uuid:
+            raise DomainException(
+                ErrorCode.INVALID_REQUEST,
+                "A zone cannot be its own parent",
+                status_code=400,
+            )
+        zone.parent_zone_id = parent_uuid
     if body.relay_node_ids is not None:
         zone.relay_node_ids = [_parse_uuid(r, "relay node ID") for r in body.relay_node_ids]
     if body.zone_metadata is not None:

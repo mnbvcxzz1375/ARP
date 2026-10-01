@@ -117,6 +117,15 @@ class TestCreateTask:
         assert resp.status_code == 401
 
     async def test_create_task_invalid_target(self, client, user_api_key):
+        # The calling user needs a sender agent: registration always
+        # creates a fresh account now (usernames are non-unique labels),
+        # so the caller cannot inherit one from an earlier test.
+        resp_a = await client.post(
+            "/v1/agents",
+            json={"name": "Caller", "runtime": "test"},
+            headers={"X-API-Key": user_api_key},
+        )
+        assert resp_a.status_code == 201
         resp = await client.post(
             "/v1/tasks",
             json={"assigned_to": "AN-GLOBAL-NONEXIST", "payload": {}},

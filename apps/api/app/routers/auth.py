@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.models.user import User
 from app.services.api_key_service import create_api_key, list_api_keys, revoke_api_key
-from app.services.auth import authenticate, get_or_create_user
+from app.services.auth import authenticate
+from app.services.user_service import create_user
 
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
@@ -18,7 +19,9 @@ class RegisterRequest(BaseModel):
     username: str = Field(
         min_length=1,
         max_length=128,
-        description="Stable username for the API key owner.",
+        description="Display label for the new user. May duplicate an "
+        "existing username; the returned user_id is the canonical "
+        "identifier.",
     )
     key_name: str = Field(
         default="default",
@@ -71,16 +74,19 @@ class RevokeApiKeyRequest(BaseModel):
 @router.post(
     "/register",
     response_model=RegisterResponse,
-    summary="Register or fetch a user and issue an API key",
+    summary="Register a new user and issue an API key",
     description=(
-        "Create the user if it does not exist and return a newly issued API key. "
-        "The raw API key is shown only in this response."
+        "Create a new user and return a newly issued API key. Usernames are "
+        "display labels and may be non-unique (the user_id in the response is "
+        "the canonical identifier); registering an existing name never issues "
+        "a key for that account. The raw API key is shown only in this "
+        "response."
     ),
 )
 async def register(
     body: RegisterRequest, session: AsyncSession = Depends(get_session)
 ):
-    user = await get_or_create_user(body.username, session)
+    user = await create_user(body.username, session)
     _, api_key = await create_api_key(session, user, name=body.key_name)
     await session.commit()
     return RegisterResponse(

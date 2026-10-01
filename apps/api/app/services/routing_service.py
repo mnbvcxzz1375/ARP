@@ -13,6 +13,7 @@ from app.exceptions import DomainException
 from app.metrics import ROUTE_DECISIONS_TOTAL, ROUTE_FALLBACK_TOTAL
 from app.models.agent import Agent
 from app.models.message import Message
+from app.models.route_decision import RouteDecision
 from app.models.task import Task
 from app.protocol.constants import ErrorCode, DeliveryStatus, MessageType
 from app import metrics
@@ -91,10 +92,13 @@ async def deliver_task_request(
                 lease_id=route_decision.lease_id,
             )
             if not lease:
-                logger.warning(
-                    "Route lease %s invalid or exhausted for task %s",
-                    route_decision.lease_id,
-                    task.id,
+                # Fail closed: an invalid or exhausted lease must block
+                # delivery, never silently fall through.
+                raise DomainException(
+                    ErrorCode.NO_AVAILABLE_RELAY,
+                    f"Route lease {route_decision.lease_id} is invalid or exhausted "
+                    f"for task {task.id}",
+                    status_code=403,
                 )
 
     # Phase 13: Log route decision and create route_selected event
@@ -412,20 +416,26 @@ async def retry_unacked_messages() -> int:
                 )
                 session.add(event)
             else:
-                msg.next_retry_at = now + timedelta(seconds=RETRY_BACKOFF_BASE_S)
-
-            if msg.retry_count >= msg.max_retries:
-                msg.delivery_status = DeliveryStatus.DELIVERY_FAILED.value
-                logger.warning("Message %s exceeded max retries", msg.message_id)
-                # Record delivery_failed event
-                event = MessageDeliveryEvent(
-                    message_id=msg.message_id,
-                    task_id=msg.task_id,
-                    event_type="delivery_failed",
-                    error_code="MAX_RETRIES_EXCEEDED",
-                    error_message=f"Exceeded max retries ({msg.max_retries})",
-                )
-                session.add(event)
+                # Delivery failed again: count this attempt so a permanently
+                # unreachable agent eventually exhausts max_retries instead
+                # of being retried forever.
+                msg.retry_count += 1
+                if msg.retry_count >= msg.max_retries:
+                    msg.delivery_status = DeliveryStatus.DELIVERY_FAILED.value
+                    msg.next_retry_at = None
+                    logger.warning("Message %s exceeded max retries", msg.message_id)
+                    # Record delivery_failed event
+                    event = MessageDeliveryEvent(
+                        message_id=msg.message_id,
+                        task_id=msg.task_id,
+                        event_type="delivery_failed",
+                        error_code="MAX_RETRIES_EXCEEDED",
+                        error_message=f"Exceeded max retries ({msg.max_retries})",
+                    )
+                    session.add(event)
+                else:
+                    backoff = RETRY_BACKOFF_BASE_S * (2 ** msg.retry_count)
+                    msg.next_retry_at = now + timedelta(seconds=backoff)
 
         await session.commit()
 

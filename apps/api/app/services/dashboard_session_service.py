@@ -115,7 +115,11 @@ async def rotate_session(
     await session.execute(
         update(DashboardSession)
         .where(DashboardSession.id == old_session.id)
-        .values(revoked_at=now, revoked_reason=reason)
+        .values(
+            revoked_at=now,
+            revoked_reason=reason,
+            revoked_by_user_id=old_session.user_id,
+        )
     )
 
     user_result = await session.execute(
@@ -147,10 +151,13 @@ async def revoke_session(
     session: AsyncSession,
     ds: DashboardSession,
     reason: str = "logout",
+    *,
+    revoked_by_user_id: uuid.UUID | None = None,
 ) -> None:
     """Revoke a single session."""
     ds.revoked_at = datetime.now(UTC)
     ds.revoked_reason = reason
+    ds.revoked_by_user_id = revoked_by_user_id
     await session.flush()
 
 
@@ -158,6 +165,8 @@ async def revoke_all_sessions(
     session: AsyncSession,
     user_id: uuid.UUID,
     reason: str = "user_disabled",
+    *,
+    revoked_by_user_id: uuid.UUID | None = None,
 ) -> int:
     """Revoke all active sessions for a user. Returns count."""
     now = datetime.now(UTC)
@@ -167,7 +176,11 @@ async def revoke_all_sessions(
             DashboardSession.user_id == user_id,
             DashboardSession.revoked_at.is_(None),
         )
-        .values(revoked_at=now, revoked_reason=reason)
+        .values(
+            revoked_at=now,
+            revoked_reason=reason,
+            revoked_by_user_id=revoked_by_user_id,
+        )
     )
     await session.flush()
     return result.rowcount
@@ -211,25 +224,50 @@ async def get_session_info(
     )
     user = user_result.scalar_one()
 
-    permissions: list[str] = []
-    if user.role in (UserRole.ADMIN, UserRole.SUPER_ADMIN):
-        permissions.extend([
-            "admin:read",
-            "admin:cancel_pending_tasks",
-        ])
-    if user.role == UserRole.SUPER_ADMIN:
-        permissions.extend([
-            "super_admin:disable_user",
-            "super_admin:disable_agent",
-            "super_admin:cancel_running_tasks",
-            "super_admin:export_audit",
-        ])
+    # Derive permissions from the same RBAC source require_permission()
+    # enforces on the server, so frontend gating cannot drift from backend
+    # authorization decisions.
+    #
+    # resolve_user_permissions() unions the platform-role permissions with
+    # org-domain permissions derived from the user's organization
+    # memberships, and fails closed (empty list) if resolution fails.
+    # super_admin therefore still receives the full global permission set
+    # (e2e and frontend guards depend on it).
+    from app.services.rbac_service import resolve_user_permissions
+
+    permissions = await resolve_user_permissions(session, user.id)
+
+    # Organization memberships echoed to the frontend as
+    # [{org_id, name, role}]. Memberships of disabled organizations are
+    # excluded so the echo cannot drift from the permission resolution
+    # above (disabling an org revokes its permissions).
+    from app.models.organization import Organization, OrganizationMember
+
+    member_result = await session.execute(
+        select(OrganizationMember, Organization)
+        .join(Organization, OrganizationMember.org_id == Organization.id)
+        .where(
+            OrganizationMember.user_id == user.id,
+            Organization.is_disabled.is_(False),
+        )
+        .order_by(Organization.name)
+    )
+    organizations = [
+        {
+            "org_id": str(org.id),
+            "name": org.name,
+            "role": member.role,
+        }
+        for member, org in member_result.all()
+    ]
 
     return {
         "user_id": str(user.id),
         "username": user.username,
         "role": user.role,
+        "locale": user.locale,
         "permissions": permissions,
+        "organizations": organizations,
         "csrf_required": True,
         "session_expires_at": ds.expires_at,
         "step_up_until": ds.step_up_until,

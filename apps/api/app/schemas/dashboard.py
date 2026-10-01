@@ -2,7 +2,10 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.exceptions import DomainException
+from app.protocol.constants import ErrorCode
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -195,3 +198,120 @@ class CreateApiKeyResponse(BaseModel):
 
 class RevokeApiKeyRequest(BaseModel):
     allow_last_key: bool = False
+
+
+# ──────────────────────────────────────────────────────────────────
+# User Preferences
+# ──────────────────────────────────────────────────────────────────
+
+ALLOWED_LOCALES = frozenset({"en", "zh"})
+
+# Appearance keys the console may persist. Anything else is rejected
+# rather than silently stored, so the server never becomes a dumping
+# ground for arbitrary client state.
+_ALLOWED_PREFERENCE_KEYS = frozenset({"theme", "fontScale", "reducedMotion"})
+
+_ALLOWED_THEMES = frozenset({"light", "dark"})
+_FONT_SCALE_MIN = 0.8
+_FONT_SCALE_MAX = 1.5
+
+
+class UserPreferencesResponse(BaseModel):
+    locale: str | None
+    preferences: dict[str, Any]
+
+
+class UserProfileResponse(BaseModel):
+    """Current user's identity fields (see PATCH /me/profile)."""
+
+    user_id: str
+    username: str
+
+
+class UpdateUserProfileRequest(BaseModel):
+    """Rename the current user.
+
+    Usernames are non-unique display labels (migration 0030); the user_id
+    is the canonical identifier, so a rename never collides.
+    """
+
+    username: str
+
+    @model_validator(mode="after")
+    def _validate_username(self) -> "UpdateUserProfileRequest":
+        from app.services.user_service import USERNAME_MAX, USERNAME_MIN
+
+        trimmed = self.username.strip()
+        if not (USERNAME_MIN <= len(trimmed) <= USERNAME_MAX):
+            raise DomainException(
+                ErrorCode.INVALID_REQUEST,
+                f"Username must be {USERNAME_MIN}-{USERNAME_MAX} characters.",
+                status_code=400,
+            )
+        return self
+
+
+class UpdateUserPreferencesRequest(BaseModel):
+    """Partial update of user preferences.
+
+    Absent fields are left untouched; ``locale: null`` explicitly clears
+    the stored locale. Invalid locales, unknown preference keys, or
+    values that fail appearance validation are rejected with 400
+    (not Pydantic's 422) so clients get a uniform error envelope.
+    """
+
+    locale: str | None = None
+    preferences: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def _validate_preferences(self) -> "UpdateUserPreferencesRequest":
+        if self.locale is not None and self.locale not in ALLOWED_LOCALES:
+            raise DomainException(
+                ErrorCode.INVALID_REQUEST,
+                f"Invalid locale '{self.locale}'; supported locales: "
+                f"{', '.join(sorted(ALLOWED_LOCALES))}",
+                status_code=400,
+            )
+
+        prefs = self.preferences
+        if prefs is not None:
+            unknown = sorted(set(prefs) - _ALLOWED_PREFERENCE_KEYS)
+            if unknown:
+                raise DomainException(
+                    ErrorCode.INVALID_REQUEST,
+                    f"Unknown preference keys: {', '.join(unknown)}",
+                    status_code=400,
+                )
+
+            if "theme" in prefs and prefs["theme"] not in _ALLOWED_THEMES:
+                raise DomainException(
+                    ErrorCode.INVALID_REQUEST,
+                    f"Invalid theme '{prefs['theme']}'; supported themes: "
+                    f"{', '.join(sorted(_ALLOWED_THEMES))}",
+                    status_code=400,
+                )
+
+            if "fontScale" in prefs:
+                scale = prefs["fontScale"]
+                # bool is an int subclass but is not a valid scale.
+                if isinstance(scale, bool) or not isinstance(scale, (int, float)):
+                    raise DomainException(
+                        ErrorCode.INVALID_REQUEST,
+                        "fontScale must be a number",
+                        status_code=400,
+                    )
+                if not _FONT_SCALE_MIN <= scale <= _FONT_SCALE_MAX:
+                    raise DomainException(
+                        ErrorCode.INVALID_REQUEST,
+                        f"fontScale must be between {_FONT_SCALE_MIN} and {_FONT_SCALE_MAX}",
+                        status_code=400,
+                    )
+
+            if "reducedMotion" in prefs and not isinstance(prefs["reducedMotion"], bool):
+                raise DomainException(
+                    ErrorCode.INVALID_REQUEST,
+                    "reducedMotion must be a boolean",
+                    status_code=400,
+                )
+
+        return self

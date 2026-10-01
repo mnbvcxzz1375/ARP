@@ -25,6 +25,7 @@ from app.models.route_decision import RouteDecision
 from app.models.task import Task
 from app.protocol.constants import ErrorCode, InboundPolicy
 from app.services.edge_discovery import check_local_network_match
+from app.services.route_policy_service import PolicyEvaluationResult
 
 logger = logging.getLogger(__name__)
 
@@ -641,8 +642,10 @@ async def select_route_shadow(
     if candidates:
         for candidate in candidates:
             candidate.final_score = candidate.compute_final_score(timeliness_mode)
-        # Sort by score (lower is better)
-        candidates.sort(key=lambda c: candidate.compute_final_score(timeliness_mode))
+        # Sort by score (lower is better); final_score was computed above,
+        # so sort on it — sorting on the loop variable would make every
+        # key identical and keep only insertion order.
+        candidates.sort(key=lambda c: c.final_score)
         selected = candidates[0]
     else:
         # No candidates available - create a fallback decision

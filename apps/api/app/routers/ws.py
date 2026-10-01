@@ -117,17 +117,30 @@ async def agent_websocket(ws: WebSocket):
 
     mgr = get_connection_manager()
 
+    # Accept the socket BEFORE registering it with the connection manager.
+    # Previously register() ran first: if ws.accept() then failed (client
+    # dropped during the handshake), the in-memory ConnectionState and the
+    # Redis presence entry would leak until the heartbeat cleaner timed
+    # them out, and during that window send_to_agent would keep trying to
+    # deliver to a dead socket.
+    try:
+        await ws.accept()
+    except RuntimeError:
+        logger.info(
+            "WebSocket accept failed for agent=%s (client disconnected during handshake)",
+            agent.agent_number,
+        )
+        return
+
     try:
         conn_state = await mgr.register(
             ws, agent.id, agent.agent_number, session_id or str(agent.id)
         )
     except DomainException as exc:
-        await ws.accept()
         await ws.send_text(build_error(exc.code, exc.message))
         await ws.close(code=4002)
         return
 
-    await ws.accept()
     metrics.ws_connected()
     await _update_agent_status(str(agent.id), "online")
 

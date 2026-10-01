@@ -150,7 +150,9 @@ async def update_circuit_breaker(
             # Count successes in half_open state
             breaker.success_count += 1
             if breaker.success_count >= breaker.success_threshold:
-                # Transition to closed
+                # Transition to closed; capture the success count BEFORE the
+                # reset below so the audit reflects what triggered recovery.
+                recovered_success_count = breaker.success_count
                 breaker.state = "closed"
                 breaker.failure_count = 0
                 breaker.success_count = 0
@@ -165,7 +167,7 @@ async def update_circuit_breaker(
                     resource_id=str(breaker.id),
                     details={
                         "relay_node_id": str(relay_node_id),
-                        "success_count": breaker.success_count,
+                        "success_count": recovered_success_count,
                     },
                 )
     else:
@@ -485,26 +487,38 @@ async def execute_failover(
         return event
 
     except Exception as e:
-        # Explicit rollback on failure
+        # Roll back the partial migration. The failure bookkeeping below
+        # must run in a FRESH transaction: after rollback() the event row
+        # in this session is expired, and since this exception propagates
+        # to the caller, anything written to `session` here would never be
+        # committed — leaving the event stuck in "pending" forever.
         await session.rollback()
-
-        event.status = "failed"
-        event.error_message = str(e)
         logger.error("Failover %s failed: %s", event.id, e, exc_info=True)
 
-        await write_audit(
-            session,
-            actor_type="system",
-            actor_id="system",
-            action="failover_failed",
-            resource_type="failover_event",
-            resource_id=str(event.id),
-            details={
-                "error": str(e),
-                "from_relay_id": str(event.from_relay_id),
-                "to_relay_id": str(event.to_relay_id),
-            },
-        )
+        from app.database import SessionLocal
+
+        async with SessionLocal() as cleanup_session:
+            result = await cleanup_session.execute(
+                select(FailoverEvent).where(FailoverEvent.id == event.id)
+            )
+            failed_event = result.scalar_one_or_none()
+            if failed_event is not None:
+                failed_event.status = "failed"
+                failed_event.error_message = str(e)[:2000]
+                await write_audit(
+                    cleanup_session,
+                    actor_type="system",
+                    actor_id="system",
+                    action="failover_failed",
+                    resource_type="failover_event",
+                    resource_id=str(failed_event.id),
+                    details={
+                        "error": str(e)[:2000],
+                        "from_relay_id": str(failed_event.from_relay_id),
+                        "to_relay_id": str(failed_event.to_relay_id),
+                    },
+                )
+                await cleanup_session.commit()
 
         raise
 
@@ -627,6 +641,17 @@ async def check_and_trigger_auto_failover(session: AsyncSession) -> list[Failove
                 "Failed to trigger auto-failover for config %s: %s",
                 config.id,
                 e.message,
+            )
+        except Exception as e:
+            # Non-domain errors (e.g. DB failures) must not escape the loop:
+            # they would skip the commit below and silently drop every
+            # FailoverEvent already triggered in this batch. execute_failover
+            # already persisted its own failure state in a fresh session.
+            logger.error(
+                "Auto-failover execution error for config %s: %s",
+                config.id,
+                e,
+                exc_info=True,
             )
 
     if triggered_events:

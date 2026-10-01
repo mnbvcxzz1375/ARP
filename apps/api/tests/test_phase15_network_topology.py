@@ -304,7 +304,7 @@ class TestNetworkTopologyService:
                 scope_type="enterprise",
             )
 
-        assert exc_info.value.code == ErrorCode.INVALID_REQUEST
+        assert exc_info.value.code == ErrorCode.RESOURCE_NOT_FOUND
         assert str(fake_user_id) in exc_info.value.message
 
     async def test_create_network_scope_invalid_type(self, session, test_user):
@@ -343,7 +343,7 @@ class TestNetworkTopologyService:
         with pytest.raises(DomainException) as exc_info:
             await network_topology_service.get_network_scope(session, scope_id=fake_scope_id)
 
-        assert exc_info.value.code == ErrorCode.INVALID_REQUEST
+        assert exc_info.value.code == ErrorCode.RESOURCE_NOT_FOUND
         assert str(fake_scope_id) in exc_info.value.message
 
     async def test_list_network_scopes(self, session, test_user):
@@ -410,7 +410,7 @@ class TestNetworkTopologyService:
                 zone_type="local",
             )
 
-        assert exc_info.value.code == ErrorCode.INVALID_REQUEST
+        assert exc_info.value.code == ErrorCode.RESOURCE_NOT_FOUND
         assert str(fake_scope_id) in exc_info.value.message
 
     async def test_create_network_zone_invalid_type(self, session, test_user):
@@ -453,7 +453,7 @@ class TestNetworkTopologyService:
                 parent_zone_id=fake_parent_id,
             )
 
-        assert exc_info.value.code == ErrorCode.INVALID_REQUEST
+        assert exc_info.value.code == ErrorCode.RESOURCE_NOT_FOUND
         assert str(fake_parent_id) in exc_info.value.message
 
     async def test_create_network_zone_parent_wrong_scope(self, session, test_user):
@@ -534,7 +534,7 @@ class TestNetworkTopologyService:
         with pytest.raises(DomainException) as exc_info:
             await network_topology_service.get_zones_in_scope(session, scope_id=fake_scope_id)
 
-        assert exc_info.value.code == ErrorCode.INVALID_REQUEST
+        assert exc_info.value.code == ErrorCode.RESOURCE_NOT_FOUND
 
     async def test_update_network_scope(self, session, test_user):
         """Test updating a network scope."""
@@ -572,7 +572,7 @@ class TestNetworkTopologyService:
         with pytest.raises(DomainException) as exc_info:
             await network_topology_service.get_network_scope(session, scope_id=scope_id)
 
-        assert exc_info.value.code == ErrorCode.INVALID_REQUEST
+        assert exc_info.value.code == ErrorCode.RESOURCE_NOT_FOUND
 
     async def test_delete_network_zone(self, session, test_user):
         """Test deleting a network zone."""
@@ -598,4 +598,4 @@ class TestNetworkTopologyService:
         with pytest.raises(DomainException) as exc_info:
             await network_topology_service.get_network_zone(session, zone_id=zone_id)
 
-        assert exc_info.value.code == ErrorCode.INVALID_REQUEST
+        assert exc_info.value.code == ErrorCode.RESOURCE_NOT_FOUND

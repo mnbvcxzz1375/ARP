@@ -1,4 +1,5 @@
-﻿import logging
+﻿import ipaddress
+import logging
 
 from contextlib import asynccontextmanager
 
@@ -31,7 +32,9 @@ from app.routers.route_policy import router as route_policy_router
 from app.routers.network_overview import router as network_overview_router
 from app.routers.network_topology import router as network_topology_router
 from app.routers.egress import router as egress_router
+from app.routers.gateways import router as egress_gateways_router
 from app.routers.dedicated_channels import router as dedicated_channels_router
+from app.routers.organizations import router as organizations_router
 from app.routers.public import router as public_router
 from app.websocket.manager import get_connection_manager
 
@@ -48,7 +51,16 @@ OPENAPI_TAGS = [
     {"name": "sla", "description": "SLA monitoring: targets, violations, metrics, and compliance reports."},
     {"name": "continuity", "description": "Business continuity: failover configs, circuit breakers, and relay health."},
     {"name": "dashboard", "description": "Dashboard APIs: network overview, egress logs, and statistics."},
+    {"name": "organizations", "description": "Organization management: membership, roles, and member administration."},
 ]
+
+
+def _is_loopback_ip(ip: str) -> bool:
+    """True for IPv4/IPv6 loopback addresses (127.0.0.0/8, ::1)."""
+    try:
+        return ipaddress.ip_address(ip).is_loopback
+    except ValueError:
+        return False
 
 
 @asynccontextmanager
@@ -137,6 +149,17 @@ def create_app() -> FastAPI:
         try:
             from app.services.rate_limit_service import check_rate_limit
             request_ip = request.client.host if request.client else None
+            # Loopback traffic (local development and the E2E gate, which
+            # drives the whole suite through the preview proxy from
+            # 127.0.0.1) is exempt from the per-IP dimension: it easily
+            # exceeds the per-IP limit and throttles the test suite, while
+            # the user-level and global dimensions still apply. In
+            # container deployments the API sees the reverse proxy's
+            # container address, never loopback, so production per-IP
+            # limiting is unaffected. CI sets RATE_LIMIT_IP_MAX=999999 for
+            # the same reason (see docs/ci-cd.md).
+            if request_ip is not None and _is_loopback_ip(request_ip):
+                request_ip = None
             await check_rate_limit(
                 user_id=None,
                 agent_id=None,
@@ -183,7 +206,9 @@ def create_app() -> FastAPI:
     app.include_router(network_overview_router)
     app.include_router(network_topology_router)
     app.include_router(egress_router)
+    app.include_router(egress_gateways_router)
     app.include_router(dedicated_channels_router)
+    app.include_router(organizations_router)
     app.include_router(public_router)
     _install_openapi_schema(app)
 

@@ -213,7 +213,10 @@ async def disable_user(
     audit_details: dict = {"is_disabled": is_disabled}
     if is_disabled:
         revoked_sessions = await revoke_all_sessions(
-            session, uuid.UUID(user_id), reason="user_disabled",
+            session,
+            uuid.UUID(user_id),
+            reason="user_disabled",
+            revoked_by_user_id=ds.user_id,
         )
         audit_details["revoked_sessions"] = revoked_sessions
 
@@ -260,7 +263,10 @@ async def force_revoke_keys(
         revoked_count += 1
 
     revoked_sessions = await revoke_all_sessions(
-        session, uuid.UUID(user_id), reason="force_revoke_keys",
+        session,
+        uuid.UUID(user_id),
+        reason="force_revoke_keys",
+        revoked_by_user_id=ds.user_id,
     )
 
     await write_audit(

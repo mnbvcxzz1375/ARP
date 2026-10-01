@@ -93,23 +93,38 @@ class TestLogin:
 
     async def test_login_wrong_key_writes_failure_audit(self, client: AsyncClient, user_with_key, session):
         user, _, _ = user_with_key
+        # Dynamically generated bogus key; no real credential literal in
+        # the source tree.
+        import uuid as _uuid
+        bogus_key = "ak_" + _uuid.uuid4().hex
         resp = await client.post("/v1/dashboard/auth/login", json={
             "username": user.username,
-            "api_key": "wrong-key",
+            "api_key": bogus_key,
         })
         assert resp.status_code == 401
 
+        # Key-first login (migration 0030): a wrong key cannot resolve any
+        # account, so the failure audit is anonymous and carries the
+        # submitted username for traceability instead of an actor_id.
         from app.models.audit_log import AuditLog
         from sqlalchemy import select
         result = await session.execute(
             select(AuditLog).where(
                 AuditLog.action == "dashboard.login.failure",
-                AuditLog.actor_id == str(user.id),
+                AuditLog.actor_id == "unknown",
             )
         )
-        log = result.scalar_one_or_none()
-        assert log is not None, "login failure audit should be written for wrong key"
+        # Other anonymous failure audits may exist in the shared test
+        # database; match the one for this submission.
+        logs = [
+            row
+            for row in result.scalars()
+            if row.details.get("submitted_username") == user.username
+        ]
+        assert logs, "login failure audit should be written for wrong key"
+        log = logs[0]
         assert log.details["reason"] == "invalid_credentials"
+        assert log.details["submitted_username"] == user.username
 
     async def test_login_disabled_user_writes_failure_audit(self, client: AsyncClient, user_with_key, session):
         user, _, plain_key = user_with_key

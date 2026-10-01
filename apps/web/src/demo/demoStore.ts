@@ -16,6 +16,14 @@
 import { createDemoWorld, type DemoWorld } from './fixtures';
 import type { PersonaId } from './personas';
 
+/** Server-side appearance preferences (settings page PATCH target). Mirrors
+ * UpdateUserPreferencesRequest: theme / fontScale / reducedMotion. */
+export interface DemoPreferences {
+  theme?: 'dark' | 'light';
+  fontScale?: number;
+  reducedMotion?: boolean;
+}
+
 export interface DemoStore {
   world: DemoWorld;
   /** Persona currently logged in ('personal' is the default demo login). */
@@ -24,6 +32,8 @@ export interface DemoStore {
   loggedIn: boolean;
   /** Server-side locale preference mirror (settings page PATCH target). */
   locale: 'en' | 'zh' | null;
+  /** Server-side appearance preferences (settings page PATCH target). */
+  preferences: DemoPreferences;
 }
 
 const STORAGE_KEY = 'agentnet-demo-session';
@@ -32,21 +42,33 @@ interface PersistedSession {
   personaId: PersonaId;
   loggedIn: boolean;
   locale: 'en' | 'zh' | null;
+  preferences?: DemoPreferences;
 }
 
 function loadSession(): PersistedSession {
-  const fallback: PersistedSession = { personaId: 'personal', loggedIn: false, locale: null };
+  const fallback: PersistedSession = {
+    personaId: 'personal',
+    loggedIn: false,
+    locale: null,
+    preferences: {},
+  };
   if (typeof window === 'undefined' || !window.localStorage) return fallback;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as Partial<PersistedSession>;
+    const prefs = parsed.preferences ?? {};
     return {
       personaId: parsed.personaId === 'super_admin' || parsed.personaId === 'org_manager' || parsed.personaId === 'personal'
         ? parsed.personaId
         : 'personal',
       loggedIn: !!parsed.loggedIn,
       locale: parsed.locale === 'en' || parsed.locale === 'zh' ? parsed.locale : null,
+      preferences: {
+        theme: prefs.theme === 'dark' || prefs.theme === 'light' ? prefs.theme : undefined,
+        fontScale: typeof prefs.fontScale === 'number' ? prefs.fontScale : undefined,
+        reducedMotion: typeof prefs.reducedMotion === 'boolean' ? prefs.reducedMotion : undefined,
+      },
     };
   } catch {
     return fallback;
@@ -70,10 +92,16 @@ const store: DemoStore = {
   personaId: initial.personaId,
   loggedIn: initial.loggedIn,
   locale: initial.locale,
+  preferences: initial.preferences ?? {},
 };
 
 function sync(): void {
-  persistSession({ personaId: store.personaId, loggedIn: store.loggedIn, locale: store.locale });
+  persistSession({
+    personaId: store.personaId,
+    loggedIn: store.loggedIn,
+    locale: store.locale,
+    preferences: store.preferences,
+  });
 }
 
 export function getDemoStore(): DemoStore {
@@ -92,8 +120,10 @@ export function resetDemoStore(): void {
   store.world = createDemoWorld();
 }
 
-/** Clear the demo session (identity + locale) without touching the world.
- * Used between tests; the banner's reset control keeps the session. */
+/** Clear the demo session (identity + locale + preferences) without
+ * touching the world. Used between tests; the banner's reset control
+ * keeps the session. */
 export function resetDemoSession(): void {
+  store.preferences = {};
   setDemoSession({ personaId: 'personal', loggedIn: false, locale: null });
 }

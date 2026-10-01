@@ -66,6 +66,40 @@ describe('demo auth', () => {
     const r = await demoApi.patch('/v1/dashboard/auth/me/profile', { username: 'renamed' });
     expect((r.data as { username: string }).username).toBe('renamed');
   });
+
+  it('settings preferences: PATCH persists theme/fontScale/reducedMotion', async () => {
+    await login('super_admin');
+    const base = (await get('/v1/dashboard/auth/me/preferences')) as {
+      locale: string | null;
+      preferences: Record<string, unknown>;
+    };
+    expect(base.preferences).toEqual({});
+
+    // The settings page PATCHes each appearance key separately; the
+    // response must echo the stored preferences or the optimistic update
+    // snaps back (the "options can't be changed" bug).
+    const r1 = await demoApi.patch('/v1/dashboard/auth/me/preferences', {
+      preferences: { theme: 'light' },
+    });
+    expect((r1.data as { preferences: { theme?: string } }).preferences.theme).toBe('light');
+    const r2 = await demoApi.patch('/v1/dashboard/auth/me/preferences', {
+      preferences: { fontScale: 1.25, reducedMotion: true },
+    });
+    expect((r2.data as { preferences: { theme?: string; fontScale?: number } }).preferences).toEqual({
+      theme: 'light',
+      fontScale: 1.25,
+      reducedMotion: true,
+    });
+
+    // Locale is a sibling top-level field and unaffected by preference patches.
+    await demoApi.patch('/v1/dashboard/auth/me/preferences', { locale: 'zh' });
+    const after = (await get('/v1/dashboard/auth/me/preferences')) as {
+      locale: string | null;
+      preferences: { theme?: string };
+    };
+    expect(after.locale).toBe('zh');
+    expect(after.preferences.theme).toBe('light');
+  });
 });
 
 describe('demo GET surface (page contracts)', () => {

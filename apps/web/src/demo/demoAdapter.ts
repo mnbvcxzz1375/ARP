@@ -95,7 +95,8 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
     return { ...me, locale: getDemoStore().locale ?? null };
   }
   if (url === '/v1/dashboard/auth/me/preferences') {
-    return { locale: getDemoStore().locale ?? null, preferences: {} };
+    const s = getDemoStore();
+    return { locale: s.locale ?? null, preferences: s.preferences };
   }
 
   // ── personal console ─────────────────────────────────────────────
@@ -750,9 +751,32 @@ function handleMutation(method: string, url: string, body?: unknown): Promise<Re
     return ok({ user_id: me.user_id, username: username ?? user?.username ?? me.username });
   }
   if (method === 'patch' && url === '/v1/dashboard/auth/me/preferences') {
-    const { locale } = body as { locale?: string };
-    if (locale === 'en' || locale === 'zh') setDemoSession({ locale });
-    return ok({ locale: getDemoStore().locale ?? null, preferences: {} });
+    const { locale, preferences } = body as {
+      locale?: string | null;
+      preferences?: Record<string, unknown>;
+    };
+    const s = getDemoStore();
+    if (locale === 'en' || locale === 'zh') {
+      s.locale = locale;
+    } else if (locale === null) {
+      s.locale = null;
+    }
+    if (preferences) {
+      const next = { ...s.preferences };
+      if (preferences.theme === 'dark' || preferences.theme === 'light') {
+        next.theme = preferences.theme;
+      } else if (preferences.theme === null || preferences.theme === undefined) {
+        // absent keeps the stored value; explicit null clears it
+        if (preferences.theme === null) delete next.theme;
+      }
+      if (typeof preferences.fontScale === 'number') next.fontScale = preferences.fontScale;
+      if (typeof preferences.reducedMotion === 'boolean') {
+        next.reducedMotion = preferences.reducedMotion;
+      }
+      s.preferences = next;
+    }
+    setDemoSession({});
+    return ok({ locale: s.locale ?? null, preferences: s.preferences });
   }
 
   if (!store.loggedIn) return rejectDemo(401, 'not authenticated');

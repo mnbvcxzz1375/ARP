@@ -617,87 +617,74 @@ class TestAdapterServiceFailClosed:
         key2 = _registry_key("openclaw", {"working_dir": "/opt/a"})
         assert key1 == key2
 
-    def test_dispatch_task_missing_task_uuid_fails(self):
+    async def test_dispatch_task_missing_task_uuid_fails(self):
         """dispatch_task must fail closed when metadata lacks task_uuid."""
         from app.services.adapter_service import dispatch_task
         from app.exceptions import DomainException
-        import asyncio
 
         session = AsyncMock()
         with pytest.raises(DomainException) as exc_info:
-            asyncio.get_event_loop().run_until_complete(
-                dispatch_task(
-                    session,
-                    task_id="t1",
-                    agent_id=str(uuid4()),
-                    adapter_type="openclaw",
-                    content=[],
-                    metadata={"agent_uuid": str(uuid4())},
-                    adapter_config={"working_dir": "/test"},
-                )
+            await dispatch_task(
+                session,
+                task_id="t1",
+                agent_id=str(uuid4()),
+                adapter_type="openclaw",
+                content=[],
+                metadata={"agent_uuid": str(uuid4())},
+                adapter_config={"working_dir": "/test"},
             )
         assert "task_uuid" in exc_info.value.message
 
-    def test_dispatch_task_missing_agent_uuid_fails(self):
+    async def test_dispatch_task_missing_agent_uuid_fails(self):
         """dispatch_task must fail closed when metadata lacks agent_uuid."""
         from app.services.adapter_service import dispatch_task
         from app.exceptions import DomainException
-        import asyncio
-        from uuid import uuid4
 
         session = AsyncMock()
         with pytest.raises(DomainException) as exc_info:
-            asyncio.get_event_loop().run_until_complete(
-                dispatch_task(
-                    session,
-                    task_id="t1",
-                    agent_id=str(uuid4()),
-                    adapter_type="openclaw",
-                    content=[],
-                    metadata={"task_uuid": str(uuid4())},
-                    adapter_config={"working_dir": "/test"},
-                )
+            await dispatch_task(
+                session,
+                task_id="t1",
+                agent_id=str(uuid4()),
+                adapter_type="openclaw",
+                content=[],
+                metadata={"task_uuid": str(uuid4())},
+                adapter_config={"working_dir": "/test"},
             )
         assert "agent_uuid" in exc_info.value.message
 
-    def test_dispatch_task_empty_metadata_fails(self):
+    async def test_dispatch_task_empty_metadata_fails(self):
         """dispatch_task must fail closed when metadata is empty dict."""
         from app.services.adapter_service import dispatch_task
         from app.exceptions import DomainException
-        import asyncio
 
         session = AsyncMock()
         with pytest.raises(DomainException):
-            asyncio.get_event_loop().run_until_complete(
-                dispatch_task(
-                    session,
-                    task_id="t1",
-                    agent_id=str(uuid4()),
-                    adapter_type="openclaw",
-                    content=[],
-                    metadata={},
-                    adapter_config={"working_dir": "/test"},
-                )
+            await dispatch_task(
+                session,
+                task_id="t1",
+                agent_id=str(uuid4()),
+                adapter_type="openclaw",
+                content=[],
+                metadata={},
+                adapter_config={"working_dir": "/test"},
             )
 
-    def test_dispatch_task_none_metadata_fails(self):
+    async def test_dispatch_task_none_metadata_fails(self):
         """dispatch_task must fail closed when metadata is None."""
         from app.services.adapter_service import dispatch_task
         from app.exceptions import DomainException
-        import asyncio
 
         session = AsyncMock()
         with pytest.raises(DomainException):
-            asyncio.get_event_loop().run_until_complete(
-                dispatch_task(
-                    session,
-                    task_id="t1",
-                    agent_id=str(uuid4()),
-                    adapter_type="openclaw",
-                    content=[],
-                    metadata=None,
-                    adapter_config={"working_dir": "/test"},
-                )
+            await dispatch_task(
+                session,
+                task_id="t1",
+                agent_id=str(uuid4()),
+                adapter_type="openclaw",
+                content=[],
+                metadata=None,
+                adapter_config={"working_dir": "/test"},
             )
 
 

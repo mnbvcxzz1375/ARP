@@ -9,7 +9,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 from sqlalchemy import select
@@ -281,6 +281,42 @@ async def proxy_external_request(
             ErrorCode.EGRESS_BLOCKED,
             req_error_reason,
             status_code=502,
+        )
+    except httpx.InvalidURL as e:
+        # Malformed target URL (e.g. missing scheme like "example.com/api").
+        # InvalidURL is NOT a RequestError subclass, so without this clause
+        # it would escape as an unhandled 500 with no egress log or audit.
+        logger.error("Egress request to invalid URL %s: %s", target_url, e)
+        await _log_egress(
+            session,
+            gateway_id=gateway_id,
+            task_id=task_id,
+            agent_id=agent_id,
+            request_type=request_type,
+            target_domain=urlparse(target_url).netloc,
+            request_size_bytes=len(str(request_body or "")),
+            response_size_bytes=0,
+            status_code=400,
+            latency_ms=0,
+            cost_estimate=None,
+            approval_id=approval_id,
+        )
+        invalid_url_reason = f"Invalid target URL {target_url}: {str(e)}"
+        await _persist_failure_evidence(
+            session,
+            agent_id=agent_id,
+            gateway_id=gateway_id,
+            task_id=task_id,
+            request_type=request_type,
+            target_url=target_url,
+            status_code=400,
+            latency_ms=0,
+            reason=invalid_url_reason,
+        )
+        raise DomainException(
+            ErrorCode.EGRESS_BLOCKED,
+            invalid_url_reason,
+            status_code=400,
         )
 
     # 7. Cache 2xx GET responses
@@ -618,12 +654,37 @@ def _parse_rate_limit_config(config: dict | None) -> tuple[int | None, int | Non
     return None, None
 
 
+# Atomic sliding-window rate limit: prune, count, admit and set TTL in one
+# round-trip. The previous zrem/zcard/zadd sequence was check-then-act
+# (concurrent requests could both pass the count check) and reused the same
+# member string for same-timestamp requests, which overwrote each other and
+# undercounted. Return convention matches rate_limit_service: 0 = allowed,
+# 1 = rate limited.
+_RATE_LIMIT_LUA = """
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window_start = tonumber(ARGV[2])
+local max_requests = tonumber(ARGV[3])
+local window_ms = tonumber(ARGV[4])
+local member = ARGV[5]
+
+redis.call('ZREMRANGEBYSCORE', key, '-inf', window_start)
+local count = redis.call('ZCARD', key)
+if count >= max_requests then
+    return 1
+end
+redis.call('ZADD', key, now, member)
+redis.call('PEXPIRE', key, window_ms)
+return 0
+"""
+
+
 async def _check_egress_rate_limit(
     gateway_id: UUID,
     agent_id: UUID,
     rate_limit_config: dict | None,
 ) -> None:
-    """Check egress rate limit with Redis sorted-set sliding window.
+    """Check egress rate limit with a Redis Lua sliding window.
 
     Raises DomainException(RATE_LIMITED, 429) when throttled.
     Raises DomainException(INTERNAL_ERROR, 503) on Redis failure.
@@ -634,14 +695,24 @@ async def _check_egress_rate_limit(
 
     now_s = time.time()
     window_start = now_s - window_seconds
-    member = f"{now_s}:{agent_id}"
+    # Uniqify the member: two requests in the same clock tick must not
+    # collapse onto one sorted-set entry.
+    member = f"{now_s}:{agent_id}:{uuid4().hex}"
     key = f"egress:rate_limit:{gateway_id}:{agent_id}"
 
     r = redis_module.redis_client
     try:
-        await r.zremrangebyscore(key, "-inf", window_start)
-        count = await r.zcard(key)
-        if count >= max_requests:
+        allowed = await r.eval(
+            _RATE_LIMIT_LUA,
+            1,
+            key,
+            str(now_s),
+            str(window_start),
+            str(max_requests),
+            str(window_seconds * 2 * 1000),
+            member,
+        )
+        if int(allowed):
             raise DomainException(
                 ErrorCode.RATE_LIMITED,
                 f"Egress gateway {gateway_id} rate limit exceeded: "
@@ -653,8 +724,6 @@ async def _check_egress_rate_limit(
                     "window_seconds": window_seconds,
                 },
             )
-        await r.zadd(key, {member: now_s})
-        await r.expire(key, window_seconds * 2)
     except DomainException:
         raise
     except Exception as exc:

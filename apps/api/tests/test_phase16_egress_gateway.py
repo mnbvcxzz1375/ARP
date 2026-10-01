@@ -552,8 +552,8 @@ class TestEgressRateLimit:
     ):
         """zcard >= max_requests -> RATE_LIMITED(429), httpx never called."""
         mock_redis = AsyncMock()
-        mock_redis.zremrangebyscore = AsyncMock()
-        mock_redis.zcard = AsyncMock(return_value=1)  # 1 >= 1 -> throttled
+        # Lua returns 1 -> throttled (count >= max_requests)
+        mock_redis.eval = AsyncMock(return_value=1)
 
         with patch("app.services.egress_service.redis_module.redis_client", mock_redis):
             with patch("app.services.egress_service.httpx.AsyncClient") as mock_httpx:
@@ -576,7 +576,7 @@ class TestEgressRateLimit:
     ):
         """Redis failure -> INTERNAL_ERROR(503), httpx never called."""
         mock_redis = AsyncMock()
-        mock_redis.zremrangebyscore = AsyncMock(
+        mock_redis.eval = AsyncMock(
             side_effect=ConnectionError("Redis connection refused"),
         )
 
@@ -601,10 +601,7 @@ class TestEgressRateLimit:
     ):
         """Under limit: Redis methods and httpx are called, response returned."""
         mock_redis = AsyncMock()
-        mock_redis.zremrangebyscore = AsyncMock()
-        mock_redis.zcard = AsyncMock(return_value=0)    # 0 < 60 -> OK
-        mock_redis.zadd = AsyncMock()
-        mock_redis.expire = AsyncMock()
+        mock_redis.eval = AsyncMock(return_value=0)     # 0 -> admitted
         mock_redis.get = AsyncMock(return_value=None)   # cache miss
         mock_redis.set = AsyncMock()                    # _cache_set
 
@@ -631,10 +628,7 @@ class TestEgressRateLimit:
                 )
 
                 assert result == {"data": "ok"}
-                mock_redis.zremrangebyscore.assert_called_once()
-                mock_redis.zcard.assert_called_once()
-                mock_redis.zadd.assert_called_once()
-                mock_redis.expire.assert_called_once()
+                mock_redis.eval.assert_called_once()
                 mock_redis.set.assert_awaited_once()
 
 
@@ -646,10 +640,7 @@ class TestEgressCache:
     ):
         """Cache hit returns cached data without making HTTP request."""
         mock_redis = AsyncMock()
-        mock_redis.zremrangebyscore = AsyncMock()
-        mock_redis.zcard = AsyncMock(return_value=0)
-        mock_redis.zadd = AsyncMock()
-        mock_redis.expire = AsyncMock()
+        mock_redis.eval = AsyncMock(return_value=0)  # admitted
         mock_redis.get = AsyncMock(return_value='{"data": "cached"}')
 
         with patch("app.services.egress_service.redis_module.redis_client", mock_redis):
@@ -680,10 +671,7 @@ class TestEgressCache:
     ):
         """Cache miss -> HTTP call -> 2xx response stored in cache."""
         mock_redis = AsyncMock()
-        mock_redis.zremrangebyscore = AsyncMock()
-        mock_redis.zcard = AsyncMock(return_value=0)
-        mock_redis.zadd = AsyncMock()
-        mock_redis.expire = AsyncMock()
+        mock_redis.eval = AsyncMock(return_value=0)  # admitted
         mock_redis.get = AsyncMock(return_value=None)
         mock_redis.set = AsyncMock()
 
@@ -717,10 +705,7 @@ class TestEgressCache:
     ):
         """Redis error during cache get raises 503, HTTP not called."""
         mock_redis = AsyncMock()
-        mock_redis.zremrangebyscore = AsyncMock()
-        mock_redis.zcard = AsyncMock(return_value=0)
-        mock_redis.zadd = AsyncMock()
-        mock_redis.expire = AsyncMock()
+        mock_redis.eval = AsyncMock(return_value=0)  # admitted
         mock_redis.get = AsyncMock(side_effect=ConnectionError("Connection refused"))
 
         with patch("app.services.egress_service.redis_module.redis_client", mock_redis):
@@ -744,10 +729,7 @@ class TestEgressCache:
     ):
         """POST request does not read from or write to cache."""
         mock_redis = AsyncMock()
-        mock_redis.zremrangebyscore = AsyncMock()
-        mock_redis.zcard = AsyncMock(return_value=0)
-        mock_redis.zadd = AsyncMock()
-        mock_redis.expire = AsyncMock()
+        mock_redis.eval = AsyncMock(return_value=0)  # admitted
 
         mock_response = MagicMock()
         mock_response.status_code = 200

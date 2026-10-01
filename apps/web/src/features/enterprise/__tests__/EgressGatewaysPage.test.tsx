@@ -1,13 +1,18 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import EgressGatewaysPage from '../EgressGatewaysPage';
 
 vi.mock('../../../api/client', () => ({
-  default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+}));
+
+vi.mock('../../../hooks/useAuth', () => ({
+  useAuth: vi.fn(),
 }));
 
 import api from '../../../api/client';
+import { useAuth } from '../../../hooks/useAuth';
 
 function renderPage() {
   const qc = new QueryClient({
@@ -16,175 +21,271 @@ function renderPage() {
       mutations: { retry: false },
     },
   });
-  return render(<QueryClientProvider client={qc}><EgressGatewaysPage /></QueryClientProvider>);
+  return render(
+    <QueryClientProvider client={qc}>
+      <EgressGatewaysPage />
+    </QueryClientProvider>,
+  );
+}
+
+function mockSuperAdmin(stepUp: string | null = '2999-01-01T00:00:00Z') {
+  (useAuth as any).mockReturnValue({
+    data: {
+      user_id: 'u-admin',
+      username: 'admin',
+      role: 'super_admin',
+      step_up_until: stepUp,
+    },
+  });
 }
 
 const mockGateways = [
   {
-    gateway_id: 'eg-1',
-    name: 'Primary Gateway',
-    endpoint: 'https://gw.example.com',
-    protocol: 'https',
+    id: 'eg-1',
+    scope_id: 'sc-1',
+    gateway_name: 'Primary Gateway',
+    gateway_type: 'api',
+    domain_allowlist: ['api.example.com', 'cdn.example.com'],
+    secret_store_ref: 'env:EGRESS_PRIMARY_KEY',
+    rate_limit_config: null,
+    cache_config: null,
+    cost_tracking: true,
     enabled: true,
-    allowed_domains: ['api.example.com', 'cdn.example.com'],
     created_at: '2026-05-24T12:00:00Z',
+    updated_at: '2026-05-24T12:00:00Z',
   },
   {
-    gateway_id: 'eg-2',
-    name: 'SOCKS5 Proxy',
-    endpoint: 'socks5://proxy.example.com:1080',
-    protocol: 'socks5',
+    id: 'eg-2',
+    scope_id: 'sc-2',
+    gateway_name: 'Model Proxy',
+    gateway_type: 'model',
+    domain_allowlist: [],
+    secret_store_ref: null,
+    rate_limit_config: null,
+    cache_config: null,
+    cost_tracking: false,
     enabled: false,
-    allowed_domains: [],
     created_at: '2026-05-24T11:00:00Z',
+    updated_at: '2026-05-24T11:00:00Z',
   },
 ];
 
-describe('EgressGatewaysPage', () => {
+const mockScopes = {
+  scopes: [
+    { scope_id: 'sc-1', scope_name: 'HQ Network', scope_type: 'enterprise', username: null },
+    { scope_id: 'sc-2', scope_name: 'Lab', scope_type: 'personal', username: 'lab-user' },
+  ],
+  total: 2,
+};
+
+/** GET has two calls (gateways + scopes); gateways is the first one. */
+function mockGets(gateways: unknown, scopes: unknown = mockScopes) {
+  (api.get as any).mockImplementation((url: string) => {
+    if (url === '/v1/egress/gateways') return Promise.resolve({ data: gateways });
+    if (url === '/v1/dashboard/admin/network/scopes')
+      return Promise.resolve({ data: scopes });
+    return Promise.reject(new Error(`unexpected GET ${url}`));
+  });
+}
+
+describe('EgressGatewaysPage (full CRUD against /v1/egress/gateways)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSuperAdmin();
   });
 
   it('shows loading state initially', () => {
-    (api.get as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    (api.get as any).mockReturnValue(new Promise(() => {}));
     const { container } = renderPage();
     expect(container.querySelector('.animate-spin')).toBeTruthy();
   });
 
-  it('shows error state when API fails', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
+  it('shows error state when the list load fails', async () => {
+    (api.get as any).mockRejectedValue(new Error('Network error'));
     renderPage();
     await waitFor(() => {
       expect(screen.getByText(/failed to load egress gateways/i)).toBeTruthy();
     });
   });
 
-  it('renders gateways from API', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { gateways: mockGateways, total: 2 },
-    });
+  it('renders gateways from the read endpoint', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Primary Gateway')).toBeTruthy();
-      expect(screen.getByText('SOCKS5 Proxy')).toBeTruthy();
+      expect(screen.getByText('Model Proxy')).toBeTruthy();
     });
+    expect(api.get).toHaveBeenCalledWith('/v1/egress/gateways');
   });
 
-  it('opens Add Gateway dialog when button is clicked', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { gateways: mockGateways, total: 2 },
+  it('renders type, scope names, allowlist and cost chips', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Primary Gateway')).toBeTruthy();
     });
+    expect(screen.getByText('api')).toBeTruthy();
+    expect(screen.getByText('model')).toBeTruthy();
+    expect(screen.getByText('HQ Network')).toBeTruthy();
+    expect(screen.getByText('api.example.com, cdn.example.com')).toBeTruthy();
+  });
+
+  it('filters rows client-side by name and clears the filter', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Primary Gateway')).toBeTruthy();
+    });
+
+    const input = screen.getByPlaceholderText(/filter by name, domain or type/i);
+    fireEvent.change(input, { target: { value: 'model' } });
+    expect(screen.getByText('Model Proxy')).toBeTruthy();
+    expect(screen.queryByText('Primary Gateway')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Clear'));
+    expect(screen.getByText('Primary Gateway')).toBeTruthy();
+  });
+
+  it('opens the create form with scope options and posts the gateway', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
+    (api.post as any).mockResolvedValue({ data: mockGateways[0] });
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Primary Gateway')).toBeTruthy();
     });
 
     fireEvent.click(screen.getByText('Add Gateway'));
-    await waitFor(() => {
-      expect(screen.getByText('Add Gateway')).toBeTruthy(); // dialog title
-      expect(screen.getByLabelText('Name')).toBeTruthy();
-      expect(screen.getByLabelText('Endpoint')).toBeTruthy();
-      expect(screen.getByLabelText('Protocol')).toBeTruthy();
-    });
-  });
-
-  it('calls POST API when dialog is submitted', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { gateways: mockGateways, total: 2 },
-    });
-    (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
-    renderPage();
-    await waitFor(() => {
-      expect(screen.getByText('Primary Gateway')).toBeTruthy();
+    const nameInput = await screen.findByLabelText(/name/i);
+    fireEvent.change(nameInput, { target: { value: 'New Gateway' } });
+    fireEvent.change(screen.getByLabelText(/allowed domains/i), {
+      target: { value: 'a.example.com, b.example.com' },
     });
 
-    fireEvent.click(screen.getByText('Add Gateway'));
-    await waitFor(() => {
-      expect(screen.getByText('Add Gateway')).toBeTruthy(); // dialog title
-    });
-
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New Gateway' } });
-    fireEvent.change(screen.getByLabelText('Endpoint'), { target: { value: 'https://new.example.com' } });
-    fireEvent.change(screen.getByLabelText('Allowed Domains (comma-separated)'), {
-      target: { value: 'api.test.com, cdn.test.com' },
-    });
-    fireEvent.click(screen.getByText('Submit'));
-
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/v1/egress/gateways', {
-        name: 'New Gateway',
-        endpoint: 'https://new.example.com',
-        protocol: 'https',
-        enabled: true,
-        allowed_domains: ['api.test.com', 'cdn.test.com'],
+        gateway_name: 'New Gateway',
+        gateway_type: 'api',
+        domain_allowlist: ['a.example.com', 'b.example.com'],
+        secret_store_ref: null,
+        cost_tracking: true,
+        scope_id: 'sc-1',
       });
     });
   });
 
-  it('opens ConfirmDialog when Delete is clicked and calls DELETE on confirm', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { gateways: mockGateways, total: 2 },
-    });
-    (api.delete as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+  it('blocks create when the name is empty', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Primary Gateway')).toBeTruthy();
     });
 
-    // Click Delete on first row
-    const deleteButtons = screen.getAllByText('Delete');
-    fireEvent.click(deleteButtons[0]);
-
-    await waitFor(() => {
-      expect(screen.getByText('Delete Egress Gateway')).toBeTruthy();
-      expect(screen.getByText(/are you sure you want to delete/i)).toBeTruthy();
-    });
-
-    // Confirm delete
-    const confirmButtons = screen.getAllByText('Delete');
-    fireEvent.click(confirmButtons[confirmButtons.length - 1]);
-
-    await waitFor(() => {
-      expect(api.delete).toHaveBeenCalledWith('/v1/egress/gateways/eg-1');
-    });
+    fireEvent.click(screen.getByText('Add Gateway'));
+    const submit = await screen.findByRole('button', { name: 'Submit' });
+    fireEvent.click(submit);
+    expect(await screen.findByText(/gateway name is required/i)).toBeTruthy();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
-  it('calls PATCH API when enabled toggle is clicked', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { gateways: mockGateways, total: 2 },
-    });
-    (api.patch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+  it('toggles enabled via PATCH', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
+    (api.patch as any).mockResolvedValue({ data: mockGateways[0] });
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Primary Gateway')).toBeTruthy();
     });
 
-    // Find the enabled toggle (button showing "Yes" for the enabled gateway)
-    const yesButtons = screen.getAllByText('Yes');
-    fireEvent.click(yesButtons[0]);
-
+    // The enabled cell for eg-1 is a button labeled with the gateway name.
+    const toggle = screen.getByLabelText(/toggle enabled state of gateway primary gateway/i);
+    fireEvent.click(toggle);
     await waitFor(() => {
       expect(api.patch).toHaveBeenCalledWith('/v1/egress/gateways/eg-1', { enabled: false });
     });
   });
 
-  it('opens Edit dialog pre-filled with existing data', async () => {
-    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { gateways: mockGateways, total: 2 },
-    });
-    (api.put as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} });
+  it('opens the edit form prefilled and patches only changed fields', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
+    (api.patch as any).mockResolvedValue({ data: mockGateways[0] });
     renderPage();
     await waitFor(() => {
       expect(screen.getByText('Primary Gateway')).toBeTruthy();
     });
 
-    const editButtons = screen.getAllByText('Edit');
-    fireEvent.click(editButtons[0]);
+    fireEvent.click(screen.getAllByText('Edit')[0]);
+    const nameInput = await screen.findByLabelText(/name/i);
+    expect((nameInput as HTMLInputElement).value).toBe('Primary Gateway');
+    // Scope is locked while editing.
+    expect((screen.getByLabelText(/scope/i) as HTMLSelectElement).disabled).toBe(true);
 
+    fireEvent.change(nameInput, { target: { value: 'Renamed Gateway' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     await waitFor(() => {
-      expect(screen.getByText('Edit Egress Gateway')).toBeTruthy();
-      expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Primary Gateway');
-      expect((screen.getByLabelText('Endpoint') as HTMLInputElement).value).toBe('https://gw.example.com');
+      expect(api.patch).toHaveBeenCalledWith('/v1/egress/gateways/eg-1', {
+        gateway_name: 'Renamed Gateway',
+        gateway_type: 'api',
+        domain_allowlist: ['api.example.com', 'cdn.example.com'],
+        secret_store_ref: 'env:EGRESS_PRIMARY_KEY',
+        cost_tracking: true,
+        enabled: true,
+      });
     });
+  });
+
+  it('deletes a gateway after confirmation', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
+    (api.delete as any).mockResolvedValue({ status: 204 });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Primary Gateway')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getAllByText('Delete')[0]);
+    const dialog = await screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByText('Delete'));
+    await waitFor(() => {
+      expect(api.delete).toHaveBeenCalledWith('/v1/egress/gateways/eg-1');
+    });
+  });
+
+  it('demands step-up before writing when step-up has expired', async () => {
+    mockSuperAdmin(null); // never stepped up
+    mockGets({ gateways: mockGateways, total: 2 });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Primary Gateway')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('Add Gateway'));
+    // Step-up dialog opens instead of the create form.
+    await waitFor(() => {
+      expect(screen.getByText(/api key/i)).toBeTruthy();
+    });
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('hides write controls for non-super-admins', async () => {
+    (useAuth as any).mockReturnValue({
+      data: {
+        user_id: 'u-viewer',
+        username: 'viewer',
+        role: 'admin',
+        step_up_until: '2999-01-01T00:00:00Z',
+      },
+    });
+    mockGets({ gateways: mockGateways, total: 2 });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Primary Gateway')).toBeTruthy();
+    });
+
+    expect(screen.queryByText('Add Gateway')).not.toBeInTheDocument();
+    expect(screen.queryByText('Edit')).not.toBeInTheDocument();
+    expect(screen.queryByText('Delete')).not.toBeInTheDocument();
+    // Enabled state is a plain chip, not a button.
+    screen.getAllByText('Yes').forEach((badge) => expect(badge.tagName).not.toBe('BUTTON'));
+    expect(api.post).not.toHaveBeenCalled();
+    expect(api.patch).not.toHaveBeenCalled();
+    expect(api.delete).not.toHaveBeenCalled();
   });
 });

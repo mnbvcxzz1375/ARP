@@ -281,7 +281,9 @@ async def test_rate_limit_fail_closed_redis_error():
 
     with patch("app.services.egress_service.redis_module") as mock_redis_mod:
         mock_redis = AsyncMock()
-        mock_redis.zadd.side_effect = Exception("Redis connection refused")
+        # The rate limiter is a single atomic Lua eval; a Redis failure there
+        # must fail closed (503) rather than let the request through.
+        mock_redis.eval = AsyncMock(side_effect=Exception("Redis connection refused"))
         mock_redis_mod.redis_client = mock_redis
 
         with pytest.raises(DomainException) as exc_info:

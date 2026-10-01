@@ -49,7 +49,7 @@ Current state:
 - `AdapterContext.external_request()` is the only approved way for adapters to make outbound HTTP calls. It enforces egress policy at the application layer.
 - `adapter_service.py` injects the `proxy_external_request` callback into every AdapterContext it creates. Adapters that attempt to use `context.external_request()` when no gateway is configured get a `RuntimeError` (fail closed).
 - `test_egress_contract.py` has 7 tests proving the contract: routes through gateway, no-gateway fails closed, no-proxy fails closed, denial propagates, rate limit propagates, approval propagates, body/headers forwarded.
-- OpenClaw adapter executes CLI commands locally via subprocess — it does NOT make outbound HTTP calls itself. If the CLI tool makes outbound calls, those bypass the application-level proxy.
+- OpenClaw adapter executes CLI commands locally via subprocess -- it does NOT make outbound HTTP calls itself. If the CLI tool makes outbound calls, those bypass the application-level proxy.
 - **Network-level enforcement** (Kubernetes network policies, firewall rules, service mesh egress gateways) is not yet proven. This is required for public production to prevent subprocess-level bypass.
 
 Required work (remaining):

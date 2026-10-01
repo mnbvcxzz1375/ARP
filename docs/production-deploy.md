@@ -1,4 +1,4 @@
-# Production Deploy — andrewhyc.top
+# Production Deploy -- andrewhyc.top
 
 This guide describes the single-node Docker Compose production deployment for the domain **andrewhyc.top**.
 
@@ -20,11 +20,11 @@ Internet ──┐
      /.well-known/acme-challenge/   (certbot)
 ```
 
-- **nginx** — public entry point, TLS termination, route splitting
-- **api** — FastAPI backend (tasks, agents, auth, WebSocket)
-- **web** — nginx serving the React SPA (`Dockerfile.prod` → static files)
-- **postgres** — primary database
-- **redis** — caching, rate limiting, session store
+- **nginx** -- public entry point, TLS termination, route splitting
+- **api** -- FastAPI backend (tasks, agents, auth, WebSocket)
+- **web** -- nginx serving the React SPA (`Dockerfile.prod` → static files)
+- **postgres** -- primary database
+- **redis** -- caching, rate limiting, session store
 
 ## Prerequisites
 
@@ -94,7 +94,7 @@ The nginx container expects certificates at `/etc/ssl/agentnet/live/andrewhyc.to
 
 Mount the host certificate directory via `SSL_CERT_DIR`:
 
-#### Option A — Linux VPS with Let's Encrypt (default)
+#### Option A -- Linux VPS with Let's Encrypt (default)
 
 ```bash
 # Install certbot and obtain certificates
@@ -102,10 +102,10 @@ sudo apt install certbot
 sudo certbot certonly --standalone -d andrewhyc.top
 
 # Default path: /etc/letsencrypt/live/andrewhyc.top/
-# SSL_CERT_DIR defaults to /etc/letsencrypt — no .env change needed.
+# SSL_CERT_DIR defaults to /etc/letsencrypt -- no .env change needed.
 ```
 
-#### Option B — Linux VPS with custom certs
+#### Option B -- Linux VPS with custom certs
 
 Place your certificate files at `/etc/ssl/agentnet/live/andrewhyc.top/`, or set:
 
@@ -116,7 +116,7 @@ SSL_CERT_DIR=/custom/cert/path
 
 And ensure the files exist at `/custom/cert/path/live/andrewhyc.top/fullchain.pem`.
 
-#### Option C — Windows Docker Desktop
+#### Option C -- Windows Docker Desktop
 
 ```ini
 # infra/.env.production

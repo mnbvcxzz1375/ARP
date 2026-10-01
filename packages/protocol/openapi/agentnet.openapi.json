@@ -293,6 +293,7 @@
             "type": "integer"
           },
           "token_metadata": {
+            "additionalProperties": true,
             "title": "Token Metadata",
             "type": "object"
           },
@@ -1225,6 +1226,17 @@
             "title": "Api Key",
             "type": "string"
           },
+          "org_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Id"
+          },
           "request_id": {
             "title": "Request Id",
             "type": "string"
@@ -1296,6 +1308,18 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
           },
           "error_code": {
             "anyOf": [
@@ -1904,6 +1928,7 @@
             "title": "Max Retry Count"
           },
           "payload": {
+            "additionalProperties": true,
             "description": "Task payload delivered to the target agent.",
             "title": "Payload",
             "type": "object"
@@ -1925,6 +1950,7 @@
           "retry_policy": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -2008,11 +2034,13 @@
             "type": "string"
           },
           "connection_config": {
+            "additionalProperties": true,
             "description": "Connection configuration",
             "title": "Connection Config",
             "type": "object"
           },
           "encryption_config": {
+            "additionalProperties": true,
             "description": "Encryption configuration",
             "title": "Encryption Config",
             "type": "object"
@@ -2120,6 +2148,7 @@
             "type": "string"
           },
           "connection_config": {
+            "additionalProperties": true,
             "title": "Connection Config",
             "type": "object"
           },
@@ -2133,6 +2162,7 @@
             "type": "boolean"
           },
           "encryption_config": {
+            "additionalProperties": true,
             "title": "Encryption Config",
             "type": "object"
           },
@@ -2229,6 +2259,7 @@
           "connection_config": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -2240,6 +2271,7 @@
           "encryption_config": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -2262,6 +2294,316 @@
           }
         },
         "title": "DedicatedChannelUpdate",
+        "type": "object"
+      },
+      "EgressGatewayCreate": {
+        "description": "Request body for creating an egress gateway.",
+        "properties": {
+          "cache_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cache TTL and rules",
+            "title": "Cache Config"
+          },
+          "cost_tracking": {
+            "default": true,
+            "description": "Track per-gateway cost",
+            "title": "Cost Tracking",
+            "type": "boolean"
+          },
+          "domain_allowlist": {
+            "description": "Domains this gateway may reach. Empty = no restriction beyond the gateway's own policy.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Domain Allowlist",
+            "type": "array"
+          },
+          "gateway_name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Gateway Name",
+            "type": "string"
+          },
+          "gateway_type": {
+            "description": "One of: api, model, github, deployment, mcp",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Gateway Type",
+            "type": "string"
+          },
+          "rate_limit_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rate limit rules",
+            "title": "Rate Limit Config"
+          },
+          "scope_id": {
+            "description": "Network scope the gateway belongs to",
+            "format": "uuid",
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "secret_store_ref": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reference to a secret (env:VAR_NAME). NEVER the secret itself.",
+            "title": "Secret Store Ref"
+          }
+        },
+        "required": [
+          "scope_id",
+          "gateway_name",
+          "gateway_type"
+        ],
+        "title": "EgressGatewayCreate",
+        "type": "object"
+      },
+      "EgressGatewayListResponse": {
+        "description": "Paginated egress gateway list response.",
+        "properties": {
+          "gateways": {
+            "items": {
+              "$ref": "#/components/schemas/EgressGatewayResponse"
+            },
+            "title": "Gateways",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "gateways",
+          "total"
+        ],
+        "title": "EgressGatewayListResponse",
+        "type": "object"
+      },
+      "EgressGatewayResponse": {
+        "description": "Single egress gateway response.",
+        "properties": {
+          "cache_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Config"
+          },
+          "cost_tracking": {
+            "title": "Cost Tracking",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "domain_allowlist": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Domain Allowlist",
+            "type": "array"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "gateway_name": {
+            "title": "Gateway Name",
+            "type": "string"
+          },
+          "gateway_type": {
+            "title": "Gateway Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "rate_limit_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate Limit Config"
+          },
+          "scope_id": {
+            "format": "uuid",
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "secret_store_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret Store Ref"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "scope_id",
+          "gateway_name",
+          "gateway_type",
+          "domain_allowlist",
+          "secret_store_ref",
+          "rate_limit_config",
+          "cache_config",
+          "cost_tracking",
+          "enabled",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "EgressGatewayResponse",
+        "type": "object"
+      },
+      "EgressGatewayUpdate": {
+        "description": "Request body for partially updating an egress gateway.",
+        "properties": {
+          "cache_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Config"
+          },
+          "cost_tracking": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Tracking"
+          },
+          "domain_allowlist": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain Allowlist"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "gateway_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway Name"
+          },
+          "gateway_type": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gateway Type"
+          },
+          "rate_limit_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate Limit Config"
+          },
+          "secret_store_ref": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret Store Ref"
+          }
+        },
+        "title": "EgressGatewayUpdate",
         "type": "object"
       },
       "EgressLogListResponse": {
@@ -2504,6 +2846,7 @@
             "type": "string"
           },
           "metadata": {
+            "additionalProperties": true,
             "description": "Additional metadata.",
             "title": "Metadata",
             "type": "object"
@@ -2605,6 +2948,7 @@
       "MessageResponse": {
         "properties": {
           "content": {
+            "additionalProperties": true,
             "description": "Persisted protocol message payload.",
             "title": "Content",
             "type": "object"
@@ -2720,6 +3064,72 @@
         "title": "NetworkOverviewStats",
         "type": "object"
       },
+      "NetworkScopeCreateRequest": {
+        "properties": {
+          "agent_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Ids"
+          },
+          "network_cidr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network Cidr"
+          },
+          "scope_name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Scope Name",
+            "type": "string"
+          },
+          "scope_type": {
+            "description": "Must be 'personal' or 'enterprise'",
+            "title": "Scope Type",
+            "type": "string"
+          },
+          "user_id": {
+            "description": "Owner user ID",
+            "title": "User Id",
+            "type": "string"
+          },
+          "zone_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Ids"
+          }
+        },
+        "required": [
+          "user_id",
+          "scope_name",
+          "scope_type"
+        ],
+        "title": "NetworkScopeCreateRequest",
+        "type": "object"
+      },
       "NetworkScopeDetailResponse": {
         "properties": {
           "agent_ids": {
@@ -2767,8 +3177,15 @@
             "type": "string"
           },
           "username": {
-            "title": "Username",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
           },
           "zone_ids": {
             "items": {
@@ -2784,6 +3201,9 @@
           "scope_type",
           "user_id",
           "username",
+          "network_cidr",
+          "agent_ids",
+          "zone_ids",
           "created_at",
           "updated_at"
         ],
@@ -2793,7 +3213,6 @@
       "NetworkScopeListItem": {
         "properties": {
           "agent_count": {
-            "default": 0,
             "title": "Agent Count",
             "type": "integer"
           },
@@ -2835,11 +3254,17 @@
             "type": "string"
           },
           "username": {
-            "title": "Username",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
           },
           "zone_count": {
-            "default": 0,
             "title": "Zone Count",
             "type": "integer"
           }
@@ -2850,6 +3275,9 @@
           "scope_type",
           "user_id",
           "username",
+          "network_cidr",
+          "agent_count",
+          "zone_count",
           "created_at",
           "updated_at"
         ],
@@ -2887,6 +3315,128 @@
         "title": "NetworkScopeListResponse",
         "type": "object"
       },
+      "NetworkScopeUpdateRequest": {
+        "properties": {
+          "agent_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Ids"
+          },
+          "network_cidr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Network Cidr"
+          },
+          "scope_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Name"
+          },
+          "zone_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Ids"
+          }
+        },
+        "title": "NetworkScopeUpdateRequest",
+        "type": "object"
+      },
+      "NetworkZoneCreateRequest": {
+        "properties": {
+          "parent_zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Zone Id"
+          },
+          "relay_node_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relay Node Ids"
+          },
+          "scope_id": {
+            "description": "Parent scope ID",
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "zone_metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Metadata"
+          },
+          "zone_name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Zone Name",
+            "type": "string"
+          },
+          "zone_type": {
+            "description": "Must be one of: local, regional, global, local_edge, central, cloud, egress",
+            "title": "Zone Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope_id",
+          "zone_name",
+          "zone_type"
+        ],
+        "title": "NetworkZoneCreateRequest",
+        "type": "object"
+      },
       "NetworkZoneDetailResponse": {
         "properties": {
           "created_at": {
@@ -2917,8 +3467,15 @@
             "type": "string"
           },
           "scope_name": {
-            "title": "Scope Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Name"
           },
           "updated_at": {
             "format": "date-time",
@@ -2930,6 +3487,7 @@
             "type": "string"
           },
           "zone_metadata": {
+            "additionalProperties": true,
             "title": "Zone Metadata",
             "type": "object"
           },
@@ -2948,6 +3506,9 @@
           "zone_type",
           "scope_id",
           "scope_name",
+          "parent_zone_id",
+          "relay_node_ids",
+          "zone_metadata",
           "created_at",
           "updated_at"
         ],
@@ -2973,7 +3534,6 @@
             "title": "Parent Zone Id"
           },
           "relay_node_count": {
-            "default": 0,
             "title": "Relay Node Count",
             "type": "integer"
           },
@@ -2982,8 +3542,15 @@
             "type": "string"
           },
           "scope_name": {
-            "title": "Scope Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Name"
           },
           "updated_at": {
             "format": "date-time",
@@ -3009,6 +3576,8 @@
           "zone_type",
           "scope_id",
           "scope_name",
+          "parent_zone_id",
+          "relay_node_count",
           "created_at",
           "updated_at"
         ],
@@ -3046,6 +3615,232 @@
         "title": "NetworkZoneListResponse",
         "type": "object"
       },
+      "NetworkZoneUpdateRequest": {
+        "properties": {
+          "parent_zone_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Zone Id"
+          },
+          "relay_node_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relay Node Ids"
+          },
+          "zone_metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Metadata"
+          },
+          "zone_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Name"
+          }
+        },
+        "title": "NetworkZoneUpdateRequest",
+        "type": "object"
+      },
+      "OrganizationCreateRequest": {
+        "description": "Request body for POST /v1/organizations (super_admin only).",
+        "properties": {
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "title": "OrganizationCreateRequest",
+        "type": "object"
+      },
+      "OrganizationListResponse": {
+        "description": "Response of GET /v1/organizations/mine.",
+        "properties": {
+          "organizations": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationResponse"
+            },
+            "title": "Organizations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "organizations"
+        ],
+        "title": "OrganizationListResponse",
+        "type": "object"
+      },
+      "OrganizationMemberAdd": {
+        "description": "Request body for POST /v1/organizations/{id}/members.\n\n``user_id`` is the resolved target user (UUID) — see module note\nabout the username-lookup tool limitation.",
+        "properties": {
+          "role": {
+            "pattern": "^(manager|member)$",
+            "title": "Role",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "role"
+        ],
+        "title": "OrganizationMemberAdd",
+        "type": "object"
+      },
+      "OrganizationMemberListResponse": {
+        "description": "Response of GET /v1/organizations/{id}/members.",
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationMemberResponse"
+            },
+            "title": "Members",
+            "type": "array"
+          }
+        },
+        "required": [
+          "members"
+        ],
+        "title": "OrganizationMemberListResponse",
+        "type": "object"
+      },
+      "OrganizationMemberResponse": {
+        "description": "A single organization membership row.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "username",
+          "role",
+          "created_at"
+        ],
+        "title": "OrganizationMemberResponse",
+        "type": "object"
+      },
+      "OrganizationMemberUpdateRequest": {
+        "description": "Request body for PATCH /v1/organizations/{id}/members/{user_id}.",
+        "properties": {
+          "role": {
+            "pattern": "^(manager|member)$",
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "OrganizationMemberUpdateRequest",
+        "type": "object"
+      },
+      "OrganizationResponse": {
+        "description": "A single organization, as seen by the requesting user.\n\n``role`` is the requesting user's membership role in this\norganization; it is None when the viewer has no membership row\n(e.g. a super_admin who is not a member).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "is_disabled": {
+            "title": "Is Disabled",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "org_id": {
+            "title": "Org Id",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "org_id",
+          "name",
+          "slug",
+          "is_disabled",
+          "created_at"
+        ],
+        "title": "OrganizationResponse",
+        "type": "object"
+      },
       "OverviewResponse": {
         "properties": {
           "failed_tasks": {
@@ -3066,6 +3861,7 @@
           },
           "recent_agent_status_changes": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Recent Agent Status Changes",
@@ -3073,6 +3869,7 @@
           },
           "recent_approvals": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Recent Approvals",
@@ -3080,6 +3877,7 @@
           },
           "recent_tasks": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Recent Tasks",
@@ -3268,6 +4066,7 @@
             "title": "Last Heartbeat At"
           },
           "network_info": {
+            "additionalProperties": true,
             "title": "Network Info",
             "type": "object"
           },
@@ -3409,6 +4208,7 @@
             "title": "Max Capacity"
           },
           "metadata": {
+            "additionalProperties": true,
             "description": "Additional metadata.",
             "title": "Metadata",
             "type": "object"
@@ -3469,7 +4269,7 @@
             "type": "string"
           },
           "username": {
-            "description": "Stable username for the API key owner.",
+            "description": "Display label for the new user. May duplicate an existing username; the returned user_id is the canonical identifier.",
             "maxLength": 128,
             "minLength": 1,
             "title": "Username",
@@ -3710,6 +4510,7 @@
             "title": "Max Capacity"
           },
           "metadata": {
+            "additionalProperties": true,
             "description": "Additional metadata.",
             "title": "Metadata",
             "type": "object"
@@ -3871,6 +4672,7 @@
           "candidate_routes": {
             "description": "Candidate routes considered.",
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "title": "Candidate Routes",
@@ -3941,6 +4743,7 @@
             "type": "string"
           },
           "rejection_reasons": {
+            "additionalProperties": true,
             "description": "Rejection reasons for filtered routes.",
             "title": "Rejection Reasons",
             "type": "object"
@@ -4043,6 +4846,7 @@
           "data_boundary_rules": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -4199,6 +5003,7 @@
           "data_boundary_rules": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -4341,6 +5146,7 @@
           "data_boundary_rules": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -4682,6 +5488,7 @@
           "result": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -4780,8 +5587,78 @@
         "title": "UpdateAgentRequest",
         "type": "object"
       },
+      "UpdateUserPreferencesRequest": {
+        "description": "Partial update of user preferences.\n\nAbsent fields are left untouched; ``locale: null`` explicitly clears\nthe stored locale. Invalid locales, unknown preference keys, or\nvalues that fail appearance validation are rejected with 400\n(not Pydantic's 422) so clients get a uniform error envelope.",
+        "properties": {
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale"
+          },
+          "preferences": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferences"
+          }
+        },
+        "title": "UpdateUserPreferencesRequest",
+        "type": "object"
+      },
+      "UpdateUserProfileRequest": {
+        "description": "Rename the current user.\n\nUsernames are non-unique display labels (migration 0030); the user_id\nis the canonical identifier, so a rename never collides.",
+        "properties": {
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username"
+        ],
+        "title": "UpdateUserProfileRequest",
+        "type": "object"
+      },
+      "UserProfileResponse": {
+        "description": "Current user's identity fields (see PATCH /me/profile).",
+        "properties": {
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "username"
+        ],
+        "title": "UserProfileResponse",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
           "loc": {
             "items": {
               "anyOf": [
@@ -6041,7 +6918,7 @@
     },
     "/v1/auth/register": {
       "post": {
-        "description": "Create the user if it does not exist and return a newly issued API key. The raw API key is shown only in this response.",
+        "description": "Create a new user and return a newly issued API key. Usernames are display labels and may be non-unique (the user_id in the response is the canonical identifier); registering an existing name never issues a key for that account. The raw API key is shown only in this response.",
         "operationId": "register_v1_auth_register_post",
         "requestBody": {
           "content": {
@@ -6075,7 +6952,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Register or fetch a user and issue an API key",
+        "summary": "Register a new user and issue an API key",
         "tags": [
           "auth"
         ]
@@ -6505,6 +7382,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response List Circuit Breakers V1 Continuity Circuit Breakers Get",
                   "type": "object"
                 }
@@ -6573,6 +7451,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Reset Circuit Breaker V1 Continuity Circuit Breakers  Breaker Id  Reset Post",
                   "type": "object"
                 }
@@ -6632,6 +7511,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response List Failover Configs V1 Continuity Failover Configs Get",
                   "type": "object"
                 }
@@ -6751,6 +7631,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Create Failover Config V1 Continuity Failover Configs Post",
                   "type": "object"
                 }
@@ -6836,6 +7717,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response List Failover Events V1 Continuity Failover Events Get",
                   "type": "object"
                 }
@@ -6929,6 +7811,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Trigger Manual Failover V1 Continuity Failover  Config Id  Trigger Post",
                   "type": "object"
                 }
@@ -6997,6 +7880,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Execute Manual Failover V1 Continuity Failover  Event Id  Execute Post",
                   "type": "object"
                 }
@@ -7065,6 +7949,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Rollback Manual Failover V1 Continuity Failover  Event Id  Rollback Post",
                   "type": "object"
                 }
@@ -7133,6 +8018,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Get Relay Health V1 Continuity Relay Health  Relay Id  Get",
                   "type": "object"
                 }
@@ -7504,6 +8390,128 @@
           }
         ],
         "summary": "Approve Request",
+        "tags": [
+          "dashboard-admin"
+        ]
+      }
+    },
+    "/v1/dashboard/admin/access-requests/{request_id}/audit-trail": {
+      "get": {
+        "description": "Fetch audit trail for a single access request.",
+        "operationId": "get_access_request_audit_trail_v1_dashboard_admin_access_requests__request_id__audit_trail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Get Access Request Audit Trail",
         "tags": [
           "dashboard-admin"
         ]
@@ -7945,6 +8953,7 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": true,
                 "title": "Body",
                 "type": "object"
               }
@@ -8060,6 +9069,22 @@
                 }
               ],
               "title": "Resource Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "resource_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resource Id"
             }
           },
           {
@@ -9186,8 +10211,8 @@
     },
     "/v1/dashboard/admin/network/scopes": {
       "get": {
-        "description": "List all network scopes across the platform. Admin-only.",
-        "operationId": "list_network_scopes_admin_v1_dashboard_admin_network_scopes_get",
+        "description": "List all network scopes.",
+        "operationId": "list_network_scopes_v1_dashboard_admin_network_scopes_get",
         "parameters": [
           {
             "in": "query",
@@ -9275,16 +10300,140 @@
             "LegacyApiKeyHeader": []
           }
         ],
-        "summary": "List Network Scopes Admin",
+        "summary": "List Network Scopes",
+        "tags": [
+          "dashboard-admin"
+        ]
+      },
+      "post": {
+        "description": "Create a new network scope.",
+        "operationId": "create_network_scope_v1_dashboard_admin_network_scopes_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkScopeCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkScopeDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Create Network Scope",
         "tags": [
           "dashboard-admin"
         ]
       }
     },
     "/v1/dashboard/admin/network/scopes/{scope_id}": {
+      "delete": {
+        "description": "Delete a network scope. Child zones cascade per model definition (delete-orphan).",
+        "operationId": "delete_network_scope_v1_dashboard_admin_network_scopes__scope_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scope_id",
+            "required": true,
+            "schema": {
+              "title": "Scope Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Delete Network Scope",
+        "tags": [
+          "dashboard-admin"
+        ]
+      },
       "get": {
-        "description": "Get a single network scope by ID. Admin-only.",
-        "operationId": "get_network_scope_detail_v1_dashboard_admin_network_scopes__scope_id__get",
+        "description": "Get a single network scope.",
+        "operationId": "get_network_scope_v1_dashboard_admin_network_scopes__scope_id__get",
         "parameters": [
           {
             "in": "path",
@@ -9342,7 +10491,82 @@
             "LegacyApiKeyHeader": []
           }
         ],
-        "summary": "Get Network Scope Detail",
+        "summary": "Get Network Scope",
+        "tags": [
+          "dashboard-admin"
+        ]
+      },
+      "put": {
+        "description": "Update a network scope.",
+        "operationId": "update_network_scope_v1_dashboard_admin_network_scopes__scope_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scope_id",
+            "required": true,
+            "schema": {
+              "title": "Scope Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkScopeUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkScopeDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Update Network Scope",
         "tags": [
           "dashboard-admin"
         ]
@@ -9350,8 +10574,8 @@
     },
     "/v1/dashboard/admin/network/zones": {
       "get": {
-        "description": "List all network zones across the platform. Admin-only.",
-        "operationId": "list_network_zones_admin_v1_dashboard_admin_network_zones_get",
+        "description": "List all network zones.",
+        "operationId": "list_network_zones_v1_dashboard_admin_network_zones_get",
         "parameters": [
           {
             "in": "query",
@@ -9455,16 +10679,140 @@
             "LegacyApiKeyHeader": []
           }
         ],
-        "summary": "List Network Zones Admin",
+        "summary": "List Network Zones",
+        "tags": [
+          "dashboard-admin"
+        ]
+      },
+      "post": {
+        "description": "Create a new network zone.",
+        "operationId": "create_network_zone_v1_dashboard_admin_network_zones_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkZoneCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkZoneDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Create Network Zone",
         "tags": [
           "dashboard-admin"
         ]
       }
     },
     "/v1/dashboard/admin/network/zones/{zone_id}": {
+      "delete": {
+        "description": "Delete a network zone.",
+        "operationId": "delete_network_zone_v1_dashboard_admin_network_zones__zone_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "zone_id",
+            "required": true,
+            "schema": {
+              "title": "Zone Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Delete Network Zone",
+        "tags": [
+          "dashboard-admin"
+        ]
+      },
       "get": {
-        "description": "Get a single network zone by ID. Admin-only.",
-        "operationId": "get_network_zone_detail_v1_dashboard_admin_network_zones__zone_id__get",
+        "description": "Get a single network zone.",
+        "operationId": "get_network_zone_v1_dashboard_admin_network_zones__zone_id__get",
         "parameters": [
           {
             "in": "path",
@@ -9522,7 +10870,82 @@
             "LegacyApiKeyHeader": []
           }
         ],
-        "summary": "Get Network Zone Detail",
+        "summary": "Get Network Zone",
+        "tags": [
+          "dashboard-admin"
+        ]
+      },
+      "put": {
+        "description": "Update a network zone.",
+        "operationId": "update_network_zone_v1_dashboard_admin_network_zones__zone_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "zone_id",
+            "required": true,
+            "schema": {
+              "title": "Zone Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NetworkZoneUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkZoneDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Update Network Zone",
         "tags": [
           "dashboard-admin"
         ]
@@ -10441,6 +11864,7 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": true,
                 "title": "Body",
                 "type": "object"
               }
@@ -11173,6 +12597,7 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": true,
                 "title": "Body",
                 "type": "object"
               }
@@ -11452,6 +12877,7 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": true,
                 "title": "Body",
                 "type": "object"
               }
@@ -11559,6 +12985,7 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": true,
                 "title": "Body",
                 "type": "object"
               }
@@ -11926,6 +13353,7 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": true,
                 "title": "Body",
                 "type": "object"
               }
@@ -12111,6 +13539,258 @@
         ]
       }
     },
+    "/v1/dashboard/auth/me/preferences": {
+      "get": {
+        "description": "Return the current user's locale and appearance preferences.",
+        "operationId": "get_preferences_v1_dashboard_auth_me_preferences_get",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Get Preferences",
+        "tags": [
+          "dashboard-auth"
+        ]
+      },
+      "patch": {
+        "description": "Update the current user's locale and/or appearance preferences.\n\nAbsent fields keep their stored value; ``locale: null`` clears the\nlocale. Provided ``preferences`` are shallow-merged into the stored\nobject so partial updates do not wipe unrelated keys.",
+        "operationId": "update_preferences_v1_dashboard_auth_me_preferences_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserPreferencesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Update Preferences",
+        "tags": [
+          "dashboard-auth"
+        ]
+      }
+    },
+    "/v1/dashboard/auth/me/profile": {
+      "patch": {
+        "description": "Rename the current user.\n\nThe username is a non-unique display label; the user_id never\nchanges. The new name is trimmed and length-checked (400 on invalid\ninput), the change is audited, and the session's cached /me picks\nthe new name up on the next fetch.",
+        "operationId": "update_profile_v1_dashboard_auth_me_profile_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Update Profile",
+        "tags": [
+          "dashboard-auth"
+        ]
+      }
+    },
     "/v1/dashboard/auth/step-up": {
       "post": {
         "description": "Re-verify API key to extend step-up window.",
@@ -12169,6 +13849,7 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": true,
                 "title": "Body",
                 "type": "object"
               }
@@ -13112,6 +14793,1249 @@
         ]
       }
     },
+    "/v1/egress/gateways": {
+      "get": {
+        "description": "List every egress gateway (admin read).\n\nReturns all rows newest-first; the console filters client-side.\nAudit: records reads of gateway configuration metadata.",
+        "operationId": "list_egress_gateways_v1_egress_gateways_get",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EgressGatewayListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "List Egress Gateways",
+        "tags": [
+          "egress-gateways"
+        ]
+      },
+      "post": {
+        "description": "Create an egress gateway (super admin, step-up + CSRF).\n\nThe secret_store_ref is a reference (env:VAR_NAME), never a secret\nvalue; the runtime resolves it server-side at request time.",
+        "operationId": "create_egress_gateway_v1_egress_gateways_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EgressGatewayCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EgressGatewayResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Create Egress Gateway",
+        "tags": [
+          "egress-gateways"
+        ]
+      }
+    },
+    "/v1/egress/gateways/{gateway_id}": {
+      "delete": {
+        "description": "Delete an egress gateway (super admin, step-up + CSRF).\n\nAgents referencing the gateway keep working: agents.egress_gateway_id\nis ON DELETE SET NULL, so their egress falls back to direct routing.",
+        "operationId": "delete_egress_gateway_v1_egress_gateways__gateway_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "gateway_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Gateway Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Delete Egress Gateway",
+        "tags": [
+          "egress-gateways"
+        ]
+      },
+      "get": {
+        "description": "Fetch one egress gateway by ID (admin read).",
+        "operationId": "get_egress_gateway_v1_egress_gateways__gateway_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "gateway_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Gateway Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EgressGatewayResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Get Egress Gateway",
+        "tags": [
+          "egress-gateways"
+        ]
+      },
+      "patch": {
+        "description": "Partially update an egress gateway (super admin, step-up + CSRF).",
+        "operationId": "update_egress_gateway_v1_egress_gateways__gateway_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "gateway_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Gateway Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EgressGatewayUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EgressGatewayResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Update Egress Gateway",
+        "tags": [
+          "egress-gateways"
+        ]
+      }
+    },
+    "/v1/organizations": {
+      "post": {
+        "description": "Create an organization (super_admin only).\n\nThe creating super_admin is enrolled as 'manager' so the org is\nmanageable without relying on the super_admin bypass, matching the\n0029 data-migration behavior for enterprise scopes. Slug uniqueness\nis enforced by the DB unique constraint below (409 on conflict).",
+        "operationId": "create_organization_v1_organizations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Create Organization",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/v1/organizations/mine": {
+      "get": {
+        "description": "Organizations the session user belongs to, with their membership role.\n\nDisabled organizations are still listed (with is_disabled=true):\nthis is the user's own membership view, not org-scoped access.",
+        "operationId": "list_my_organizations_v1_organizations_mine_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "List My Organizations",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/v1/organizations/{org_id}": {
+      "delete": {
+        "description": "Delete an organization and cascade its memberships (super_admin only).\n\nFail-closed: a disabled organization is not deletable through this\nendpoint (403).",
+        "operationId": "delete_organization_v1_organizations__org_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Org Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Delete Organization",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "get": {
+        "description": "Organization detail. Manager of this org or super_admin only.",
+        "operationId": "get_organization_v1_organizations__org_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Org Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Get Organization",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/v1/organizations/{org_id}/members": {
+      "get": {
+        "description": "List organization members. Manager of this org or super_admin only.",
+        "operationId": "list_organization_members_v1_organizations__org_id__members_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Org Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "List Organization Members",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "post": {
+        "description": "Add a member by user id. Manager of this org or super_admin only.\n\nTakes a resolved ``user_id`` (UUID) rather than a username — see the\nnote in app/schemas/organizations.py for the tool limitation that\nrules out a username lookup inside the API.",
+        "operationId": "add_organization_member_v1_organizations__org_id__members_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Org Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationMemberAdd"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Add Organization Member",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/v1/organizations/{org_id}/members/{user_id}": {
+      "delete": {
+        "description": "Remove a member (the org degrades to fewer members).\n\nManager of this org or super_admin only.",
+        "operationId": "remove_organization_member_v1_organizations__org_id__members__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Org Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Remove Organization Member",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "patch": {
+        "description": "Change a member's role (manager|member).\n\nManager of this org or super_admin only. A no-op change (same role)\nis accepted and audited like any other attempt.",
+        "operationId": "update_organization_member_role_v1_organizations__org_id__members__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Org Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationMemberUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationMemberResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Update Organization Member Role",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
     "/v1/personal/edge-relay/heartbeat": {
       "post": {
         "description": "Process heartbeat from personal edge relay.",
@@ -13147,6 +16071,22 @@
                 }
               ],
               "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
             }
           }
         ],
@@ -13231,6 +16171,22 @@
                 }
               ],
               "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
             }
           }
         ],
@@ -13326,6 +16282,22 @@
               ],
               "title": "Authorization"
             }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
           }
         ],
         "responses": {
@@ -13404,6 +16376,22 @@
               ],
               "title": "Authorization"
             }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
           }
         ],
         "responses": {
@@ -13475,6 +16463,22 @@
                 }
               ],
               "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
             }
           }
         ],
@@ -13665,6 +16669,22 @@
               ],
               "title": "Authorization"
             }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
           }
         ],
         "responses": {
@@ -13738,6 +16758,22 @@
                 }
               ],
               "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
             }
           }
         ],
@@ -13831,6 +16867,22 @@
                 }
               ],
               "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
             }
           }
         ],
@@ -13961,6 +17013,22 @@
               ],
               "title": "Authorization"
             }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
           }
         ],
         "responses": {
@@ -14043,6 +17111,22 @@
                 }
               ],
               "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
             }
           }
         ],
@@ -14937,6 +18021,22 @@
               ],
               "title": "Authorization"
             }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
           }
         ],
         "responses": {
@@ -15008,6 +18108,22 @@
                 }
               ],
               "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
             }
           }
         ],
@@ -15102,6 +18218,22 @@
               ],
               "title": "Authorization"
             }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
           }
         ],
         "responses": {
@@ -15184,6 +18316,22 @@
                 }
               ],
               "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
             }
           }
         ],
@@ -15291,6 +18439,22 @@
               ],
               "title": "Authorization"
             }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
           }
         ],
         "responses": {
@@ -15397,6 +18561,22 @@
               ],
               "title": "Authorization"
             }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
           }
         ],
         "responses": {
@@ -15477,6 +18657,22 @@
                 }
               ],
               "title": "Authorization"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
             }
           }
         ],
@@ -15567,6 +18763,10 @@
     {
       "description": "Dashboard APIs: network overview, egress logs, and statistics.",
       "name": "dashboard"
+    },
+    {
+      "description": "Organization management: membership, roles, and member administration.",
+      "name": "organizations"
     }
   ]
 }

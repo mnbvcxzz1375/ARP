@@ -52,9 +52,11 @@ paths:
     post:
       tags:
       - auth
-      summary: Register or fetch a user and issue an API key
-      description: Create the user if it does not exist and return a newly issued
-        API key. The raw API key is shown only in this response.
+      summary: Register a new user and issue an API key
+      description: Create a new user and return a newly issued API key. Usernames
+        are display labels and may be non-unique (the user_id in the response is the
+        canonical identifier); registering an existing name never issues a key for
+        that account. The raw API key is shown only in this response.
       operationId: register_v1_auth_register_post
       requestBody:
         content:
@@ -497,6 +499,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       requestBody:
         required: true
         content:
@@ -568,6 +578,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -615,6 +633,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -678,6 +704,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -742,6 +776,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -1206,6 +1248,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -1255,6 +1305,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -1336,6 +1394,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -1381,6 +1447,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       requestBody:
         required: true
         content:
@@ -1433,6 +1507,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       requestBody:
         required: true
         content:
@@ -1488,6 +1570,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -1537,6 +1627,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -1580,6 +1678,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -1619,6 +1725,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       requestBody:
         required: true
         content:
@@ -1665,6 +1779,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       requestBody:
         required: true
         content:
@@ -1711,6 +1833,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       requestBody:
         required: true
         content:
@@ -1764,6 +1894,14 @@ paths:
           - type: string
           - type: 'null'
           title: Authorization
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
       responses:
         '200':
           description: Successful Response
@@ -1794,6 +1932,7 @@ paths:
         content:
           application/json:
             schema:
+              additionalProperties: true
               type: object
               title: Body
         required: true
@@ -1897,6 +2036,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: true
               title: Body
       responses:
         '200':
@@ -1935,6 +2075,159 @@ paths:
           content:
             application/json:
               schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/dashboard/auth/me/preferences:
+    get:
+      tags:
+      - dashboard-auth
+      summary: Get Preferences
+      description: Return the current user's locale and appearance preferences.
+      operationId: get_preferences_v1_dashboard_auth_me_preferences_get
+      parameters:
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    patch:
+      tags:
+      - dashboard-auth
+      summary: Update Preferences
+      description: 'Update the current user''s locale and/or appearance preferences.
+
+
+        Absent fields keep their stored value; ``locale: null`` clears the
+
+        locale. Provided ``preferences`` are shallow-merged into the stored
+
+        object so partial updates do not wipe unrelated keys.'
+      operationId: update_preferences_v1_dashboard_auth_me_preferences_patch
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserPreferencesRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/dashboard/auth/me/profile:
+    patch:
+      tags:
+      - dashboard-auth
+      summary: Update Profile
+      description: 'Rename the current user.
+
+
+        The username is a non-unique display label; the user_id never
+
+        changes. The new name is trimmed and length-checked (400 on invalid
+
+        input), the change is audited, and the session''s cached /me picks
+
+        the new name up on the next fetch.'
+      operationId: update_profile_v1_dashboard_auth_me_profile_patch
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserProfileRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
         '422':
           description: Validation Error
           content:
@@ -2968,6 +3261,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: true
               title: Body
       responses:
         '200':
@@ -3066,6 +3360,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: true
               title: Body
       responses:
         '201':
@@ -3125,6 +3420,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: true
               title: Body
       responses:
         '200':
@@ -3368,6 +3664,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: true
               title: Body
       responses:
         '200':
@@ -3624,6 +3921,7 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: true
               title: Body
       responses:
         '200':
@@ -3923,6 +4221,14 @@ paths:
           - type: string
           - type: 'null'
           title: Resource Type
+      - name: resource_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resource Id
       - name: X-CSRF-Token
         in: header
         required: false
@@ -4194,6 +4500,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AccessRequestDetailResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/dashboard/admin/access-requests/{request_id}/audit-trail:
+    get:
+      tags:
+      - dashboard-admin
+      summary: Get Access Request Audit Trail
+      description: Fetch audit trail for a single access request.
+      operationId: get_access_request_audit_trail_v1_dashboard_admin_access_requests__request_id__audit_trail_get
+      parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Request Id
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogListResponse'
         '422':
           description: Validation Error
           content:
@@ -4655,6 +5032,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
                 title: Response List Failover Configs V1 Continuity Failover Configs
                   Get
         '422':
@@ -4730,6 +5108,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
                 title: Response Create Failover Config V1 Continuity Failover Configs
                   Post
         '422':
@@ -4784,6 +5163,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
                 title: Response Trigger Manual Failover V1 Continuity Failover  Config
                   Id  Trigger Post
         '422':
@@ -4824,6 +5204,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
                 title: Response Execute Manual Failover V1 Continuity Failover  Event
                   Id  Execute Post
         '422':
@@ -4864,6 +5245,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
                 title: Response Rollback Manual Failover V1 Continuity Failover  Event
                   Id  Rollback Post
         '422':
@@ -4913,6 +5295,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
                 title: Response List Failover Events V1 Continuity Failover Events
                   Get
         '422':
@@ -4947,6 +5330,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
                 title: Response List Circuit Breakers V1 Continuity Circuit Breakers
                   Get
         '422':
@@ -4987,6 +5371,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
                 title: Response Reset Circuit Breaker V1 Continuity Circuit Breakers  Breaker
                   Id  Reset Post
         '422':
@@ -5027,6 +5412,7 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
                 title: Response Get Relay Health V1 Continuity Relay Health  Relay
                   Id  Get
         '422':
@@ -5276,9 +5662,9 @@ paths:
     get:
       tags:
       - dashboard-admin
-      summary: List Network Scopes Admin
-      description: List all network scopes across the platform. Admin-only.
-      operationId: list_network_scopes_admin_v1_dashboard_admin_network_scopes_get
+      summary: List Network Scopes
+      description: List all network scopes.
+      operationId: list_network_scopes_v1_dashboard_admin_network_scopes_get
       parameters:
       - name: offset
         in: query
@@ -5329,13 +5715,50 @@ paths:
       security:
       - ApiKeyBearer: []
       - LegacyApiKeyHeader: []
+    post:
+      tags:
+      - dashboard-admin
+      summary: Create Network Scope
+      description: Create a new network scope.
+      operationId: create_network_scope_v1_dashboard_admin_network_scopes_post
+      parameters:
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkScopeCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkScopeDetailResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
   /v1/dashboard/admin/network/scopes/{scope_id}:
     get:
       tags:
       - dashboard-admin
-      summary: Get Network Scope Detail
-      description: Get a single network scope by ID. Admin-only.
-      operationId: get_network_scope_detail_v1_dashboard_admin_network_scopes__scope_id__get
+      summary: Get Network Scope
+      description: Get a single network scope.
+      operationId: get_network_scope_v1_dashboard_admin_network_scopes__scope_id__get
       parameters:
       - name: scope_id
         in: path
@@ -5367,13 +5790,90 @@ paths:
       security:
       - ApiKeyBearer: []
       - LegacyApiKeyHeader: []
+    put:
+      tags:
+      - dashboard-admin
+      summary: Update Network Scope
+      description: Update a network scope.
+      operationId: update_network_scope_v1_dashboard_admin_network_scopes__scope_id__put
+      parameters:
+      - name: scope_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Scope Id
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkScopeUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkScopeDetailResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    delete:
+      tags:
+      - dashboard-admin
+      summary: Delete Network Scope
+      description: Delete a network scope. Child zones cascade per model definition
+        (delete-orphan).
+      operationId: delete_network_scope_v1_dashboard_admin_network_scopes__scope_id__delete
+      parameters:
+      - name: scope_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Scope Id
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
   /v1/dashboard/admin/network/zones:
     get:
       tags:
       - dashboard-admin
-      summary: List Network Zones Admin
-      description: List all network zones across the platform. Admin-only.
-      operationId: list_network_zones_admin_v1_dashboard_admin_network_zones_get
+      summary: List Network Zones
+      description: List all network zones.
+      operationId: list_network_zones_v1_dashboard_admin_network_zones_get
       parameters:
       - name: offset
         in: query
@@ -5432,13 +5932,50 @@ paths:
       security:
       - ApiKeyBearer: []
       - LegacyApiKeyHeader: []
+    post:
+      tags:
+      - dashboard-admin
+      summary: Create Network Zone
+      description: Create a new network zone.
+      operationId: create_network_zone_v1_dashboard_admin_network_zones_post
+      parameters:
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkZoneCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkZoneDetailResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
   /v1/dashboard/admin/network/zones/{zone_id}:
     get:
       tags:
       - dashboard-admin
-      summary: Get Network Zone Detail
-      description: Get a single network zone by ID. Admin-only.
-      operationId: get_network_zone_detail_v1_dashboard_admin_network_zones__zone_id__get
+      summary: Get Network Zone
+      description: Get a single network zone.
+      operationId: get_network_zone_v1_dashboard_admin_network_zones__zone_id__get
       parameters:
       - name: zone_id
         in: path
@@ -5461,6 +5998,82 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NetworkZoneDetailResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    put:
+      tags:
+      - dashboard-admin
+      summary: Update Network Zone
+      description: Update a network zone.
+      operationId: update_network_zone_v1_dashboard_admin_network_zones__zone_id__put
+      parameters:
+      - name: zone_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Zone Id
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NetworkZoneUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NetworkZoneDetailResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    delete:
+      tags:
+      - dashboard-admin
+      summary: Delete Network Zone
+      description: Delete a network zone.
+      operationId: delete_network_zone_v1_dashboard_admin_network_zones__zone_id__delete
+      parameters:
+      - name: zone_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Zone Id
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      responses:
+        '204':
+          description: Successful Response
         '422':
           description: Validation Error
           content:
@@ -5559,6 +6172,255 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EgressLogListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/egress/gateways:
+    get:
+      tags:
+      - egress-gateways
+      summary: List Egress Gateways
+      description: 'List every egress gateway (admin read).
+
+
+        Returns all rows newest-first; the console filters client-side.
+
+        Audit: records reads of gateway configuration metadata.'
+      operationId: list_egress_gateways_v1_egress_gateways_get
+      parameters:
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EgressGatewayListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    post:
+      tags:
+      - egress-gateways
+      summary: Create Egress Gateway
+      description: 'Create an egress gateway (super admin, step-up + CSRF).
+
+
+        The secret_store_ref is a reference (env:VAR_NAME), never a secret
+
+        value; the runtime resolves it server-side at request time.'
+      operationId: create_egress_gateway_v1_egress_gateways_post
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EgressGatewayCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EgressGatewayResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/egress/gateways/{gateway_id}:
+    get:
+      tags:
+      - egress-gateways
+      summary: Get Egress Gateway
+      description: Fetch one egress gateway by ID (admin read).
+      operationId: get_egress_gateway_v1_egress_gateways__gateway_id__get
+      parameters:
+      - name: gateway_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Gateway Id
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EgressGatewayResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    patch:
+      tags:
+      - egress-gateways
+      summary: Update Egress Gateway
+      description: Partially update an egress gateway (super admin, step-up + CSRF).
+      operationId: update_egress_gateway_v1_egress_gateways__gateway_id__patch
+      parameters:
+      - name: gateway_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Gateway Id
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EgressGatewayUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EgressGatewayResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    delete:
+      tags:
+      - egress-gateways
+      summary: Delete Egress Gateway
+      description: 'Delete an egress gateway (super admin, step-up + CSRF).
+
+
+        Agents referencing the gateway keep working: agents.egress_gateway_id
+
+        is ON DELETE SET NULL, so their egress falls back to direct routing.'
+      operationId: delete_egress_gateway_v1_egress_gateways__gateway_id__delete
+      parameters:
+      - name: gateway_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Gateway Id
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      responses:
+        '204':
+          description: Successful Response
         '422':
           description: Validation Error
           content:
@@ -6021,6 +6883,495 @@ paths:
       security:
       - ApiKeyBearer: []
       - LegacyApiKeyHeader: []
+  /v1/organizations/mine:
+    get:
+      tags:
+      - organizations
+      summary: List My Organizations
+      description: 'Organizations the session user belongs to, with their membership
+        role.
+
+
+        Disabled organizations are still listed (with is_disabled=true):
+
+        this is the user''s own membership view, not org-scoped access.'
+      operationId: list_my_organizations_v1_organizations_mine_get
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/organizations:
+    post:
+      tags:
+      - organizations
+      summary: Create Organization
+      description: 'Create an organization (super_admin only).
+
+
+        The creating super_admin is enrolled as ''manager'' so the org is
+
+        manageable without relying on the super_admin bypass, matching the
+
+        0029 data-migration behavior for enterprise scopes. Slug uniqueness
+
+        is enforced by the DB unique constraint below (409 on conflict).'
+      operationId: create_organization_v1_organizations_post
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/organizations/{org_id}:
+    get:
+      tags:
+      - organizations
+      summary: Get Organization
+      description: Organization detail. Manager of this org or super_admin only.
+      operationId: get_organization_v1_organizations__org_id__get
+      parameters:
+      - name: org_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Org Id
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    delete:
+      tags:
+      - organizations
+      summary: Delete Organization
+      description: 'Delete an organization and cascade its memberships (super_admin
+        only).
+
+
+        Fail-closed: a disabled organization is not deletable through this
+
+        endpoint (403).'
+      operationId: delete_organization_v1_organizations__org_id__delete
+      parameters:
+      - name: org_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Org Id
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/organizations/{org_id}/members:
+    get:
+      tags:
+      - organizations
+      summary: List Organization Members
+      description: List organization members. Manager of this org or super_admin only.
+      operationId: list_organization_members_v1_organizations__org_id__members_get
+      parameters:
+      - name: org_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Org Id
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMemberListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    post:
+      tags:
+      - organizations
+      summary: Add Organization Member
+      description: 'Add a member by user id. Manager of this org or super_admin only.
+
+
+        Takes a resolved ``user_id`` (UUID) rather than a username — see the
+
+        note in app/schemas/organizations.py for the tool limitation that
+
+        rules out a username lookup inside the API.'
+      operationId: add_organization_member_v1_organizations__org_id__members_post
+      parameters:
+      - name: org_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Org Id
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationMemberAdd'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMemberResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+  /v1/organizations/{org_id}/members/{user_id}:
+    patch:
+      tags:
+      - organizations
+      summary: Update Organization Member Role
+      description: 'Change a member''s role (manager|member).
+
+
+        Manager of this org or super_admin only. A no-op change (same role)
+
+        is accepted and audited like any other attempt.'
+      operationId: update_organization_member_role_v1_organizations__org_id__members__user_id__patch
+      parameters:
+      - name: org_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Org Id
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationMemberUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMemberResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
+    delete:
+      tags:
+      - organizations
+      summary: Remove Organization Member
+      description: 'Remove a member (the org degrades to fewer members).
+
+
+        Manager of this org or super_admin only.'
+      operationId: remove_organization_member_v1_organizations__org_id__members__user_id__delete
+      parameters:
+      - name: org_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Org Id
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
   /v1/public/access-requests:
     post:
       tags:
@@ -6237,6 +7588,7 @@ components:
           type: array
           title: Capabilities
         token_metadata:
+          additionalProperties: true
           type: object
           title: Token Metadata
         created_at:
@@ -6950,6 +8302,11 @@ components:
           - type: string
           - type: 'null'
           title: Scope Id
+        org_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Org Id
       type: object
       required:
       - request_id
@@ -6997,6 +8354,12 @@ components:
           - type: string
           - type: 'null'
           title: Request Ip
+        details:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Details
         created_at:
           type: string
           format: date-time
@@ -7353,6 +8716,7 @@ components:
           title: Idempotency Key
           description: Optional sender-provided idempotency key for safe retries.
         payload:
+          additionalProperties: true
           type: object
           title: Payload
           description: Task payload delivered to the target agent.
@@ -7397,7 +8761,8 @@ components:
             default.
         retry_policy:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Retry Policy
           description: Custom retry policy (backoff strategy, retry intervals, etc.).
@@ -7443,10 +8808,12 @@ components:
           title: Target Agent Id
           description: Target agent ID
         connection_config:
+          additionalProperties: true
           type: object
           title: Connection Config
           description: Connection configuration
         encryption_config:
+          additionalProperties: true
           type: object
           title: Encryption Config
           description: Encryption configuration
@@ -7523,9 +8890,11 @@ components:
           format: uuid
           title: Target Agent Id
         connection_config:
+          additionalProperties: true
           type: object
           title: Connection Config
         encryption_config:
+          additionalProperties: true
           type: object
           title: Encryption Config
         bandwidth_mbps:
@@ -7577,12 +8946,14 @@ components:
           title: Channel Name
         connection_config:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Connection Config
         encryption_config:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Encryption Config
         bandwidth_mbps:
@@ -7600,6 +8971,202 @@ components:
       type: object
       title: DedicatedChannelUpdate
       description: Request body for updating a dedicated channel.
+    EgressGatewayCreate:
+      properties:
+        scope_id:
+          type: string
+          format: uuid
+          title: Scope Id
+          description: Network scope the gateway belongs to
+        gateway_name:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Gateway Name
+        gateway_type:
+          type: string
+          maxLength: 32
+          minLength: 1
+          title: Gateway Type
+          description: 'One of: api, model, github, deployment, mcp'
+        domain_allowlist:
+          items:
+            type: string
+          type: array
+          title: Domain Allowlist
+          description: Domains this gateway may reach. Empty = no restriction beyond
+            the gateway's own policy.
+        secret_store_ref:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Secret Store Ref
+          description: Reference to a secret (env:VAR_NAME). NEVER the secret itself.
+        rate_limit_config:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Rate Limit Config
+          description: Rate limit rules
+        cache_config:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Cache Config
+          description: Cache TTL and rules
+        cost_tracking:
+          type: boolean
+          title: Cost Tracking
+          description: Track per-gateway cost
+          default: true
+      type: object
+      required:
+      - scope_id
+      - gateway_name
+      - gateway_type
+      title: EgressGatewayCreate
+      description: Request body for creating an egress gateway.
+    EgressGatewayListResponse:
+      properties:
+        gateways:
+          items:
+            $ref: '#/components/schemas/EgressGatewayResponse'
+          type: array
+          title: Gateways
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - gateways
+      - total
+      title: EgressGatewayListResponse
+      description: Paginated egress gateway list response.
+    EgressGatewayResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        scope_id:
+          type: string
+          format: uuid
+          title: Scope Id
+        gateway_name:
+          type: string
+          title: Gateway Name
+        gateway_type:
+          type: string
+          title: Gateway Type
+        domain_allowlist:
+          items:
+            type: string
+          type: array
+          title: Domain Allowlist
+        secret_store_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Secret Store Ref
+        rate_limit_config:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Rate Limit Config
+        cache_config:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Cache Config
+        cost_tracking:
+          type: boolean
+          title: Cost Tracking
+        enabled:
+          type: boolean
+          title: Enabled
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - scope_id
+      - gateway_name
+      - gateway_type
+      - domain_allowlist
+      - secret_store_ref
+      - rate_limit_config
+      - cache_config
+      - cost_tracking
+      - enabled
+      - created_at
+      - updated_at
+      title: EgressGatewayResponse
+      description: Single egress gateway response.
+    EgressGatewayUpdate:
+      properties:
+        gateway_name:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 1
+          - type: 'null'
+          title: Gateway Name
+        gateway_type:
+          anyOf:
+          - type: string
+            maxLength: 32
+            minLength: 1
+          - type: 'null'
+          title: Gateway Type
+        domain_allowlist:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Domain Allowlist
+        secret_store_ref:
+          anyOf:
+          - type: string
+            maxLength: 256
+          - type: 'null'
+          title: Secret Store Ref
+        rate_limit_config:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Rate Limit Config
+        cache_config:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Cache Config
+        cost_tracking:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Cost Tracking
+        enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Enabled
+      type: object
+      title: EgressGatewayUpdate
+      description: Request body for partially updating an egress gateway.
     EgressLogListResponse:
       properties:
         logs:
@@ -7774,6 +9341,7 @@ components:
           title: Error Message
           description: Error message if failed.
         metadata:
+          additionalProperties: true
           type: object
           title: Metadata
           description: Additional metadata.
@@ -7843,6 +9411,7 @@ components:
           title: Delivery Status
           description: Delivery status such as pending, delivered, or acked.
         content:
+          additionalProperties: true
           type: object
           title: Content
           description: Persisted protocol message payload.
@@ -7915,6 +9484,46 @@ components:
       - policies_by_risk_level
       title: NetworkOverviewStats
       description: Network overview statistics.
+    NetworkScopeCreateRequest:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+          description: Owner user ID
+        scope_name:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Scope Name
+        scope_type:
+          type: string
+          title: Scope Type
+          description: Must be 'personal' or 'enterprise'
+        network_cidr:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Network Cidr
+        agent_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Agent Ids
+        zone_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Zone Ids
+      type: object
+      required:
+      - user_id
+      - scope_name
+      - scope_type
+      title: NetworkScopeCreateRequest
     NetworkScopeDetailResponse:
       properties:
         scope_id:
@@ -7930,7 +9539,9 @@ components:
           type: string
           title: User Id
         username:
-          type: string
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Username
         network_cidr:
           anyOf:
@@ -7962,6 +9573,9 @@ components:
       - scope_type
       - user_id
       - username
+      - network_cidr
+      - agent_ids
+      - zone_ids
       - created_at
       - updated_at
       title: NetworkScopeDetailResponse
@@ -7980,7 +9594,9 @@ components:
           type: string
           title: User Id
         username:
-          type: string
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Username
         network_cidr:
           anyOf:
@@ -7990,11 +9606,9 @@ components:
         agent_count:
           type: integer
           title: Agent Count
-          default: 0
         zone_count:
           type: integer
           title: Zone Count
-          default: 0
         created_at:
           type: string
           format: date-time
@@ -8010,6 +9624,9 @@ components:
       - scope_type
       - user_id
       - username
+      - network_cidr
+      - agent_count
+      - zone_count
       - created_at
       - updated_at
       title: NetworkScopeListItem
@@ -8036,6 +9653,76 @@ components:
       - offset
       - limit
       title: NetworkScopeListResponse
+    NetworkScopeUpdateRequest:
+      properties:
+        scope_name:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 1
+          - type: 'null'
+          title: Scope Name
+        network_cidr:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Network Cidr
+        agent_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Agent Ids
+        zone_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Zone Ids
+      type: object
+      title: NetworkScopeUpdateRequest
+    NetworkZoneCreateRequest:
+      properties:
+        scope_id:
+          type: string
+          title: Scope Id
+          description: Parent scope ID
+        zone_name:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Zone Name
+        zone_type:
+          type: string
+          title: Zone Type
+          description: 'Must be one of: local, regional, global, local_edge, central,
+            cloud, egress'
+        parent_zone_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Zone Id
+        relay_node_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Relay Node Ids
+        zone_metadata:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Zone Metadata
+      type: object
+      required:
+      - scope_id
+      - zone_name
+      - zone_type
+      title: NetworkZoneCreateRequest
     NetworkZoneDetailResponse:
       properties:
         zone_id:
@@ -8051,7 +9738,9 @@ components:
           type: string
           title: Scope Id
         scope_name:
-          type: string
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Scope Name
         parent_zone_id:
           anyOf:
@@ -8064,6 +9753,7 @@ components:
           type: array
           title: Relay Node Ids
         zone_metadata:
+          additionalProperties: true
           type: object
           title: Zone Metadata
         created_at:
@@ -8081,6 +9771,9 @@ components:
       - zone_type
       - scope_id
       - scope_name
+      - parent_zone_id
+      - relay_node_ids
+      - zone_metadata
       - created_at
       - updated_at
       title: NetworkZoneDetailResponse
@@ -8099,7 +9792,9 @@ components:
           type: string
           title: Scope Id
         scope_name:
-          type: string
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Scope Name
         parent_zone_id:
           anyOf:
@@ -8109,7 +9804,6 @@ components:
         relay_node_count:
           type: integer
           title: Relay Node Count
-          default: 0
         created_at:
           type: string
           format: date-time
@@ -8125,6 +9819,8 @@ components:
       - zone_type
       - scope_id
       - scope_name
+      - parent_zone_id
+      - relay_node_count
       - created_at
       - updated_at
       title: NetworkZoneListItem
@@ -8151,6 +9847,172 @@ components:
       - offset
       - limit
       title: NetworkZoneListResponse
+    NetworkZoneUpdateRequest:
+      properties:
+        zone_name:
+          anyOf:
+          - type: string
+            maxLength: 128
+            minLength: 1
+          - type: 'null'
+          title: Zone Name
+        parent_zone_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Zone Id
+        relay_node_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Relay Node Ids
+        zone_metadata:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Zone Metadata
+      type: object
+      title: NetworkZoneUpdateRequest
+    OrganizationCreateRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 128
+          minLength: 1
+          title: Name
+        slug:
+          type: string
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+          title: Slug
+      type: object
+      required:
+      - name
+      - slug
+      title: OrganizationCreateRequest
+      description: Request body for POST /v1/organizations (super_admin only).
+    OrganizationListResponse:
+      properties:
+        organizations:
+          items:
+            $ref: '#/components/schemas/OrganizationResponse'
+          type: array
+          title: Organizations
+      type: object
+      required:
+      - organizations
+      title: OrganizationListResponse
+      description: Response of GET /v1/organizations/mine.
+    OrganizationMemberAdd:
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        role:
+          type: string
+          pattern: ^(manager|member)$
+          title: Role
+      type: object
+      required:
+      - user_id
+      - role
+      title: OrganizationMemberAdd
+      description: 'Request body for POST /v1/organizations/{id}/members.
+
+
+        ``user_id`` is the resolved target user (UUID) — see module note
+
+        about the username-lookup tool limitation.'
+    OrganizationMemberListResponse:
+      properties:
+        members:
+          items:
+            $ref: '#/components/schemas/OrganizationMemberResponse'
+          type: array
+          title: Members
+      type: object
+      required:
+      - members
+      title: OrganizationMemberListResponse
+      description: Response of GET /v1/organizations/{id}/members.
+    OrganizationMemberResponse:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        username:
+          type: string
+          title: Username
+        role:
+          type: string
+          title: Role
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - user_id
+      - username
+      - role
+      - created_at
+      title: OrganizationMemberResponse
+      description: A single organization membership row.
+    OrganizationMemberUpdateRequest:
+      properties:
+        role:
+          type: string
+          pattern: ^(manager|member)$
+          title: Role
+      type: object
+      required:
+      - role
+      title: OrganizationMemberUpdateRequest
+      description: Request body for PATCH /v1/organizations/{id}/members/{user_id}.
+    OrganizationResponse:
+      properties:
+        org_id:
+          type: string
+          title: Org Id
+        name:
+          type: string
+          title: Name
+        slug:
+          type: string
+          title: Slug
+        role:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Role
+        is_disabled:
+          type: boolean
+          title: Is Disabled
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - org_id
+      - name
+      - slug
+      - is_disabled
+      - created_at
+      title: OrganizationResponse
+      description: 'A single organization, as seen by the requesting user.
+
+
+        ``role`` is the requesting user''s membership role in this
+
+        organization; it is None when the viewer has no membership row
+
+        (e.g. a super_admin who is not a member).'
     OverviewResponse:
       properties:
         online_agents:
@@ -8170,16 +10032,19 @@ components:
           title: Pending Messages
         recent_tasks:
           items:
+            additionalProperties: true
             type: object
           type: array
           title: Recent Tasks
         recent_approvals:
           items:
+            additionalProperties: true
             type: object
           type: array
           title: Recent Approvals
         recent_agent_status_changes:
           items:
+            additionalProperties: true
             type: object
           type: array
           title: Recent Agent Status Changes
@@ -8298,6 +10163,7 @@ components:
           type: boolean
           title: Is Healthy
         network_info:
+          additionalProperties: true
           type: object
           title: Network Info
         last_heartbeat_at:
@@ -8415,6 +10281,7 @@ components:
           title: Max Capacity
           description: Maximum capacity.
         metadata:
+          additionalProperties: true
           type: object
           title: Metadata
           description: Additional metadata.
@@ -8430,7 +10297,8 @@ components:
           maxLength: 128
           minLength: 1
           title: Username
-          description: Stable username for the API key owner.
+          description: Display label for the new user. May duplicate an existing username;
+            the returned user_id is the canonical identifier.
         key_name:
           type: string
           maxLength: 256
@@ -8624,6 +10492,7 @@ components:
           title: Last Heartbeat At
           description: Last heartbeat time.
         metadata:
+          additionalProperties: true
           type: object
           title: Metadata
           description: Additional metadata.
@@ -8744,11 +10613,13 @@ components:
           description: Selected relay node UUID.
         candidate_routes:
           items:
+            additionalProperties: true
             type: object
           type: array
           title: Candidate Routes
           description: Candidate routes considered.
         rejection_reasons:
+          additionalProperties: true
           type: object
           title: Rejection Reasons
           description: Rejection reasons for filtered routes.
@@ -8874,7 +10745,8 @@ components:
           title: Risk Level
         data_boundary_rules:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Data Boundary Rules
         enabled:
@@ -8962,7 +10834,8 @@ components:
           title: Risk Level
         data_boundary_rules:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Data Boundary Rules
         enabled:
@@ -9053,7 +10926,8 @@ components:
           title: Risk Level
         data_boundary_rules:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Data Boundary Rules
         enabled:
@@ -9195,7 +11069,8 @@ components:
           description: Last lease heartbeat time.
         result:
           anyOf:
-          - type: object
+          - additionalProperties: true
+            type: object
           - type: 'null'
           title: Result
           description: Task result payload when completed.
@@ -9258,6 +11133,60 @@ components:
           title: Capabilities
       type: object
       title: UpdateAgentRequest
+    UpdateUserPreferencesRequest:
+      properties:
+        locale:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Locale
+        preferences:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Preferences
+      type: object
+      title: UpdateUserPreferencesRequest
+      description: 'Partial update of user preferences.
+
+
+        Absent fields are left untouched; ``locale: null`` explicitly clears
+
+        the stored locale. Invalid locales, unknown preference keys, or
+
+        values that fail appearance validation are rejected with 400
+
+        (not Pydantic''s 422) so clients get a uniform error envelope.'
+    UpdateUserProfileRequest:
+      properties:
+        username:
+          type: string
+          title: Username
+      type: object
+      required:
+      - username
+      title: UpdateUserProfileRequest
+      description: 'Rename the current user.
+
+
+        Usernames are non-unique display labels (migration 0030); the user_id
+
+        is the canonical identifier, so a rename never collides.'
+    UserProfileResponse:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        username:
+          type: string
+          title: Username
+      type: object
+      required:
+      - user_id
+      - username
+      title: UserProfileResponse
+      description: Current user's identity fields (see PATCH /me/profile).
     ValidationError:
       properties:
         loc:
@@ -9273,6 +11202,11 @@ components:
         type:
           type: string
           title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
       type: object
       required:
       - loc
@@ -9437,6 +11371,8 @@ tags:
     health.'
 - name: dashboard
   description: 'Dashboard APIs: network overview, egress logs, and statistics.'
+- name: organizations
+  description: 'Organization management: membership, roles, and member administration.'
 servers:
 - url: http://localhost:8000
   description: Local development

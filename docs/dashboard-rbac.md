@@ -10,7 +10,7 @@
 
 ## Permission Constants
 
-All permission checks go through `has_permission()` — never compare role strings in code.
+All permission checks go through `has_permission()` -- never compare role strings in code.
 
 **Own resource permissions** (all roles):
 - `agent:read:own`, `agent:create`, `agent:edit:own`, `agent:delete:own`, `agent:rotate-token:own`

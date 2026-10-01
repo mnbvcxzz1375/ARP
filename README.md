@@ -956,6 +956,7 @@ nginx 配置和说明：
 | [docs/protocol.md](docs/protocol.md) | Agent Relay Protocol。 |
 | [docs/security-model.md](docs/security-model.md) | 核心安全模型。 |
 | [docs/sdk-python.md](docs/sdk-python.md) | Python SDK。 |
+| [docs/sdk-python-quickstart.md](docs/sdk-python-quickstart.md) | Python SDK 快速上手。 |
 | [docs/cli.md](docs/cli.md) | CLI。 |
 | [docs/openclaw-adapter.md](docs/openclaw-adapter.md) | OpenClaw Adapter。 |
 | [docs/openapi.md](docs/openapi.md) | OpenAPI 文档。 |

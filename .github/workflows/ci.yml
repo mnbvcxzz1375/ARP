@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - master
       - "codex/**"
   pull_request:
 
@@ -73,3 +74,43 @@ jobs:
 
       - name: Validate Docker Compose files
         run: bash scripts/ci/check-compose.sh
+
+  web:
+    name: Web build and static checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Verify no sourcemaps are published
+        # sourcemap: false in vite.config; assert the contract so a future
+        # flip cannot silently republish the full source tree.
+        run: |
+          if ls dist/assets/*.map 2>/dev/null | grep -q .; then
+            echo "FAIL: sourcemap files present in dist" >&2
+            exit 1
+          fi
+          echo "OK: no sourcemaps in dist"

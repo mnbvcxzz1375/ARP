@@ -5,6 +5,15 @@ import DataTable from '../../components/DataTable';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
+import {
+  ErrorBanner,
+  PageTitle,
+  PixelPanel,
+  PixButton,
+  PIXEL_SELECT_COMPACT,
+} from './pixel-ui';
+import { PIXEL_CHIP } from '../../lib/tokens';
+import { useT } from '../../i18n';
 
 interface DialogState {
   connectionId: string;
@@ -13,7 +22,16 @@ interface DialogState {
 
 const POLICY_OPTIONS = ['private', 'contacts_only', 'request_approval', 'public'];
 
+/** Map a raw inbound-policy enum value to its locale label. */
+const POLICY_LABEL_KEYS: Record<string, string> = {
+  private: 'connections.policy.private',
+  contacts_only: 'connections.policy.contactsOnly',
+  request_approval: 'connections.policy.requestApproval',
+  public: 'connections.policy.public',
+};
+
 export default function ConnectionsPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +55,7 @@ export default function ConnectionsPage() {
     onError: (err: unknown) => {
       setDialogState(null);
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || (err as any)?.message || 'Failed to accept connection');
+      setError(detail || (err as any)?.message || t('connections.error.acceptFailed'));
     },
   });
 
@@ -53,7 +71,7 @@ export default function ConnectionsPage() {
     onError: (err: unknown) => {
       setDialogState(null);
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || (err as any)?.message || 'Failed to reject connection');
+      setError(detail || (err as any)?.message || t('connections.error.rejectFailed'));
     },
   });
 
@@ -88,7 +106,7 @@ export default function ConnectionsPage() {
         return next;
       });
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || (err as any)?.message || 'Failed to update firewall policy');
+      setError(detail || (err as any)?.message || t('connections.error.firewallFailed'));
     },
   });
 
@@ -121,28 +139,22 @@ export default function ConnectionsPage() {
   };
 
   if (isLoading) return <LoadingState />;
-  if (isQueryError) return <ErrorState message="Failed to load connections" />;
+  if (isQueryError) return <ErrorState message={t('connections.error.load')} />;
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Connections & Firewall</h2>
+      <PageTitle>{t('connections.page.title')}</PageTitle>
 
-      {error && (
-        <div className="mb-4 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
-      <div className="bg-white rounded-lg border overflow-hidden mb-6">
-        <div className="px-4 py-3 border-b bg-gray-50">
-          <h3 className="text-sm font-medium text-gray-700">Agents</h3>
-        </div>
+      <PixelPanel title={t('connections.panel.agents')} className="mb-6">
         <DataTable
+          className="border-0"
           columns={[
-            { key: 'agent_number', label: 'Agent Number' },
+            { key: 'agent_number', label: t('connections.table.agentNumber') },
             {
               key: 'inbound_policy',
-              label: 'Inbound Policy',
+              label: t('connections.table.inboundPolicy'),
               render: (r: any) => {
                 const isSaving = savingAgentIds.has(r.agent_id);
                 const displayValue = r.agent_id in policyEdits ? policyEdits[r.agent_id] : r.inbound_policy;
@@ -152,77 +164,92 @@ export default function ConnectionsPage() {
                       value={displayValue}
                       onChange={(e) => handlePolicyChange(r.agent_id, e.target.value)}
                       disabled={isSaving}
-                      className="text-sm border rounded px-2 py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={PIXEL_SELECT_COMPACT}
                     >
                       {POLICY_OPTIONS.map((opt) => (
                         <option key={opt} value={opt}>
-                          {opt}
+                          {t(POLICY_LABEL_KEYS[opt])}
                         </option>
                       ))}
                     </select>
+                    {/* Saving is status feedback carried by the amber LED chip
+                        itself. Static by design: the steps(1) blink primitive
+                        is not in the CSS (see index.css note), so nothing
+                        pulses. */}
                     {isSaving && (
-                      <span className="text-xs text-gray-500 animate-pulse">Saving...</span>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 font-pixel text-sm leading-none ${PIXEL_CHIP.warn}`}
+                      >
+                        {t('connections.status.saving')}
+                      </span>
                     )}
                   </div>
                 );
               },
             },
-            { key: 'pending_requests', label: 'Pending' },
-            { key: 'accepted_connections', label: 'Accepted' },
-            { key: 'rejected_connections', label: 'Rejected' },
+            { key: 'pending_requests', label: t('connections.table.pending') },
+            { key: 'accepted_connections', label: t('connections.table.accepted') },
+            { key: 'rejected_connections', label: t('connections.table.rejected') },
           ]}
           data={data?.agents ?? []}
         />
-      </div>
+      </PixelPanel>
 
-      <div className="bg-white rounded-lg border overflow-hidden">
-        <div className="px-4 py-3 border-b bg-gray-50">
-          <h3 className="text-sm font-medium text-gray-700">Pending Requests</h3>
-        </div>
+      <PixelPanel title={t('connections.panel.pendingRequests')}>
         <DataTable
+          className="border-0"
           columns={[
-            { key: 'connection_id', label: 'ID', render: (r: any) => r.connection_id?.slice(0, 8) },
-            { key: 'agent_number', label: 'Agent' },
-            { key: 'requester_agent', label: 'Requester', render: (r: any) => r.requester_agent?.slice(0, 8) },
-            { key: 'requested_policy', label: 'Requested Policy' },
-            { key: 'created_at', label: 'Created' },
+            { key: 'connection_id', label: t('connections.table.connectionId'), render: (r: any) => r.connection_id?.slice(0, 8) },
+            { key: 'agent_number', label: t('connections.table.agent') },
+            { key: 'requester_agent', label: t('connections.table.requester'), render: (r: any) => r.requester_agent?.slice(0, 8) },
+            {
+              key: 'requested_policy',
+              label: t('connections.table.requestedPolicy'),
+              render: (r: any) =>
+                POLICY_LABEL_KEYS[r.requested_policy]
+                  ? t(POLICY_LABEL_KEYS[r.requested_policy])
+                  : r.requested_policy || '-',
+            },
+            { key: 'created_at', label: t('connections.table.created') },
             {
               key: 'actions',
-              label: 'Actions',
+              label: t('connections.table.actions'),
               render: (r: any) => (
                 <div className="flex gap-2">
-                  <button
+                  <PixButton
+                    variant="ok"
+                    compact
                     onClick={() => handleDialogOpen(r.connection_id, 'accept')}
                     disabled={isMutating}
-                    className="px-3 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {acceptMutation.isPending ? 'Accepting...' : 'Accept'}
-                  </button>
-                  <button
+                    {acceptMutation.isPending ? t('connections.button.accepting') : t('connections.button.accept')}
+                  </PixButton>
+                  <PixButton
+                    variant="danger"
+                    compact
                     onClick={() => handleDialogOpen(r.connection_id, 'reject')}
                     disabled={isMutating}
-                    className="px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {rejectMutation.isPending ? 'Rejecting...' : 'Reject'}
-                  </button>
+                    {rejectMutation.isPending ? t('connections.button.rejecting') : t('connections.button.reject')}
+                  </PixButton>
                 </div>
               ),
             },
           ]}
           data={data?.pending_requests ?? []}
         />
-      </div>
+      </PixelPanel>
 
       <ConfirmDialog
         open={dialogState !== null}
-        title={dialogState?.action === 'accept' ? 'Accept Connection' : 'Reject Connection'}
+        title={dialogState?.action === 'accept' ? t('connections.dialog.acceptTitle') : t('connections.dialog.rejectTitle')}
         message={
           dialogState?.action === 'accept'
-            ? 'Are you sure you want to accept this connection request?'
-            : 'Are you sure you want to reject this connection request?'
+            ? t('connections.dialog.acceptMessage')
+            : t('connections.dialog.rejectMessage')
         }
         variant={dialogState?.action === 'accept' ? 'default' : 'danger'}
-        confirmLabel={dialogState?.action === 'accept' ? 'Accept' : 'Reject'}
+        confirmLabel={dialogState?.action === 'accept' ? t('connections.dialog.acceptConfirm') : t('connections.dialog.rejectConfirm')}
         onConfirm={handleConfirm}
         onCancel={handleDialogCancel}
       />

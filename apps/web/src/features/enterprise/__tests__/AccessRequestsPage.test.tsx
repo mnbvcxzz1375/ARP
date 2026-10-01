@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterForTesting } from '../../../test-utils';
 import AccessRequestsPage from '../AccessRequestsPage';
 
-// Hoisted mock — factory must not reference top-level variables
+// Hoisted mock: factory must not reference top-level variables
 vi.mock('../../../api/client', () => ({
   default: { get: vi.fn(), post: vi.fn() },
 }));
@@ -207,7 +207,7 @@ describe('AccessRequestsPage', () => {
     // Click the Approve button in the table row
     const approveButtons = screen.getAllByText('Approve');
     fireEvent.click(approveButtons[0]);
-    // Now the dialog is open — click the confirm button inside the dialog (last Approve button)
+    // Now the dialog is open: click the confirm button inside the dialog (last Approve button)
     await waitFor(() => {
       expect(screen.getByText(/approve access request/i)).toBeTruthy();
     });

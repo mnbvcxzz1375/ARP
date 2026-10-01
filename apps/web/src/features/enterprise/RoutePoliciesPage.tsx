@@ -1,12 +1,24 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/client';
+import { useT, useFormat } from '../../i18n';
 import DataTable from '../../components/DataTable';
 import Pagination from '../../components/Pagination';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import FormDialog from '../../components/FormDialog';
+import {
+  ErrorBanner,
+  NeutralChip,
+  PageTitleRow,
+  PixelField,
+  PixelPanel,
+  PixButton,
+  PIXEL_INPUT,
+} from '../connections/pixel-ui';
+import { cn } from '../../lib/utils';
+import { PIXEL_CHIP } from '../../lib/tokens';
 
 interface PolicyForm {
   name: string;
@@ -28,6 +40,8 @@ const emptyForm: PolicyForm = {
 
 export default function RoutePoliciesPage() {
   const queryClient = useQueryClient();
+  const t = useT();
+  const { formatDateTime } = useFormat();
   const [page, setPage] = useState(1);
   const limit = 20;
 
@@ -57,7 +71,7 @@ export default function RoutePoliciesPage() {
     },
     onError: (err: unknown) => {
       const detail = (err as any)?.response?.data?.detail;
-      setFormError(detail || (err as any)?.message || 'Failed to create route policy');
+      setFormError(detail || (err as any)?.message || t('enterprise.policies.error.create'));
     },
   });
 
@@ -72,7 +86,7 @@ export default function RoutePoliciesPage() {
     },
     onError: (err: unknown) => {
       const detail = (err as any)?.response?.data?.detail;
-      setFormError(detail || (err as any)?.message || 'Failed to update route policy');
+      setFormError(detail || (err as any)?.message || t('enterprise.policies.error.update'));
     },
   });
 
@@ -135,75 +149,67 @@ export default function RoutePoliciesPage() {
   if (isError) {
     const statusCode = (error as any)?.response?.status;
     if (statusCode === 403) {
-      return <ErrorState message="Access denied" />;
+      return <ErrorState message={t('enterprise.error.accessDenied')} />;
     }
-    return <ErrorState message="Failed to load route policies" />;
+    return <ErrorState message={t('enterprise.policies.error.load')} />;
   }
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold">Route Policies</h2>
-        <button
-          onClick={handleOpenCreate}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-        >
-          Add Policy
-        </button>
-      </div>
+      <PageTitleRow
+        title={t('enterprise.policies.title')}
+        actions={
+          <PixButton onClick={handleOpenCreate}>{t('enterprise.policies.action.add')}</PixButton>
+        }
+      />
 
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <PixelPanel>
         <DataTable
+          className="border-0"
           columns={[
-            { key: 'name', label: 'Name' },
-            { key: 'source_zone', label: 'Source Zone', render: (r: any) => r.source_zone || '-' },
-            { key: 'dest_zone', label: 'Dest Zone', render: (r: any) => r.dest_zone || '-' },
-            { key: 'priority', label: 'Priority', render: (r: any) => r.priority ?? '-' },
+            { key: 'name', label: t('enterprise.table.name') },
+            { key: 'source_zone', label: t('enterprise.policies.table.sourceZone'), render: (r: any) => r.source_zone || '-' },
+            { key: 'dest_zone', label: t('enterprise.policies.table.destZone'), render: (r: any) => r.dest_zone || '-' },
+            { key: 'priority', label: t('enterprise.policies.table.priority'), render: (r: any) => r.priority ?? '-' },
             {
               key: 'relay_type_preference',
-              label: 'Relay Type',
-              render: (r: any) => (
-                <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                  {r.relay_type_preference || '-'}
-                </span>
-              ),
+              label: t('enterprise.policies.table.relayType'),
+              render: (r: any) => <NeutralChip>{r.relay_type_preference || '-'}</NeutralChip>,
             },
             {
               key: 'enabled',
-              label: 'Enabled',
+              label: t('enterprise.table.enabled'),
               render: (r: any) => (
                 <button
-                  onClick={() => toggleMutation.mutate({ id: r.policy_id, enabled: !r.enabled })}
-                  className={`px-2 py-0.5 rounded text-xs font-medium cursor-pointer ${
-                    r.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                  }`}
+                  onClick={() =>
+                    toggleMutation.mutate({ id: r.policy_id, enabled: !r.enabled })
+                  }
+                  className={cn(
+                    'inline-flex cursor-pointer items-center px-2 py-0.5 font-pixel text-sm leading-none border-2 border-[#191a26]',
+                    r.enabled ? PIXEL_CHIP.ok : PIXEL_CHIP.neutral,
+                  )}
                 >
-                  {r.enabled ? 'Yes' : 'No'}
+                  {r.enabled ? t('enterprise.value.yes') : t('enterprise.value.no')}
                 </button>
               ),
             },
             {
               key: 'created_at',
-              label: 'Created',
-              render: (r: any) => r.created_at ? new Date(r.created_at).toLocaleString() : '-',
+              label: t('enterprise.table.created'),
+              render: (r: any) =>
+                r.created_at ? formatDateTime(r.created_at) : '-',
             },
             {
               key: 'actions',
               label: '',
               render: (r: any) => (
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => handleOpenEdit(r)}
-                    className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => setDeleteId(r.policy_id)}
-                    className="px-3 py-1 text-xs font-medium text-red-700 bg-red-50 rounded hover:bg-red-100"
-                  >
-                    Delete
-                  </button>
+                  <PixButton variant="ghost" compact onClick={() => handleOpenEdit(r)}>
+                    {t('enterprise.action.edit')}
+                  </PixButton>
+                  <PixButton variant="danger" compact onClick={() => setDeleteId(r.policy_id)}>
+                    {t('enterprise.action.delete')}
+                  </PixButton>
                 </div>
               ),
             },
@@ -216,91 +222,93 @@ export default function RoutePoliciesPage() {
           total={data?.total ?? 0}
           onPageChange={(offset) => setPage(Math.floor(offset / limit) + 1)}
         />
-      </div>
+      </PixelPanel>
 
       <FormDialog
         open={formOpen}
-        title={editingId ? 'Edit Route Policy' : 'Add Route Policy'}
-        onClose={() => { setFormOpen(false); setEditingId(null); setFormError(null); }}
+        title={editingId ? t('enterprise.policies.form.editTitle') : t('enterprise.policies.form.createTitle')}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingId(null);
+          setFormError(null);
+        }}
         onSubmit={handleSubmit}
         loading={isMutating}
       >
-        {formError && (
-          <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
-            {formError}
-          </div>
-        )}
-        <div>
-          <label htmlFor="rp-name" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+        {formError && <ErrorBanner message={formError} className="mb-0" />}
+        <PixelField label={t('enterprise.policies.form.name')} htmlFor="rp-name">
           <input
             id="rp-name"
             type="text"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full px-3 py-2 border rounded text-sm"
+            className={PIXEL_INPUT}
           />
-        </div>
-        <div>
-          <label htmlFor="rp-source-zone" className="block text-sm font-medium text-gray-700 mb-1">Source Zone</label>
+        </PixelField>
+        <PixelField label={t('enterprise.policies.form.sourceZone')} htmlFor="rp-source-zone">
           <input
             id="rp-source-zone"
             type="text"
             value={form.source_zone}
             onChange={(e) => setForm({ ...form, source_zone: e.target.value })}
-            className="w-full px-3 py-2 border rounded text-sm"
+            className={PIXEL_INPUT}
           />
-        </div>
-        <div>
-          <label htmlFor="rp-dest-zone" className="block text-sm font-medium text-gray-700 mb-1">Dest Zone</label>
+        </PixelField>
+        <PixelField label={t('enterprise.policies.form.destZone')} htmlFor="rp-dest-zone">
           <input
             id="rp-dest-zone"
             type="text"
             value={form.dest_zone}
             onChange={(e) => setForm({ ...form, dest_zone: e.target.value })}
-            className="w-full px-3 py-2 border rounded text-sm"
+            className={PIXEL_INPUT}
           />
-        </div>
-        <div>
-          <label htmlFor="rp-priority" className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+        </PixelField>
+        <PixelField label={t('enterprise.policies.form.priority')} htmlFor="rp-priority">
           <input
             id="rp-priority"
             type="number"
             value={form.priority}
-            onChange={(e) => setForm({ ...form, priority: e.target.value === '' ? '' : Number(e.target.value) })}
-            className="w-full px-3 py-2 border rounded text-sm"
+            onChange={(e) =>
+              setForm({ ...form, priority: e.target.value === '' ? '' : Number(e.target.value) })
+            }
+            className={PIXEL_INPUT}
           />
-        </div>
-        <div>
-          <label htmlFor="rp-relay-type" className="block text-sm font-medium text-gray-700 mb-1">Relay Type Preference</label>
+        </PixelField>
+        <PixelField label={t('enterprise.policies.form.relayTypePreference')} htmlFor="rp-relay-type">
           <select
             id="rp-relay-type"
             value={form.relay_type_preference}
             onChange={(e) => setForm({ ...form, relay_type_preference: e.target.value })}
-            className="w-full px-3 py-2 border rounded text-sm bg-white"
+            className={PIXEL_INPUT}
           >
-            <option value="central_relay">Central Relay</option>
-            <option value="edge">Edge</option>
-            <option value="dedicated">Dedicated</option>
+            <option value="central_relay">{t('enterprise.policies.relayType.centralRelay')}</option>
+            <option value="edge">{t('enterprise.policies.relayType.edge')}</option>
+            <option value="dedicated">{t('enterprise.policies.relayType.dedicated')}</option>
           </select>
-        </div>
-        <div className="flex items-center gap-2">
+        </PixelField>
+        <div className="flex items-center gap-3">
           <input
             type="checkbox"
             id="rp-enabled"
             checked={form.enabled}
             onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-            className="h-4 w-4 rounded border-gray-300"
+            className="h-5 w-5 accent-pixel-accent"
           />
-          <label htmlFor="rp-enabled" className="text-sm font-medium text-gray-700">Enabled</label>
+          <label
+            htmlFor="rp-enabled"
+            className="font-pixel text-pixel-sm uppercase tracking-pixel text-pixel-muted"
+          >
+            {t('enterprise.policies.form.enabled')}
+          </label>
         </div>
       </FormDialog>
 
       <ConfirmDialog
         open={deleteId !== null}
-        title="Delete Route Policy"
-        message="Are you sure you want to delete this route policy? This action cannot be undone."
+        title={t('enterprise.policies.confirm.deleteTitle')}
+        message={t('enterprise.policies.confirm.deleteMessage')}
         variant="danger"
-        confirmLabel="Delete"
+        confirmLabel={t('enterprise.action.delete')}
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
         onCancel={() => setDeleteId(null)}
       />

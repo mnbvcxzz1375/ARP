@@ -2,55 +2,254 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * AgentNet pixel design system - global CSS.
+ *
+ * Aesthetic: ModRetro Chromatic / GBC hardware inspired console UI.
+ * Dark first, light variant supported (auto via prefers-color-scheme,
+ * manual override via .theme-light / .theme-dark on <html>, see
+ * src/hooks/useTheme.ts).
+ *
+ * Rules enforced here:
+ * - Hard edges only (border-radius 0, see tailwind.config.ts).
+ * - All spacing on the 4px grid.
+ * - No default transitions; the only animation is the steps(1) cursor /
+ *   status blink, which is <3Hz and turned off under reduced motion.
+ * - CRT scanline overlay and chromatic aberration are opt-in utilities,
+ *   fixed + pointer-events:none, disabled on mobile (<768px) and under
+ *   prefers-reduced-motion (fill-rate and accessibility reasons).
+ */
+
+/* ===== Font stacks ===================================================== *
+ * Self-hosted via @fontsource (imported in src/main.tsx).
+ * CJK honesty note: Press Start 2P, VT323 and Pixelify Sans ship only
+ * latin / latin-ext / cyrillic / greek subsets. They contain NO Chinese
+ * glyphs. Chinese UI text falls back to the system CJK stack below
+ * (Microsoft YaHei / Noto Sans CJK SC). That fallback is a system font,
+ * NOT a pixel font, and is labeled as such on purpose.
+ */
 :root {
-  /* Design tokens */
-  --color-bg: #ffffff;
-  --color-surface: #f9fafb;
-  --color-border: #e5e7eb;
-  --color-text: #111827;
-  --color-muted: #6b7280;
-  --color-success: #059669;
-  --color-warning: #d97706;
-  --color-danger: #dc2626;
-  --color-route: #4f46e5;
-  --color-audit: #7c3aed;
-  --color-enterprise: #1e293b;
+  --font-display: 'Press Start 2P', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-body: VT323, 'Microsoft YaHei', 'Noto Sans CJK SC', monospace;
+  --font-pixel: 'Pixelify Sans', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
 
-  /* Legacy tokens kept for compatibility */
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --border: 214.3 31.8% 91.4%;
+  /* ===== Pixel color tokens (dark default) ============================ *
+   * DB32-derived (DawnBringer 32 family: #222034 / #cbdbfc / #9badb7 are
+   * DB32 values, the rest are derived steps from that palette); the accent
+   * pair #df7126 / #5fcde4 is the Chromatic high-saturation pair.
+   * Pure #000000 / #ffffff are banned.
+   *
+   * Single-accent rule: #df7126 (--pixel-accent) is the ONE decorative
+   * emphasis color (selection, primary action). --pixel-accent-2 is NOT a
+   * second decorative accent; it is a functional-only semantic color from
+   * the same exception family as the LED colors below:
+   *   - info state chips (pixel-ui.tsx 'info' variant, tokens.ts
+   *     PIXEL_CHIP.info, AgentDetailPage info chip)
+   *   - link affordance text (DocsMarkdown.tsx, AccessRequestDetailPage)
+   *   - the global *:focus-visible outline and input focus borders
+   *     (accessibility, not decoration)
+   *
+   * Why the remaining uses cannot migrate to --pixel-accent (measured with
+   * the WCAG relative-luminance formula):
+   *   - links: #df7126 on the light --pixel-surface (#eef1fa) is 2.85:1,
+   *     below the 4.5:1 WCAG 1.4.3 text minimum; accent-2 (#306082 light)
+   *     holds 5.96:1 (9.32:1 with the dark theme pair).
+   *   - focus outlines: #df7126 on the light --pixel-bg (#cbdbfc) is
+   *     2.31:1, below the 3:1 WCAG 1.4.11 non-text minimum; accent-2 is
+   *     4.83:1 in light, 8.56:1 in dark.
+   *   - info chips: the styling is additionally pinned by
+   *     src/components/__tests__/BadgesAndCards.test.tsx, which asserts
+   *     'bg-pixel-accent-2' on the chip, so a color change would break a
+   *     locked test assertion.
+   * accent-2 must never be used for pure decoration; a new use belongs to
+   * one of the functional roles above or it stays on --pixel-accent.
+   */
+  --pixel-bg: #191a26;
+  --pixel-surface: #222034;
+  --pixel-raised: #2d2b45;
+  --pixel-fg: #cbdbfc;
+  --pixel-muted: #9badb7;
+  --pixel-accent: #df7126;
+  --pixel-accent-2: #5fcde4;
+  --pixel-line: #4b4968;
+
+  /* Semantic LED colors (GBC high saturation). Status only, never decor. */
+  --pixel-led-green: #99e550;
+  --pixel-led-amber: #fbf236;
+  --pixel-led-red: #ac3232;
+
+  /* NOTE: the legacy --color-* / --background / --foreground / --border
+   * token group was removed. grep across src/, e2e/ and index.html found
+   * zero consumers after the pixel migration; the pixel-* variables above
+   * are the single source of truth for both themes.
+   */
 }
 
-body {
-  @apply bg-white text-gray-900 antialiased;
+/* ===== Light variant ================================================== *
+ * Respected automatically (prefers-color-scheme: light) unless the user
+ * has an explicit manual override (.theme-dark). .theme-light forces it.
+ */
+:root.theme-light {
+  --pixel-bg: #cbdbfc;
+  --pixel-surface: #eef1fa;
+  --pixel-raised: #dde1f5;
+  --pixel-fg: #222034;
+  --pixel-muted: #595652;
+  --pixel-accent: #df7126;
+  --pixel-accent-2: #306082;
+  --pixel-line: #8f93b8;
 }
 
-/* Accessible focus states */
-*:focus-visible {
-  outline: 2px solid #3b82f6;
-  outline-offset: 2px;
-}
-
-/* Responsive table scrolling */
-.responsive-table {
-  @apply overflow-x-auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Mobile button fix — prevent overflow */
-@media (max-width: 375px) {
-  .btn-action {
-    @apply text-xs px-2 py-1;
+@media (prefers-color-scheme: light) {
+  :root:not(.theme-dark):not(.theme-light) {
+    --pixel-bg: #cbdbfc;
+    --pixel-surface: #eef1fa;
+    --pixel-raised: #dde1f5;
+    --pixel-fg: #222034;
+    --pixel-muted: #595652;
+    --pixel-accent: #df7126;
+    --pixel-accent-2: #306082;
+    --pixel-line: #8f93b8;
   }
 }
 
-/* Enterprise sidebar dark theme */
-.enterprise-sidebar {
-  @apply bg-gray-900 text-gray-300;
+/* ===== Base =========================================================== */
+html {
+  background-color: var(--pixel-bg);
 }
 
-/* Personal sidebar light theme */
-.personal-sidebar {
-  @apply bg-white text-gray-600 border-r border-gray-200;
+body {
+  background-color: var(--pixel-bg);
+  color: var(--pixel-fg);
+  font-family: var(--font-body);
+  /* VT323 terminal body: 18px base (mobile >=16px, desktop 18-20px). */
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+/* Pixel hard edges for anything not covered by Tailwind utilities. */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+}
+
+/* Accessible focus state: 2px pixel outline in the functional accent-2
+ * (a11y role, not decoration -- see the single-accent rule in :root). */
+*:focus-visible {
+  outline: 2px solid var(--pixel-accent-2);
+  outline-offset: 2px;
+}
+
+/* ===== CRT overlay layers (opt-in utilities) ========================== *
+ * Fixed, pointer-events:none. Alpha kept <=0.15 so contrast computation on
+ * the layer below is unaffected.
+ */
+.pixel-scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  /* 2px pitch scanline; 3px is used by the rgb stripe pitch elsewhere so
+     the two pitches stay coprime (3px / 4px) and avoid static moire. */
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.12) 0 1px,
+    rgba(0, 0, 0, 0) 1px 2px
+  );
+}
+
+/* RGB stripe layer, 3px pitch (coprime with the 2px scanline pitch). */
+.pixel-rgb-stripes {
+  position: fixed;
+  inset: 0;
+  z-index: 91;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.05) 0 1px,
+    rgba(0, 255, 255, 0.05) 1px 2px,
+    rgba(0, 0, 255, 0.05) 2px 3px
+  );
+}
+
+/* ===== Chromatic aberration (converge error) ========================== *
+ * +/-1px red/cyan text-shadow. Display font only, >=16px, one element per
+ * screen max. Disabled on mobile and under reduced motion.
+ */
+.chromatic {
+  text-shadow:
+    1px 0 0 rgba(255, 85, 85, 0.4),
+    -1px 0 0 rgba(85, 255, 255, 0.4);
+}
+
+/* NOTE: ordered dither (.pixel-dither) and steps(1) blink (.pixel-blink)
+ * primitives were removed: no component in scope consumed them, and
+ * LoadingState must keep the .animate-spin class (7 page tests lock it).
+ * The features pass can re-add both in this file when it introduces
+ * progress/capacity bars and live status cursors; the removed patterns
+ * were a 2x2 ordered checkerboard (layered 45deg gradients, 4px tile)
+ * and a 940ms steps(1) opacity blink (<3Hz, disabled under reduced
+ * motion).
+ */
+
+/* ===== Status LED dots (semantic only) ================================ */
+.pixel-led {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+.pixel-led-green {
+  background-color: var(--pixel-led-green);
+}
+.pixel-led-amber {
+  background-color: var(--pixel-led-amber);
+}
+.pixel-led-red {
+  background-color: var(--pixel-led-red);
+}
+
+/* ===== Removed legacy utilities ======================================== *
+ * The .pixelated / .responsive-table / .btn-action / .enterprise-sidebar /
+ * .personal-sidebar classes were deleted: grep found zero consumers in src/,
+ * e2e/ and index.html. When a bitmap is introduced later, re-add
+ * image-rendering: pixelated at that point; the sidebar shells are styled
+ * directly with pixel-* utilities in src/app/*.tsx.
+ */
+
+/* ===== Reduced motion: kill every effect ============================= *
+ * Zero-transition system by default; this belt removes the CRT / chromatic
+ * layers and all animations for users who request reduced motion.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .pixel-scanlines,
+  .pixel-rgb-stripes {
+    display: none;
+  }
+  .chromatic {
+    text-shadow: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ===== Mobile: overlay layers off ==================================== *
+ * Full-screen blend overlays are a fill-rate cost on mobile GPUs; the
+ * reference implementations cap them at desktop. Chromatic aberration is
+ * also disabled (sub-pixel offsets smear on dense mobile LCDs).
+ */
+@media (max-width: 767px) {
+  .pixel-scanlines,
+  .pixel-rgb-stripes {
+    display: none;
+  }
+  .chromatic {
+    text-shadow: none;
+  }
 }

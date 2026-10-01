@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { useT } from '../i18n';
 
 interface FormDialogProps {
   open: boolean;
@@ -17,27 +18,32 @@ export default function FormDialog({
   loading = false,
   children,
 }: FormDialogProps) {
+  const t = useT();
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#191a26]/70"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-lg p-6 mx-4 bg-pixel-surface border-2 border-pixel-fg shadow-pixel">
+        <h3 className="font-display text-pixel-lg text-pixel-fg">{title}</h3>
         <div className="mt-4 space-y-4">{children}</div>
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+            className="min-h-[44px] px-4 py-2 font-pixel text-pixel-base border-2 border-pixel-line text-pixel-fg hover:bg-pixel-raised disabled:opacity-50"
           >
-            Cancel
+            {t('common.action.cancel')}
           </button>
           <button
             onClick={onSubmit}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+            className="min-h-[44px] px-4 py-2 font-pixel text-pixel-base border-2 border-[#191a26] bg-pixel-accent text-[#191a26] disabled:opacity-50"
           >
-            {loading ? 'Saving...' : 'Submit'}
+            {loading ? t('common.status.saving') : t('common.action.submit')}
           </button>
         </div>
       </div>

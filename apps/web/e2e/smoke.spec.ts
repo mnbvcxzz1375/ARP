@@ -12,7 +12,9 @@ test.describe('Dashboard smoke tests', () => {
 
   test('unauthenticated redirects to login', async ({ page }) => {
     await page.goto('/app/overview');
-    await expect(page).toHaveURL(/\/login$/);
+    // The guard carries the original path in `next` (deep-link contract,
+    // see e2e/deep-link.spec.ts), so the URL may carry a query string.
+    await expect(page).toHaveURL(/\/login(\?|$)/);
   });
 
   test('login page form validation shows errors', async ({ page }) => {

@@ -57,7 +57,7 @@ test.describe('Authenticated dashboard flow', () => {
 
     // Should redirect away from login — either to /app or /admin
     await page.waitForURL(/\/(app|admin)/, { timeout: 10000 }).catch(async () => {
-      const errorEl = page.locator('.text-red-600');
+      const errorEl = page.locator('[data-testid="login-error"]');
       const errorText = (await errorEl.isVisible()) ? await errorEl.textContent() : 'No error message visible';
       throw new Error(
         `Login did not redirect to dashboard. Check if user "${username}" exists ` +

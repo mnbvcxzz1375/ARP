@@ -74,9 +74,9 @@ describe('NetworkZonesPage', () => {
     await waitFor(() => expect(screen.getByText('Zone A')).toBeInTheDocument());
     // Click the row-level Delete link
     fireEvent.click(screen.getByText('Delete'));
-    // ConfirmDialog opens — find the danger confirm button inside it
+    // ConfirmDialog opens: find the danger confirm button inside it
     const dialog = await screen.findByRole('heading', { name: 'Delete Zone' });
-    const dialogContainer = dialog.closest('.bg-white')!;
+    const dialogContainer = dialog.closest('.bg-pixel-surface')!;
     const confirmBtn = within(dialogContainer as HTMLElement).getByRole('button', { name: 'Delete' });
     fireEvent.click(confirmBtn);
     await waitFor(() => expect(screen.getByText(/Cannot delete zone with active agents/)).toBeInTheDocument());

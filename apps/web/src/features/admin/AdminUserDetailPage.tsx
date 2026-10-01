@@ -1,22 +1,16 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
 import api from '../../api/client';
+import { useT, useFormat } from '../../i18n';
 import RoleBadge from '../../components/RoleBadge';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium text-gray-500 uppercase">{label}</dt>
-      <dd className="mt-1 text-sm text-gray-900">{children}</dd>
-    </div>
-  );
-}
+import { PageHeader, Panel, Field, BackLink } from './PixelKit';
 
 export default function AdminUserDetailPage() {
   const { userId } = useParams<{ userId: string }>();
+  const t = useT();
+  const { formatDateTime } = useFormat();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin/user-detail', userId],
@@ -25,38 +19,31 @@ export default function AdminUserDetailPage() {
   });
 
   if (isLoading) return <LoadingState />;
-  if (isError) return <ErrorState message="Failed to load user detail" />;
+  if (isError) return <ErrorState message={t('admin.error.loadUserDetail')} />;
 
   const user = data;
 
   return (
     <div>
-      <Link
-        to="/admin/users"
-        className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mb-4"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Users
-      </Link>
-      <h2 className="text-xl font-semibold mb-6">{user.username}</h2>
+      <BackLink to="/admin/users">{t('admin.back.users')}</BackLink>
+      <PageHeader title={user.username} />
 
-      <div className="bg-white rounded-lg border p-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">User Details</h3>
-        <dl className="grid grid-cols-2 gap-4">
-          <Field label="Username">{user.username}</Field>
-          <Field label="Role">
+      <Panel title={t('admin.userDetail.panel.userDetails')}>
+        <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Field label={t('admin.userDetail.field.username')}>{user.username}</Field>
+          <Field label={t('admin.userDetail.field.role')}>
             <RoleBadge role={user.role} />
           </Field>
-          <Field label="Disabled">{user.is_disabled ? 'Yes' : 'No'}</Field>
-          <Field label="Created">{new Date(user.created_at).toLocaleString()}</Field>
-          <Field label="Agents">{user.agents_count}</Field>
-          <Field label="Active API Keys">{user.active_api_keys_count}</Field>
-          <Field label="Tasks (24h)">{user.tasks_24h}</Field>
-          <Field label="Failed Tasks (24h)">{user.failed_tasks_24h}</Field>
-          <Field label="Active Sessions">{user.active_sessions_count}</Field>
-          <Field label="Recent Audit Events">{user.recent_audit_count}</Field>
+          <Field label={t('admin.userDetail.field.disabled')}>{user.is_disabled ? t('admin.value.yes') : t('admin.value.no')}</Field>
+          <Field label={t('admin.table.created')}>{formatDateTime(user.created_at)}</Field>
+          <Field label={t('admin.userDetail.field.agents')}>{user.agents_count}</Field>
+          <Field label={t('admin.userDetail.field.activeApiKeys')}>{user.active_api_keys_count}</Field>
+          <Field label={t('admin.userDetail.field.tasks24h')}>{user.tasks_24h}</Field>
+          <Field label={t('admin.userDetail.field.failedTasks24h')}>{user.failed_tasks_24h}</Field>
+          <Field label={t('admin.userDetail.field.activeSessions')}>{user.active_sessions_count}</Field>
+          <Field label={t('admin.userDetail.field.recentAuditEvents')}>{user.recent_audit_count}</Field>
         </dl>
-      </div>
+      </Panel>
     </div>
   );
 }

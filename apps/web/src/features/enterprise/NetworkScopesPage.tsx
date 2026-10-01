@@ -1,10 +1,22 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/client';
+import { useT } from '../../i18n';
 import DataTable from '../../components/DataTable';
 import FormDialog from '../../components/FormDialog';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import StatusBadge from '../../components/StatusBadge';
+import LoadingState from '../../components/LoadingState';
+import ErrorState from '../../components/ErrorState';
+import Pagination from '../../components/Pagination';
+import {
+  ErrorBanner,
+  FilterPill,
+  NeutralChip,
+  PageTitleRow,
+  PixelField,
+  PixButton,
+  PIXEL_INPUT,
+} from '../connections/pixel-ui';
 
 const VALID_SCOPE_TYPES = ['personal', 'enterprise'];
 const PAGE_SIZE = 50;
@@ -36,17 +48,23 @@ const emptyForm: ScopeForm = {
   network_cidr: '',
 };
 
-function extractDomainError(err: any): string {
+/**
+ * Server error detail extractor: returns backend messages verbatim (they are
+ * dynamic data, never translated) and falls back to the caller-supplied
+ * translated message when nothing usable is present.
+ */
+function extractDomainError(err: any, fallback: string): string {
   const data = err?.response?.data;
   if (data?.error?.message) return data.error.message;
   if (data?.error?.detail) return data.error.detail;
   if (data?.detail) return data.detail;
   if (data?.message) return data.message;
-  return err?.message || 'Operation failed';
+  return err?.message || fallback;
 }
 
 export default function NetworkScopesPage() {
   const qc = useQueryClient();
+  const t = useT();
   const [offset, setOffset] = useState(0);
   const [scopeTypeFilter, setScopeTypeFilter] = useState<string>('');
   const [formOpen, setFormOpen] = useState(false);
@@ -75,7 +93,7 @@ export default function NetworkScopesPage() {
       qc.invalidateQueries({ queryKey: ['admin/network/scopes'] });
     },
     onError: (err: any) => {
-      setFormError(extractDomainError(err));
+      setFormError(extractDomainError(err, t('enterprise.error.operationFailed')));
     },
   });
 
@@ -89,7 +107,7 @@ export default function NetworkScopesPage() {
       qc.invalidateQueries({ queryKey: ['admin/network/scopes'] });
     },
     onError: (err: any) => {
-      setFormError(extractDomainError(err));
+      setFormError(extractDomainError(err, t('enterprise.error.operationFailed')));
     },
   });
 
@@ -102,7 +120,7 @@ export default function NetworkScopesPage() {
       qc.invalidateQueries({ queryKey: ['admin/network/scopes'] });
     },
     onError: (err: any) => {
-      setDeleteError(extractDomainError(err));
+      setDeleteError(extractDomainError(err, t('enterprise.error.operationFailed')));
     },
   });
 
@@ -127,7 +145,7 @@ export default function NetworkScopesPage() {
 
   function handleSubmit() {
     if (!form.scope_name.trim()) {
-      setFormError('Scope name is required');
+      setFormError(t('enterprise.scopes.error.nameRequired'));
       return;
     }
     const body: Record<string, any> = {
@@ -138,7 +156,7 @@ export default function NetworkScopesPage() {
       updateMutation.mutate({ id: editingId, body });
     } else {
       if (!form.user_id.trim()) {
-        setFormError('User ID is required');
+        setFormError(t('enterprise.scopes.error.userIdRequired'));
         return;
       }
       body.user_id = form.user_id.trim();
@@ -149,57 +167,82 @@ export default function NetworkScopesPage() {
 
   const scopes: ScopeRow[] = data?.scopes ?? [];
   const total: number = data?.total ?? 0;
-  const canPrev = offset > 0;
-  const canNext = offset + PAGE_SIZE < total;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Network Scopes</h2>
-        <button
-          onClick={handleOpenCreate}
-          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Add Scope
-        </button>
-      </div>
+      <PageTitleRow
+        title={t('enterprise.scopes.title')}
+        actions={
+          <PixButton onClick={handleOpenCreate}>{t('enterprise.scopes.action.add')}</PixButton>
+        }
+      />
 
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => { setScopeTypeFilter(''); setOffset(0); }}
-          className={`px-3 py-1 text-sm rounded ${!scopeTypeFilter ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <FilterPill
+          active={!scopeTypeFilter}
+          onClick={() => {
+            setScopeTypeFilter('');
+            setOffset(0);
+          }}
         >
-          All
-        </button>
-        {VALID_SCOPE_TYPES.map((t) => (
-          <button
-            key={t}
-            onClick={() => { setScopeTypeFilter(t); setOffset(0); }}
-            className={`px-3 py-1 text-sm rounded capitalize ${scopeTypeFilter === t ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          {t('enterprise.filter.all')}
+        </FilterPill>
+        {VALID_SCOPE_TYPES.map((scopeType) => (
+          <FilterPill
+            key={scopeType}
+            active={scopeTypeFilter === scopeType}
+            onClick={() => {
+              setScopeTypeFilter(scopeType);
+              setOffset(0);
+            }}
+            className="capitalize"
           >
-            {t}
-          </button>
+            {t(`enterprise.scopes.scopeType.${scopeType}`)}
+          </FilterPill>
         ))}
       </div>
 
-      {isLoading && <p className="text-gray-500">Loading...</p>}
-      {isError && <p className="text-red-600">Failed to load scopes</p>}
+      {isLoading && <LoadingState />}
+      {isError && <ErrorState message={t('enterprise.scopes.error.load')} />}
 
       {!isLoading && !isError && (
         <DataTable
           columns={[
-            { key: 'scope_id', label: 'ID', render: (r: ScopeRow) => r.scope_id.slice(0, 8) },
-            { key: 'scope_name', label: 'Name' },
-            { key: 'scope_type', label: 'Type', render: (r: ScopeRow) => <StatusBadge status={r.scope_type} /> },
-            { key: 'username', label: 'Owner' },
-            { key: 'network_cidr', label: 'CIDR' },
-            { key: 'agent_count', label: 'Agents' },
-            { key: 'zone_count', label: 'Zones' },
+            { key: 'scope_id', label: t('enterprise.table.id'), render: (r: ScopeRow) => r.scope_id.slice(0, 8) },
+            { key: 'scope_name', label: t('enterprise.table.name') },
             {
-              key: 'actions', label: '', render: (r: ScopeRow) => (
+              key: 'scope_type',
+              label: t('enterprise.table.type'),
+              render: (r: ScopeRow) => (
+                <NeutralChip>
+                  {VALID_SCOPE_TYPES.includes(r.scope_type)
+                    ? t(`enterprise.scopes.scopeType.${r.scope_type}`)
+                    : r.scope_type}
+                </NeutralChip>
+              ),
+            },
+            { key: 'username', label: t('enterprise.scopes.table.owner') },
+            { key: 'network_cidr', label: t('enterprise.scopes.table.cidr') },
+            { key: 'agent_count', label: t('enterprise.scopes.table.agents') },
+            { key: 'zone_count', label: t('enterprise.scopes.table.zones') },
+            {
+              key: 'actions',
+              label: '',
+              render: (r: ScopeRow) => (
                 <div className="flex gap-2">
-                  <button onClick={() => handleOpenEdit(r)} className="text-xs text-blue-600 hover:underline">Edit</button>
-                  <button onClick={() => { setDeleteId(r.scope_id); setDeleteError(null); }} className="text-xs text-red-600 hover:underline">Delete</button>
+                  <PixButton variant="ghost" compact onClick={() => handleOpenEdit(r)}>
+                    {t('enterprise.action.edit')}
+                  </PixButton>
+                  <PixButton
+                    variant="danger"
+                    compact
+                    onClick={() => {
+                      setDeleteId(r.scope_id);
+                      setDeleteError(null);
+                    }}
+                  >
+                    {t('enterprise.action.delete')}
+                  </PixButton>
                 </div>
               ),
             },
@@ -209,97 +252,83 @@ export default function NetworkScopesPage() {
       )}
 
       {total > PAGE_SIZE && (
-        <div className="flex items-center justify-between mt-4">
-          <span className="text-sm text-gray-600">
-            Showing {offset + 1}-{Math.min(offset + PAGE_SIZE, total)} of {total}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-              disabled={!canPrev}
-              className="px-3 py-1.5 text-sm rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setOffset(offset + PAGE_SIZE)}
-              disabled={!canNext}
-              className="px-3 py-1.5 text-sm rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <Pagination offset={offset} limit={PAGE_SIZE} total={total} onPageChange={setOffset} />
       )}
 
       <FormDialog
         open={formOpen}
-        title={editingId ? 'Edit Scope' : 'Create Scope'}
-        onClose={() => { setFormOpen(false); setEditingId(null); }}
+        title={editingId ? t('enterprise.scopes.form.editTitle') : t('enterprise.scopes.form.createTitle')}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingId(null);
+        }}
         onSubmit={handleSubmit}
         loading={createMutation.isPending || updateMutation.isPending}
       >
-        <div className="space-y-3">
+        <div className="space-y-4">
           {!editingId && (
             <>
-              <div>
-                <label htmlFor="scope-user-id" className="block text-sm font-medium text-gray-700 mb-1">User ID</label>
+              <PixelField label={t('enterprise.scopes.form.userId')} htmlFor="scope-user-id">
                 <input
                   id="scope-user-id"
-                  className="w-full border rounded px-3 py-1.5 text-sm"
+                  className={PIXEL_INPUT}
                   value={form.user_id}
                   onChange={(e) => setForm({ ...form, user_id: e.target.value })}
-                  placeholder="UUID of owner"
+                  placeholder={t('enterprise.scopes.form.userIdPlaceholder')}
                 />
-              </div>
-              <div>
-                <label htmlFor="scope-type" className="block text-sm font-medium text-gray-700 mb-1">Scope Type</label>
+              </PixelField>
+              <PixelField label={t('enterprise.scopes.form.scopeType')} htmlFor="scope-type">
                 <select
                   id="scope-type"
-                  className="w-full border rounded px-3 py-1.5 text-sm"
+                  className={PIXEL_INPUT}
                   value={form.scope_type}
                   onChange={(e) => setForm({ ...form, scope_type: e.target.value })}
                 >
-                  {VALID_SCOPE_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                  {VALID_SCOPE_TYPES.map((scopeType) => (
+                    <option key={scopeType} value={scopeType}>
+                      {t(`enterprise.scopes.scopeType.${scopeType}`)}
+                    </option>
                   ))}
                 </select>
-              </div>
+              </PixelField>
             </>
           )}
-          <div>
-            <label htmlFor="scope-name" className="block text-sm font-medium text-gray-700 mb-1">Scope Name</label>
+          <PixelField label={t('enterprise.scopes.form.scopeName')} htmlFor="scope-name">
             <input
               id="scope-name"
-              className="w-full border rounded px-3 py-1.5 text-sm"
+              className={PIXEL_INPUT}
               value={form.scope_name}
               onChange={(e) => setForm({ ...form, scope_name: e.target.value })}
             />
-          </div>
-          <div>
-            <label htmlFor="scope-cidr" className="block text-sm font-medium text-gray-700 mb-1">Network CIDR</label>
+          </PixelField>
+          <PixelField label={t('enterprise.scopes.form.networkCidr')} htmlFor="scope-cidr">
             <input
               id="scope-cidr"
-              className="w-full border rounded px-3 py-1.5 text-sm"
+              className={PIXEL_INPUT}
               value={form.network_cidr}
               onChange={(e) => setForm({ ...form, network_cidr: e.target.value })}
-              placeholder="e.g. 10.0.0.0/8"
+              placeholder={t('enterprise.scopes.form.cidrPlaceholder')}
             />
-          </div>
-          {formError && <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{formError}</div>}
+          </PixelField>
+          {formError && <ErrorBanner message={formError} className="mb-0" />}
         </div>
       </FormDialog>
 
       <ConfirmDialog
         open={!!deleteId}
-        title="Delete Scope"
-        message="This will delete the scope and its child zones. This action cannot be undone."
+        title={t('enterprise.scopes.confirm.deleteTitle')}
+        message={t('enterprise.scopes.confirm.deleteMessage', {
+          name: scopes.find((s) => s.scope_id === deleteId)?.scope_name ?? '',
+        })}
         variant="danger"
-        confirmLabel="Delete"
+        confirmLabel={t('enterprise.action.delete')}
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
-        onCancel={() => { setDeleteId(null); setDeleteError(null); }}
+        onCancel={() => {
+          setDeleteId(null);
+          setDeleteError(null);
+        }}
       />
-      {deleteError && <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">{deleteError}</div>}
+      {deleteError && <ErrorBanner message={deleteError} className="mt-4" />}
     </div>
   );
 }

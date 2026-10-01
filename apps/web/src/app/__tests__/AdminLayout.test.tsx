@@ -36,14 +36,16 @@ describe('AdminLayout', () => {
   it('has no emoji in the enterprise banner', () => {
     const { container } = renderLayout();
     const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
-    // DashboardShell renders enterprise banner with bg-gray-800
-    const banner = container.querySelector('.bg-gray-800');
+    // DashboardShell renders the enterprise banner (pixel restyle: queried
+    // by testid instead of a Tailwind class).
+    const banner = container.querySelector('[data-testid="enterprise-banner"]');
     expect(banner).toBeTruthy();
     expect(emojiRegex.test(banner?.textContent || '')).toBe(false);
   });
 
   it('shows Enterprise label in sidebar', () => {
     renderLayout();
-    expect(screen.getByText('Enterprise')).toBeInTheDocument();
+    // Sidebar scope switcher plus the mobile bottom-bar scope button.
+    expect(screen.getAllByText('Enterprise').length).toBeGreaterThan(0);
   });
 });

@@ -7,6 +7,8 @@ import RiskBadge from '../../components/RiskBadge';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
+import { ErrorBanner, PageTitle, PixButton } from '../connections/pixel-ui';
+import { useT } from '../../i18n';
 
 interface DialogState {
   approvalId: string;
@@ -14,6 +16,7 @@ interface DialogState {
 }
 
 export default function ApprovalsPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +38,7 @@ export default function ApprovalsPage() {
     onError: (err: unknown) => {
       setDialogState(null);
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || (err as any)?.message || 'Failed to accept approval');
+      setError(detail || (err as any)?.message || t('approvals.error.acceptFailed'));
     },
   });
 
@@ -51,7 +54,7 @@ export default function ApprovalsPage() {
     onError: (err: unknown) => {
       setDialogState(null);
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || (err as any)?.message || 'Failed to reject approval');
+      setError(detail || (err as any)?.message || t('approvals.error.rejectFailed'));
     },
   });
 
@@ -77,69 +80,65 @@ export default function ApprovalsPage() {
   };
 
   if (isLoading) return <LoadingState />;
-  if (isQueryError) return <ErrorState message="Failed to load approvals" />;
+  if (isQueryError) return <ErrorState message={t('approvals.error.load')} />;
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Approvals</h2>
+      <PageTitle>{t('approvals.page.title')}</PageTitle>
 
-      {error && (
-        <div className="mb-4 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
-      <div className="bg-white rounded-lg border overflow-hidden">
-        <DataTable
-          columns={[
-            { key: 'approval_id', label: 'ID', render: (r: any) => r.approval_id?.slice(0, 8) },
-            { key: 'type', label: 'Type' },
-            { key: 'status', label: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
-            { key: 'risk_level', label: 'Risk', render: (r: any) => <RiskBadge level={r.risk_level} /> },
-            { key: 'action_kind', label: 'Action' },
-            { key: 'created_at', label: 'Created' },
-            {
-              key: 'actions',
-              label: 'Actions',
-              render: (r: any) => {
-                if (r.status !== 'pending') return null;
-                const isAcceptPending = acceptMutation.isPending;
-                const isRejectPending = rejectMutation.isPending;
-                return (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleDialogOpen(r.approval_id, 'accept')}
-                      disabled={isMutating}
-                      className="px-3 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isAcceptPending ? 'Accepting...' : 'Accept'}
-                    </button>
-                    <button
-                      onClick={() => handleDialogOpen(r.approval_id, 'reject')}
-                      disabled={isMutating}
-                      className="px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isRejectPending ? 'Rejecting...' : 'Reject'}
-                    </button>
-                  </div>
-                );
-              },
+      <DataTable
+        columns={[
+          { key: 'approval_id', label: t('approvals.table.id'), render: (r: any) => r.approval_id?.slice(0, 8) },
+          { key: 'type', label: t('approvals.table.type') },
+          { key: 'status', label: t('approvals.table.status'), render: (r: any) => <StatusBadge status={r.status} /> },
+          { key: 'risk_level', label: t('approvals.table.risk'), render: (r: any) => <RiskBadge level={r.risk_level} /> },
+          { key: 'action_kind', label: t('approvals.table.action') },
+          { key: 'created_at', label: t('approvals.table.created') },
+          {
+            key: 'actions',
+            label: t('approvals.table.actions'),
+            render: (r: any) => {
+              if (r.status !== 'pending') return null;
+              const isAcceptPending = acceptMutation.isPending;
+              const isRejectPending = rejectMutation.isPending;
+              return (
+                <div className="flex gap-2">
+                  <PixButton
+                    variant="ok"
+                    compact
+                    onClick={() => handleDialogOpen(r.approval_id, 'accept')}
+                    disabled={isMutating}
+                  >
+                    {isAcceptPending ? t('approvals.button.accepting') : t('approvals.button.accept')}
+                  </PixButton>
+                  <PixButton
+                    variant="danger"
+                    compact
+                    onClick={() => handleDialogOpen(r.approval_id, 'reject')}
+                    disabled={isMutating}
+                  >
+                    {isRejectPending ? t('approvals.button.rejecting') : t('approvals.button.reject')}
+                  </PixButton>
+                </div>
+              );
             },
-          ]}
-          data={data?.approvals ?? []}
-        />
-      </div>
+          },
+        ]}
+        data={data?.approvals ?? []}
+      />
 
       <ConfirmDialog
         open={dialogState !== null}
-        title={dialogState?.action === 'accept' ? 'Accept Approval' : 'Reject Approval'}
+        title={dialogState?.action === 'accept' ? t('approvals.dialog.acceptTitle') : t('approvals.dialog.rejectTitle')}
         message={
           dialogState?.action === 'accept'
-            ? 'Are you sure you want to accept this approval request?'
-            : 'Are you sure you want to reject this approval request?'
+            ? t('approvals.dialog.acceptMessage')
+            : t('approvals.dialog.rejectMessage')
         }
         variant={dialogState?.action === 'accept' ? 'default' : 'danger'}
-        confirmLabel={dialogState?.action === 'accept' ? 'Accept' : 'Reject'}
+        confirmLabel={dialogState?.action === 'accept' ? t('approvals.dialog.acceptConfirm') : t('approvals.dialog.rejectConfirm')}
         onConfirm={handleConfirm}
         onCancel={handleDialogCancel}
       />

@@ -6,6 +6,8 @@ import SecretMaskedText from '../../components/SecretMaskedText';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
+import { ErrorBanner, PageTitle, PixelField, PixelPanel, PixButton, PIXEL_INPUT } from '../connections/pixel-ui';
+import { useT } from '../../i18n';
 
 interface RawKeyInfo {
   apiKey: string;
@@ -19,6 +21,7 @@ interface RevokeDialog {
 
 export default function ApiKeysPage() {
   const queryClient = useQueryClient();
+  const t = useT();
   const [name, setName] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [rawKey, setRawKey] = useState<RawKeyInfo | null>(null);
@@ -42,7 +45,7 @@ export default function ApiKeysPage() {
     },
     onError: (err: unknown) => {
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || (err as any)?.message || 'Failed to create API key');
+      setError(detail || (err as any)?.message || t('apiKeys.error.create'));
     },
   });
 
@@ -58,7 +61,7 @@ export default function ApiKeysPage() {
     onError: (err: unknown) => {
       setRevokeDialog(null);
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || (err as any)?.message || 'Failed to revoke API key');
+      setError(detail || (err as any)?.message || t('apiKeys.error.revoke'));
     },
   });
 
@@ -89,115 +92,116 @@ export default function ApiKeysPage() {
   };
 
   if (isLoading) return <LoadingState />;
-  if (isQueryError) return <ErrorState message="Failed to load API keys" />;
+  if (isQueryError) return <ErrorState message={t('apiKeys.error.load')} />;
 
   const apiKeys = data?.api_keys ?? [];
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">API Keys</h2>
+      <PageTitle>{t('apiKeys.title')}</PageTitle>
 
-      {error && (
-        <div className="mb-4 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
       {/* Create API Key Form */}
-      <form onSubmit={handleCreate} className="mb-6 p-4 bg-white rounded-lg border">
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Create API Key</h3>
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label htmlFor="key-name" className="block text-xs font-medium text-gray-600 mb-1">
-              Name
-            </label>
-            <input
-              id="key-name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              placeholder="My API Key"
-              className="w-full text-sm border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+      <PixelPanel title={t('apiKeys.create.title')} className="mb-6" bodyClassName="p-4">
+        <form onSubmit={handleCreate} className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <div className="flex-1 min-w-0">
+            <PixelField label={t('apiKeys.create.field.name')} htmlFor="key-name">
+              <input
+                id="key-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder={t('apiKeys.create.field.namePlaceholder')}
+                className={PIXEL_INPUT}
+              />
+            </PixelField>
           </div>
-          <div className="flex-1 min-w-[200px]">
-            <label htmlFor="key-expires" className="block text-xs font-medium text-gray-600 mb-1">
-              Expires At (optional)
-            </label>
-            <input
-              id="key-expires"
-              type="date"
-              value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
-              className="w-full text-sm border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div className="flex-1 min-w-0">
+            <PixelField label={t('apiKeys.create.field.expires')} htmlFor="key-expires">
+              <input
+                id="key-expires"
+                type="date"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className={PIXEL_INPUT}
+              />
+            </PixelField>
           </div>
-          <button
+          <PixButton
             type="submit"
             disabled={createMutation.isPending || !name.trim()}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {createMutation.isPending ? 'Creating...' : 'Create Key'}
-          </button>
-        </div>
-      </form>
+            {createMutation.isPending
+              ? t('apiKeys.create.action.creating')
+              : t('apiKeys.create.action.submit')}
+          </PixButton>
+        </form>
+      </PixelPanel>
 
-      {/* Raw Key Panel */}
+      {/* Raw Key Panel: success state = solid LED green chip (11.24:1 both themes). */}
       {rawKey && (
-        <div className="mb-6 p-4 bg-white rounded-lg border-2 border-green-500">
-          <div className="flex items-start justify-between mb-2">
-            <h3 className="text-sm font-semibold text-green-800">API Key Created: {rawKey.name}</h3>
+        <div className="mb-6 border-2 border-[#191a26] bg-pixel-led-green p-4">
+          <div className="mb-2 flex items-start justify-between gap-4">
+            <h3 className="font-pixel text-pixel-sm uppercase tracking-pixel text-[#191a26]">
+              {t('apiKeys.created.title', { name: rawKey.name })}
+            </h3>
             <button
               onClick={handleCloseRawKey}
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
+              className="border-2 border-[#191a26] bg-pixel-led-green px-3 py-1 font-pixel text-pixel-sm text-[#191a26] hover:bg-[#191a26] hover:text-pixel-led-green"
             >
-              Close
+              {t('common.action.close')}
             </button>
           </div>
           <SecretMaskedText text={rawKey.apiKey} />
-          <p className="mt-2 text-sm text-red-600 font-medium">
-            Copy this key now. You will not be able to see it again.
+          <p className="mt-2 font-pixel text-pixel-sm text-[#191a26]">
+            {t('apiKeys.created.note')}
           </p>
         </div>
       )}
 
       {/* API Keys Table */}
-      <div className="bg-white rounded-lg border overflow-hidden">
-        <DataTable
-          columns={[
-            { key: 'name', label: 'Name' },
-            { key: 'key_prefix', label: 'Key Prefix', render: (r: any) => <SecretMaskedText text={r.key_prefix ?? ''} /> },
-            { key: 'created_at', label: 'Created' },
-            { key: 'expires_at', label: 'Expires' },
-            { key: 'revoked_at', label: 'Revoked' },
-            {
-              key: 'actions',
-              label: 'Actions',
-              render: (r: any) => {
-                if (r.revoked_at) return null;
-                return (
-                  <button
-                    onClick={() => handleRevokeClick(r.api_key_id, r.name)}
-                    disabled={revokeMutation.isPending}
-                    className="px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Revoke
-                  </button>
-                );
-              },
+      <DataTable
+        columns={[
+          { key: 'name', label: t('apiKeys.table.name') },
+          { key: 'key_prefix', label: t('apiKeys.table.keyPrefix'), render: (r: any) => <SecretMaskedText text={r.key_prefix ?? ''} /> },
+          { key: 'created_at', label: t('apiKeys.table.created') },
+          { key: 'expires_at', label: t('apiKeys.table.expires') },
+          { key: 'revoked_at', label: t('apiKeys.table.revoked') },
+          {
+            key: 'actions',
+            label: t('apiKeys.table.actions'),
+            render: (r: any) => {
+              if (r.revoked_at) return null;
+              return (
+                <PixButton
+                  variant="danger"
+                  compact
+                  onClick={() => handleRevokeClick(r.api_key_id, r.name)}
+                  disabled={revokeMutation.isPending}
+                >
+                  {t('apiKeys.action.revoke')}
+                </PixButton>
+              );
             },
-          ]}
-          data={apiKeys}
-        />
-      </div>
+          },
+        ]}
+        data={apiKeys}
+      />
+
 
       <ConfirmDialog
         open={revokeDialog !== null}
-        title="Revoke API Key"
-        message={`Are you sure you want to revoke "${revokeDialog?.keyName}"? This action cannot be undone.`}
+        title={t('apiKeys.confirm.revokeTitle')}
+        message={
+          revokeDialog
+            ? t('apiKeys.confirm.revokeMessage', { name: revokeDialog.keyName })
+            : ''
+        }
         variant="danger"
-        confirmLabel="Revoke"
+        confirmLabel={t('apiKeys.action.revoke')}
+        cancelLabel={t('common.action.cancel')}
         onConfirm={handleRevokeConfirm}
         onCancel={handleRevokeCancel}
       />

@@ -1,39 +1,86 @@
 import { cn } from '../lib/utils';
+import { PIXEL_CHIP } from '../lib/tokens';
+import { useT } from '../i18n';
 
-const STATUS_MAP: Record<string, { label: string; cls: string }> = {
+/**
+ * Status styling (LED palette) per raw status value. Kept module-level:
+ * styles are locale-independent.
+ */
+const STATUS_STYLE: Record<string, string> = {
   // Task statuses
-  created: { label: 'Created', cls: 'bg-blue-100 text-blue-800' },
-  pending: { label: 'Pending', cls: 'bg-yellow-100 text-yellow-800' },
-  accepted: { label: 'Accepted', cls: 'bg-green-100 text-green-800' },
-  running: { label: 'Running', cls: 'bg-yellow-100 text-yellow-800' },
-  completed: { label: 'Completed', cls: 'bg-green-100 text-green-800' },
-  failed: { label: 'Failed', cls: 'bg-red-100 text-red-800' },
-  expired: { label: 'Expired', cls: 'bg-gray-100 text-gray-600' },
-  cancelled: { label: 'Cancelled', cls: 'bg-gray-100 text-gray-600' },
-  rejected: { label: 'Rejected', cls: 'bg-red-100 text-red-800' },
+  created: PIXEL_CHIP.info,
+  pending: PIXEL_CHIP.warn,
+  accepted: PIXEL_CHIP.ok,
+  running: PIXEL_CHIP.warn,
+  completed: PIXEL_CHIP.ok,
+  failed: PIXEL_CHIP.bad,
+  expired: PIXEL_CHIP.neutral,
+  cancelled: PIXEL_CHIP.neutral,
+  rejected: PIXEL_CHIP.bad,
   // Agent statuses
-  online: { label: 'Online', cls: 'bg-green-100 text-green-800' },
-  offline: { label: 'Offline', cls: 'bg-gray-100 text-gray-600' },
-  healthy: { label: 'Healthy', cls: 'bg-green-100 text-green-800' },
-  degraded: { label: 'Degraded', cls: 'bg-yellow-100 text-yellow-800' },
-  down: { label: 'Down', cls: 'bg-red-100 text-red-800' },
-  unknown: { label: 'Unknown', cls: 'bg-gray-100 text-gray-600' },
+  online: PIXEL_CHIP.ok,
+  offline: PIXEL_CHIP.neutral,
+  healthy: PIXEL_CHIP.ok,
+  degraded: PIXEL_CHIP.warn,
+  down: PIXEL_CHIP.bad,
+  unknown: PIXEL_CHIP.neutral,
   // Delivery lifecycle statuses
-  queued: { label: 'Queued', cls: 'bg-yellow-100 text-yellow-800' },
-  route_selected: { label: 'Route Selected', cls: 'bg-blue-100 text-blue-800' },
-  delivering: { label: 'Delivering', cls: 'bg-indigo-100 text-indigo-800' },
-  delivered: { label: 'Delivered', cls: 'bg-indigo-100 text-indigo-800' },
-  acknowledged: { label: 'Acknowledged', cls: 'bg-green-100 text-green-800' },
-  delivery_failed: { label: 'Delivery Failed', cls: 'bg-red-100 text-red-800' },
-  unacked: { label: 'Unacked', cls: 'bg-orange-100 text-orange-800' },
+  queued: PIXEL_CHIP.warn,
+  route_selected: PIXEL_CHIP.info,
+  delivering: PIXEL_CHIP.info,
+  delivered: PIXEL_CHIP.info,
+  acknowledged: PIXEL_CHIP.ok,
+  delivery_failed: PIXEL_CHIP.bad,
+  unacked: PIXEL_CHIP.warn,
   // Access request statuses
-  approved: { label: 'Approved', cls: 'bg-green-100 text-green-800' },
+  approved: PIXEL_CHIP.ok,
+};
+
+/**
+ * Translation keys (namespace `common`) for each known status value. Unknown
+ * values fall back to the raw string, matching the pre-i18n behavior.
+ */
+const STATUS_LABEL_KEY: Record<string, string> = {
+  created: 'common.statusLabel.created',
+  pending: 'common.statusLabel.pending',
+  accepted: 'common.statusLabel.accepted',
+  running: 'common.statusLabel.running',
+  completed: 'common.statusLabel.completed',
+  failed: 'common.statusLabel.failed',
+  expired: 'common.statusLabel.expired',
+  cancelled: 'common.statusLabel.cancelled',
+  rejected: 'common.statusLabel.rejected',
+  online: 'common.statusLabel.online',
+  offline: 'common.statusLabel.offline',
+  healthy: 'common.statusLabel.healthy',
+  degraded: 'common.statusLabel.degraded',
+  down: 'common.statusLabel.down',
+  unknown: 'common.statusLabel.unknown',
+  queued: 'common.statusLabel.queued',
+  route_selected: 'common.statusLabel.routeSelected',
+  delivering: 'common.statusLabel.delivering',
+  delivered: 'common.statusLabel.delivered',
+  acknowledged: 'common.statusLabel.acknowledged',
+  delivery_failed: 'common.statusLabel.deliveryFailed',
+  unacked: 'common.statusLabel.unacked',
+  approved: 'common.statusLabel.approved',
 };
 
 export default function StatusBadge({ status }: { status: string }) {
-  const info = STATUS_MAP[status.toLowerCase()] ?? { label: status, cls: 'bg-gray-100 text-gray-600' };
+  const t = useT();
+  const key = status.toLowerCase();
+  const labelKey = STATUS_LABEL_KEY[key];
+  const info = {
+    label: labelKey ? t(labelKey) : status,
+    cls: STATUS_STYLE[key] ?? PIXEL_CHIP.neutral,
+  };
   return (
-    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', info.cls)}>
+    <span
+      className={cn(
+        'inline-flex items-center px-2 py-0.5 text-sm font-pixel leading-none',
+        info.cls,
+      )}
+    >
       {info.label}
     </span>
   );

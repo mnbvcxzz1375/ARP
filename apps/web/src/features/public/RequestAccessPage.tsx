@@ -1,12 +1,22 @@
 import { useState, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import api from '../../api/client';
+import { useT } from '../../i18n';
+import { rememberDocsOrigin } from '../docs/docsEntryMemory';
 
 type RequestMode = 'personal' | 'enterprise';
 
+/**
+ * Pixel restyle: hard-edged panel, recessed terminal inputs, accent-solid
+ * mode toggle for the active option (accent + #191a26 text = 5.36:1 in both
+ * themes) and a solid LED-red error chip (5.89:1 both themes) for the
+ * request-error feedback. Form logic, validation, API payload and the
+ * request-error test id are unchanged.
+ */
 export default function RequestAccessPage() {
   const navigate = useNavigate();
+  const t = useT();
   const [searchParams] = useSearchParams();
   const initialMode = (searchParams.get('mode') === 'enterprise' ? 'enterprise' : 'personal') as RequestMode;
 
@@ -39,14 +49,14 @@ export default function RequestAccessPage() {
           state: { submitted: true, requestId },
         });
       } else {
-        setErrorMsg('Submission succeeded but no request ID was returned. Please contact support.');
+        setErrorMsg(t('public.error.noRequestId'));
       }
     },
     onError: (error: any) => {
       const msg =
         error?.response?.data?.error?.message ||
         error?.response?.data?.detail ||
-        'Submission failed. Please try again later.';
+        t('public.error.submitFailed');
       setErrorMsg(msg);
     },
   });
@@ -59,130 +69,177 @@ export default function RequestAccessPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-6">
-          <h1 className="text-xl font-bold">Request Access</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Submit a request to use AgentNet. Access is granted after review.
-          </p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-pixel-bg px-4 py-8">
+      <div className="w-full max-w-md bg-pixel-surface border-2 border-pixel-line shadow-pixel">
+        {/* Accent header rule: 4px grid step, decorative (not a status LED). */}
+        <div className="h-1 bg-pixel-accent" aria-hidden="true" />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Your full name"
-            />
+        <div className="p-6 md:p-8">
+          <div className="text-center mb-6">
+            <h1 className="font-display text-pixel-lg text-pixel-fg chromatic">
+              {t('public.request.title')}
+            </h1>
+            <p className="mt-2 font-body text-base text-pixel-muted">
+              {t('public.request.subtitle')}
+            </p>
           </div>
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Access Mode
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setMode('personal')}
-                className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border ${
-                  mode === 'personal'
-                    ? 'bg-blue-50 border-blue-300 text-blue-700'
-                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                Personal
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('enterprise')}
-                className={`flex-1 px-3 py-2 rounded-md text-sm font-medium border ${
-                  mode === 'enterprise'
-                    ? 'bg-blue-50 border-blue-300 text-blue-700'
-                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                Enterprise
-              </button>
-            </div>
-          </div>
-
-          {mode === 'enterprise' && (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
-              <label htmlFor="organization" className="block text-sm font-medium text-gray-700 mb-1">Organization</label>
+              <label
+                htmlFor="name"
+                className="block font-body text-base text-pixel-muted mb-1 tracking-pixel"
+              >
+                {t('public.field.name')}
+              </label>
               <input
-                id="organization"
+                id="name"
                 type="text"
-                value={organization}
-                onChange={(e) => setOrganization(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Company or team name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className="w-full px-3 py-2 bg-pixel-bg border-2 border-pixel-line font-mono text-base text-pixel-fg placeholder:text-pixel-muted"
+                placeholder={t('public.field.namePlaceholder')}
               />
             </div>
-          )}
 
-          <div>
-            <label htmlFor="use-case" className="block text-sm font-medium text-gray-700 mb-1">Use Case</label>
-            <textarea
-              id="use-case"
-              value={useCase}
-              onChange={(e) => setUseCase(e.target.value)}
-              required
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="What do you plan to use AgentNet for?"
-            />
+            <div>
+              <label
+                htmlFor="email"
+                className="block font-body text-base text-pixel-muted mb-1 tracking-pixel"
+              >
+                {t('public.field.email')}
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full px-3 py-2 bg-pixel-bg border-2 border-pixel-line font-mono text-base text-pixel-fg placeholder:text-pixel-muted"
+                placeholder={t('public.field.emailPlaceholder')}
+              />
+            </div>
+
+            <div>
+              <label className="block font-body text-base text-pixel-muted mb-1 tracking-pixel">
+                {t('public.field.accessMode')}
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMode('personal')}
+                  aria-pressed={mode === 'personal'}
+                  className={`flex-1 min-h-[44px] px-3 py-2 font-pixel text-base border-2 ${
+                    mode === 'personal'
+                      ? 'bg-pixel-accent text-[#191a26] border-[#191a26] shadow-pixel-sm'
+                      : 'bg-pixel-surface text-pixel-muted border-pixel-line hover:text-pixel-fg'
+                  }`}
+                >
+                  {t('shell.scope.personal')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('enterprise')}
+                  aria-pressed={mode === 'enterprise'}
+                  className={`flex-1 min-h-[44px] px-3 py-2 font-pixel text-base border-2 ${
+                    mode === 'enterprise'
+                      ? 'bg-pixel-accent text-[#191a26] border-[#191a26] shadow-pixel-sm'
+                      : 'bg-pixel-surface text-pixel-muted border-pixel-line hover:text-pixel-fg'
+                  }`}
+                >
+                  {t('shell.scope.enterprise')}
+                </button>
+              </div>
+            </div>
+
+            {mode === 'enterprise' && (
+              <div>
+                <label
+                  htmlFor="organization"
+                  className="block font-body text-base text-pixel-muted mb-1 tracking-pixel"
+                >
+                  {t('public.field.organization')}
+                </label>
+                <input
+                  id="organization"
+                  type="text"
+                  value={organization}
+                  onChange={(e) => setOrganization(e.target.value)}
+                  className="w-full px-3 py-2 bg-pixel-bg border-2 border-pixel-line font-mono text-base text-pixel-fg placeholder:text-pixel-muted"
+                  placeholder={t('public.field.organizationPlaceholder')}
+                />
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="use-case"
+                className="block font-body text-base text-pixel-muted mb-1 tracking-pixel"
+              >
+                {t('public.field.useCase')}
+              </label>
+              <textarea
+                id="use-case"
+                value={useCase}
+                onChange={(e) => setUseCase(e.target.value)}
+                required
+                rows={3}
+                className="w-full px-3 py-2 bg-pixel-bg border-2 border-pixel-line font-mono text-base text-pixel-fg placeholder:text-pixel-muted resize-y"
+                placeholder={t('public.field.useCasePlaceholder')}
+              />
+            </div>
+
+            <div className="flex items-start gap-3">
+              <input
+                id="terms"
+                type="checkbox"
+                checked={termsAcknowledged}
+                onChange={(e) => setTermsAcknowledged(e.target.checked)}
+                className="mt-1 h-5 w-5 accent-pixel-accent"
+              />
+              <label htmlFor="terms" className="font-body text-sm text-pixel-muted leading-relaxed">
+                {t('public.terms.label')}
+              </label>
+            </div>
+
+            {errorMsg && (
+              <p
+                data-testid="request-error"
+                className="px-3 py-2 text-base font-pixel bg-pixel-led-red text-[#f4f4fa] border-2 border-[#191a26]"
+              >
+                {errorMsg}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={!isValid || submitMutation.isPending}
+              className="w-full min-h-[44px] py-2 px-4 bg-pixel-accent text-[#191a26] border-2 border-[#191a26] shadow-pixel-sm font-pixel text-base hover:bg-pixel-raised hover:text-pixel-fg disabled:bg-pixel-line disabled:text-pixel-muted disabled:border-pixel-line disabled:shadow-none disabled:cursor-not-allowed"
+            >
+              {submitMutation.isPending
+                ? t('public.action.submitting')
+                : t('public.action.submit')}
+            </button>
+          </form>
+
+          <div className="mt-4 flex flex-col items-center gap-2 text-center">
+            <a
+              href="/login"
+              className="font-body text-base text-pixel-muted hover:text-pixel-fg underline"
+            >
+              {t('public.action.alreadyHaveAccess')}
+            </a>
+            {/* In-card docs entry: the fixed bottom-bar link is easy to
+                miss on a form screen. */}
+            <Link
+              to="/docs/quickstart"
+              onClick={() => rememberDocsOrigin()}
+              className="font-body text-base text-pixel-muted hover:text-pixel-fg underline"
+            >
+              {t('common.login.docs')}
+            </Link>
           </div>
-
-          <div className="flex items-start gap-2">
-            <input
-              id="terms"
-              type="checkbox"
-              checked={termsAcknowledged}
-              onChange={(e) => setTermsAcknowledged(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <label htmlFor="terms" className="text-xs text-gray-600">
-              I acknowledge that access is granted after review, not immediately,
-              and that I will not share credentials or misuse the platform.
-            </label>
-          </div>
-
-          {errorMsg && (
-            <p data-testid="request-error" className="text-sm text-red-600">{errorMsg}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={!isValid || submitMutation.isPending}
-            className="w-full py-2 px-4 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-          >
-            {submitMutation.isPending ? 'Submitting...' : 'Submit Request'}
-          </button>
-        </form>
-
-        <div className="mt-4 text-center">
-          <a href="/login" className="text-sm text-gray-500 hover:text-gray-700">
-            Already have access? Sign in
-          </a>
         </div>
       </div>
     </div>

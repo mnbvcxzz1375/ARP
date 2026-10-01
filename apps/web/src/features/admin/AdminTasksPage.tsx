@@ -1,8 +1,8 @@
-import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import api from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useT } from '../../i18n';
 import DataTable from '../../components/DataTable';
 import Pagination from '../../components/Pagination';
 import StatusBadge from '../../components/StatusBadge';
@@ -10,6 +10,12 @@ import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import StepUpDialog from '../../components/StepUpDialog';
+import {
+  PageHeader,
+  PixelActionButton,
+  ActionErrorBanner,
+  DetailLink,
+} from './PixelKit';
 
 type PendingTaskAction = {
   type: 'cancel';
@@ -30,6 +36,7 @@ export default function AdminTasksPage() {
   const limit = 20;
   const queryClient = useQueryClient();
   const { data: auth } = useAuth();
+  const t = useT();
   const isSuperAdmin = auth?.role === 'super_admin';
   const isAdmin = auth?.role === 'admin' || isSuperAdmin;
 
@@ -55,7 +62,7 @@ export default function AdminTasksPage() {
     onError: (err: any) => {
       setPendingAction(null);
       setShowStepUp(false);
-      setActionError(err?.response?.data?.detail || 'Failed to cancel task');
+      setActionError(err?.response?.data?.detail || t('admin.error.cancelTask'));
     },
   });
 
@@ -72,7 +79,7 @@ export default function AdminTasksPage() {
     onError: (err: any) => {
       setPendingAction(null);
       setShowStepUp(false);
-      setActionError(err?.response?.data?.detail || 'Failed to expire task');
+      setActionError(err?.response?.data?.detail || t('admin.error.expireTask'));
     },
   });
 
@@ -100,100 +107,96 @@ export default function AdminTasksPage() {
   };
 
   if (isLoading) return <LoadingState />;
-  if (isError) return <ErrorState message="Failed to load tasks" />;
+  if (isError) return <ErrorState message={t('admin.error.loadTasks')} />;
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Tasks</h2>
-      {actionError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700" data-testid="action-error">
-          {actionError}
-        </div>
-      )}
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <PageHeader title={t('admin.title.tasks')} />
+      {actionError && <ActionErrorBanner message={actionError} />}
+      {/* DataTable carries its own 2px pixel border + surface; the wrapper
+          only adds the hard pixel-step shadow. */}
+      <div className="shadow-pixel-sm">
         <DataTable
           columns={[
-            { key: 'task_id', label: 'ID', render: (r: any) => r.task_id?.slice(0, 8) },
+            { key: 'task_id', label: t('admin.tasks.table.id'), render: (r: any) => r.task_id?.slice(0, 8) },
             {
               key: 'details',
               label: '',
               render: (r: any) => (
-                <Link to={`/admin/tasks/${r.task_id}`} className="text-blue-600 hover:underline text-xs font-medium">
-                  View
-                </Link>
+                <DetailLink to={`/admin/tasks/${r.task_id}`}>{t('admin.action.view')}</DetailLink>
               ),
             },
-            { key: 'status', label: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
-            { key: 'owner_username', label: 'Owner' },
-            { key: 'sender_agent', label: 'Sender', render: (r: any) => r.sender_agent?.slice(0, 8) },
-            { key: 'target_agent', label: 'Target', render: (r: any) => r.target_agent?.slice(0, 8) },
-            { key: 'created_at', label: 'Created' },
+            { key: 'status', label: t('admin.table.status'), render: (r: any) => <StatusBadge status={r.status} /> },
+            { key: 'owner_username', label: t('admin.table.owner') },
+            { key: 'sender_agent', label: t('admin.tasks.table.sender'), render: (r: any) => r.sender_agent?.slice(0, 8) },
+            { key: 'target_agent', label: t('admin.tasks.table.target'), render: (r: any) => r.target_agent?.slice(0, 8) },
+            { key: 'created_at', label: t('admin.table.created') },
             {
               key: 'actions',
-              label: 'Actions',
+              label: t('admin.table.actions'),
               render: (r: any) => {
                 const taskStatus = r.status;
                 const isTerminal = ['completed', 'failed', 'cancelled', 'expired'].includes(taskStatus);
                 if (taskStatus === 'pending') {
                   if (!isAdmin) {
-                    return <span className="text-xs text-gray-400">Admin required</span>;
+                    return <span className="text-base text-pixel-muted">{t('admin.hint.adminRequired')}</span>;
                   }
                   return (
-                    <>
-                      <button
+                    <div className="flex flex-wrap gap-2">
+                      <PixelActionButton
                         onClick={() => setPendingAction({ type: 'cancel', taskId: r.task_id, isRunning: false })}
                         disabled={cancelMutation.isPending}
-                        className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100 disabled:opacity-50"
+                        variant="danger"
                       >
-                        Cancel
-                      </button>
+                        {t('admin.action.cancel')}
+                      </PixelActionButton>
                       {isSuperAdmin && (
-                        <button
+                        <PixelActionButton
                           onClick={() => setPendingAction({ type: 'expire', taskId: r.task_id })}
                           disabled={expireMutation.isPending}
-                          className="ml-1 px-2 py-1 text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded hover:bg-orange-100 disabled:opacity-50"
+                          variant="accent"
                         >
-                          Expire
-                        </button>
+                          {t('admin.action.expire')}
+                        </PixelActionButton>
                       )}
-                    </>
+                    </div>
                   );
                 }
                 if (taskStatus === 'running') {
                   if (!isSuperAdmin) {
-                    return <span className="text-xs text-gray-400">Super admin required</span>;
+                    return <span className="text-base text-pixel-muted">{t('admin.hint.superAdminRequired')}</span>;
                   }
                   return (
-                    <>
-                      <button
+                    <div className="flex flex-wrap gap-2">
+                      <PixelActionButton
                         onClick={() => setPendingAction({ type: 'cancel', taskId: r.task_id, isRunning: true })}
                         disabled={cancelMutation.isPending}
-                        className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100 disabled:opacity-50"
+                        variant="danger"
                       >
-                        Cancel
-                      </button>
-                      <button
+                        {t('admin.action.cancel')}
+                      </PixelActionButton>
+                      <PixelActionButton
                         onClick={() => setPendingAction({ type: 'expire', taskId: r.task_id })}
                         disabled={expireMutation.isPending}
-                        className="ml-1 px-2 py-1 text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded hover:bg-orange-100 disabled:opacity-50"
+                        variant="accent"
                       >
-                        Expire
-                      </button>
-                    </>
+                        {t('admin.action.expire')}
+                      </PixelActionButton>
+                    </div>
                   );
                 }
                 if (!isTerminal && isSuperAdmin) {
                   return (
-                    <button
+                    <PixelActionButton
                       onClick={() => setPendingAction({ type: 'expire', taskId: r.task_id })}
                       disabled={expireMutation.isPending}
-                      className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded hover:bg-orange-100 disabled:opacity-50"
+                      variant="accent"
                     >
-                      Expire
-                    </button>
+                      {t('admin.action.expire')}
+                    </PixelActionButton>
                   );
                 }
-                return <span className="text-xs text-gray-400">-</span>;
+                return <span className="text-base text-pixel-muted">-</span>;
               },
             },
           ]}
@@ -210,18 +213,18 @@ export default function AdminTasksPage() {
       <ConfirmDialog
         open={pendingAction !== null && !showStepUp}
         title={
-          pendingAction?.type === 'expire' ? 'Expire Task' : 'Cancel Task'
+          pendingAction?.type === 'expire' ? t('admin.tasks.confirm.expireTitle') : t('admin.tasks.confirm.cancelTitle')
         }
         message={
           pendingAction?.type === 'expire'
-            ? `Force expire task "${pendingAction?.taskId?.slice(0, 8)}"? This will mark the task as expired and stop further processing.`
+            ? t('admin.tasks.confirm.expireMessage', { id: pendingAction?.taskId?.slice(0, 8) ?? '' })
             : pendingAction?.isRunning
-              ? `Cancel running task "${pendingAction?.taskId?.slice(0, 8)}"? This will immediately stop the task and may leave it in an incomplete state.`
-              : `Cancel pending task "${pendingAction?.taskId?.slice(0, 8)}"? The task will be marked as cancelled and will not execute.`
+              ? t('admin.tasks.confirm.cancelRunningMessage', { id: pendingAction?.taskId?.slice(0, 8) ?? '' })
+              : t('admin.tasks.confirm.cancelPendingMessage', { id: pendingAction?.taskId?.slice(0, 8) ?? '' })
         }
         variant="danger"
         confirmLabel={
-          pendingAction?.type === 'expire' ? 'Expire Task' : 'Cancel Task'
+          pendingAction?.type === 'expire' ? t('admin.tasks.confirm.expireLabel') : t('admin.tasks.confirm.cancelLabel')
         }
         onConfirm={handleConfirmAction}
         onCancel={() => {

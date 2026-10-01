@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/client';
+import { useT, useFormat } from '../../i18n';
 import DataTable from '../../components/DataTable';
 import Pagination from '../../components/Pagination';
 import StatusBadge from '../../components/StatusBadge';
@@ -8,6 +9,17 @@ import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import FormDialog from '../../components/FormDialog';
+import {
+  ErrorBanner,
+  NeutralChip,
+  PageTitleRow,
+  PixelField,
+  PixelPanel,
+  PixButton,
+  YesNoChip,
+  PIXEL_INPUT,
+} from '../connections/pixel-ui';
+import { cn } from '../../lib/utils';
 
 interface RelayNodeForm {
   name: string;
@@ -25,8 +37,26 @@ const emptyForm: RelayNodeForm = {
   capacity: '',
 };
 
+/**
+ * Translation keys for the node_type column. The backend vocabulary is wider
+ * than the page's own filter/form options, so unknown values fall back to
+ * the raw string instead of a missing-key warning.
+ */
+const NODE_TYPE_LABEL_KEYS: Record<string, string> = {
+  central: 'enterprise.relayNodes.nodeType.central',
+  central_relay: 'enterprise.relayNodes.nodeType.central_relay',
+  edge: 'enterprise.relayNodes.nodeType.edge',
+  local_edge: 'enterprise.relayNodes.nodeType.local_edge',
+  personal_edge: 'enterprise.relayNodes.nodeType.personal_edge',
+  regional: 'enterprise.relayNodes.nodeType.regional',
+  egress: 'enterprise.relayNodes.nodeType.egress',
+  dedicated: 'enterprise.relayNodes.nodeType.dedicated',
+};
+
 export default function RelayNodesPage() {
   const queryClient = useQueryClient();
+  const t = useT();
+  const { formatDateTime } = useFormat();
   const [page, setPage] = useState(1);
   const [nodeType, setNodeType] = useState<string | undefined>(undefined);
   const [status, setStatus] = useState<string | undefined>(undefined);
@@ -63,7 +93,7 @@ export default function RelayNodesPage() {
     },
     onError: (err: unknown) => {
       const detail = (err as any)?.response?.data?.detail;
-      setFormError(detail || (err as any)?.message || 'Failed to create relay node');
+      setFormError(detail || (err as any)?.message || t('enterprise.relayNodes.error.create'));
     },
   });
 
@@ -78,7 +108,7 @@ export default function RelayNodesPage() {
     },
     onError: (err: unknown) => {
       const detail = (err as any)?.response?.data?.detail;
-      setFormError(detail || (err as any)?.message || 'Failed to update relay node');
+      setFormError(detail || (err as any)?.message || t('enterprise.relayNodes.error.update'));
     },
   });
 
@@ -127,40 +157,40 @@ export default function RelayNodesPage() {
     }
   };
 
-  if (isLoading) return <LoadingState />;
-  if (isError) {
-    const statusCode = (error as any)?.response?.status;
-    if (statusCode === 403) {
-      return <ErrorState message="Access denied" />;
-    }
-    return <ErrorState message="Failed to load relay nodes" />;
-  }
+  // The header renders before/while the query resolves: an error or a slow
+  // backend must not hide the page identity (PageTitleRow) — the loading and
+  // error states render inline instead, same as the sibling scopes/zones
+  // pages, so the page itself is always reachable and identifiable.
+  const errorMessage = isError
+    ? (error as any)?.response?.status === 403
+      ? t('enterprise.error.accessDenied')
+      : t('enterprise.relayNodes.error.load')
+    : null;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold">Relay Nodes</h2>
-        <button
-          onClick={handleOpenCreate}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-        >
-          Add Relay Node
-        </button>
-      </div>
+      <PageTitleRow
+        title={t('enterprise.relayNodes.title')}
+        actions={
+          <PixButton onClick={handleOpenCreate}>{t('enterprise.relayNodes.action.add')}</PixButton>
+        }
+      />
 
-      <div className="mb-4 flex gap-3">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <select
           value={nodeType ?? ''}
           onChange={(e) => {
             setNodeType(e.target.value || undefined);
             setPage(1);
           }}
-          className="px-3 py-1.5 text-sm border rounded bg-white"
+          className={cn(PIXEL_INPUT, 'w-full sm:w-auto')}
         >
-          <option value="">All Types</option>
-          <option value="relay">Relay</option>
-          <option value="edge">Edge</option>
-          <option value="personal_edge">Personal Edge</option>
+          <option value="">{t('enterprise.relayNodes.filter.allTypes')}</option>
+          <option value="relay">{t('enterprise.relayNodes.filter.typeRelay')}</option>
+          <option value="edge">{t('enterprise.relayNodes.filter.typeEdge')}</option>
+          <option value="personal_edge">
+            {t('enterprise.relayNodes.filter.typePersonalEdge')}
+          </option>
         </select>
         <select
           value={status ?? ''}
@@ -168,158 +198,160 @@ export default function RelayNodesPage() {
             setStatus(e.target.value || undefined);
             setPage(1);
           }}
-          className="px-3 py-1.5 text-sm border rounded bg-white"
+          className={cn(PIXEL_INPUT, 'w-full sm:w-auto')}
         >
-          <option value="">All Statuses</option>
-          <option value="healthy">Healthy</option>
-          <option value="degraded">Degraded</option>
-          <option value="down">Down</option>
+          <option value="">{t('enterprise.relayNodes.filter.allStatuses')}</option>
+          <option value="healthy">{t('common.statusLabel.healthy')}</option>
+          <option value="degraded">{t('common.statusLabel.degraded')}</option>
+          <option value="down">{t('common.statusLabel.down')}</option>
         </select>
       </div>
 
-      <div className="bg-white rounded-lg border overflow-hidden">
-        <DataTable
-          columns={[
-            { key: 'node_name', label: 'Name' },
-            { key: 'node_type', label: 'Type' },
-            { key: 'status', label: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
+      {isLoading && <LoadingState />}
+      {isError && errorMessage !== null && <ErrorState message={errorMessage} />}
+
+      {!isLoading && !isError && (
+        <PixelPanel>
+          <DataTable
+            className="border-0"
+            columns={[
+            { key: 'node_name', label: t('enterprise.table.name') },
+            {
+              key: 'node_type',
+              label: t('enterprise.table.type'),
+              render: (r: any) => (
+                <NeutralChip>
+                  {r.node_type && NODE_TYPE_LABEL_KEYS[r.node_type]
+                    ? t(NODE_TYPE_LABEL_KEYS[r.node_type])
+                    : r.node_type || '-'}
+                </NeutralChip>
+              ),
+            },
+            { key: 'status', label: t('enterprise.table.status'), render: (r: any) => <StatusBadge status={r.status} /> },
             {
               key: 'current_load',
-              label: 'Load',
-              render: (r: any) => r.current_load != null ? `${r.current_load}%` : '-',
+              label: t('enterprise.relayNodes.table.load'),
+              render: (r: any) => (r.current_load != null ? `${r.current_load}%` : '-'),
             },
-            { key: 'queue_depth', label: 'Queue' },
+            { key: 'queue_depth', label: t('enterprise.relayNodes.table.queue') },
             {
               key: 'avg_latency_ms',
-              label: 'Latency (ms)',
-              render: (r: any) => r.avg_latency_ms != null ? `${r.avg_latency_ms}` : '-',
+              label: t('enterprise.relayNodes.table.latency'),
+              render: (r: any) => (r.avg_latency_ms != null ? `${r.avg_latency_ms}` : '-'),
             },
             {
               key: 'success_rate',
-              label: 'Success Rate',
-              render: (r: any) => r.success_rate != null ? `${r.success_rate}%` : '-',
+              label: t('enterprise.relayNodes.table.successRate'),
+              render: (r: any) => (r.success_rate != null ? `${r.success_rate}%` : '-'),
             },
-            { key: 'region', label: 'Region', render: (r: any) => r.region || '-' },
-            { key: 'zone', label: 'Zone', render: (r: any) => r.zone || '-' },
+            { key: 'region', label: t('enterprise.relayNodes.table.region'), render: (r: any) => r.region || '-' },
+            { key: 'zone', label: t('enterprise.relayNodes.table.zone'), render: (r: any) => r.zone || '-' },
             {
               key: 'enabled',
-              label: 'Enabled',
-              render: (r: any) => (
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                  r.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {r.enabled ? 'Yes' : 'No'}
-                </span>
-              ),
+              label: t('enterprise.table.enabled'),
+              render: (r: any) => <YesNoChip value={!!r.enabled} />,
             },
             {
               key: 'last_heartbeat_at',
-              label: 'Last Heartbeat',
-              render: (r: any) => r.last_heartbeat_at ? new Date(r.last_heartbeat_at).toLocaleString() : '-',
+              label: t('enterprise.relayNodes.table.lastHeartbeat'),
+              render: (r: any) =>
+                r.last_heartbeat_at ? formatDateTime(r.last_heartbeat_at) : '-',
             },
             {
               key: 'actions',
               label: '',
               render: (r: any) => (
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => handleOpenEdit(r)}
-                    className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => setDeleteId(r.node_id)}
-                    className="px-3 py-1 text-xs font-medium text-red-700 bg-red-50 rounded hover:bg-red-100"
-                  >
-                    Delete
-                  </button>
+                  <PixButton variant="ghost" compact onClick={() => handleOpenEdit(r)}>
+                    {t('enterprise.action.edit')}
+                  </PixButton>
+                  <PixButton variant="danger" compact onClick={() => setDeleteId(r.node_id)}>
+                    {t('enterprise.action.delete')}
+                  </PixButton>
                 </div>
               ),
             },
           ]}
           data={data?.relay_nodes ?? []}
         />
-        <Pagination
-          offset={(page - 1) * limit}
-          limit={limit}
-          total={data?.total ?? 0}
-          onPageChange={(offset) => setPage(Math.floor(offset / limit) + 1)}
-        />
-      </div>
+          <Pagination
+            offset={(page - 1) * limit}
+            limit={limit}
+            total={data?.total ?? 0}
+            onPageChange={(offset) => setPage(Math.floor(offset / limit) + 1)}
+          />
+        </PixelPanel>
+      )}
 
       <FormDialog
         open={formOpen}
-        title={editingId ? 'Edit Relay Node' : 'Add Relay Node'}
-        onClose={() => { setFormOpen(false); setEditingId(null); setFormError(null); }}
+        title={editingId ? t('enterprise.relayNodes.form.editTitle') : t('enterprise.relayNodes.form.createTitle')}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingId(null);
+          setFormError(null);
+        }}
         onSubmit={handleSubmit}
         loading={isMutating}
       >
-        {formError && (
-          <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
-            {formError}
-          </div>
-        )}
-        <div>
-          <label htmlFor="rn-name" className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+        {formError && <ErrorBanner message={formError} className="mb-0" />}
+        <PixelField label={t('enterprise.relayNodes.form.name')} htmlFor="rn-name">
           <input
             id="rn-name"
             type="text"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full px-3 py-2 border rounded text-sm"
+            className={PIXEL_INPUT}
           />
-        </div>
-        <div>
-          <label htmlFor="rn-endpoint" className="block text-sm font-medium text-gray-700 mb-1">Endpoint</label>
+        </PixelField>
+        <PixelField label={t('enterprise.relayNodes.form.endpoint')} htmlFor="rn-endpoint">
           <input
             id="rn-endpoint"
             type="url"
             value={form.endpoint}
             onChange={(e) => setForm({ ...form, endpoint: e.target.value })}
-            className="w-full px-3 py-2 border rounded text-sm"
+            className={PIXEL_INPUT}
           />
-        </div>
-        <div>
-          <label htmlFor="rn-zone" className="block text-sm font-medium text-gray-700 mb-1">Zone</label>
+        </PixelField>
+        <PixelField label={t('enterprise.relayNodes.form.zone')} htmlFor="rn-zone">
           <input
             id="rn-zone"
             type="text"
             value={form.zone}
             onChange={(e) => setForm({ ...form, zone: e.target.value })}
-            className="w-full px-3 py-2 border rounded text-sm"
+            className={PIXEL_INPUT}
           />
-        </div>
-        <div>
-          <label htmlFor="rn-relay-type" className="block text-sm font-medium text-gray-700 mb-1">Relay Type</label>
+        </PixelField>
+        <PixelField label={t('enterprise.relayNodes.form.relayType')} htmlFor="rn-relay-type">
           <select
             id="rn-relay-type"
             value={form.relay_type}
             onChange={(e) => setForm({ ...form, relay_type: e.target.value })}
-            className="w-full px-3 py-2 border rounded text-sm bg-white"
+            className={PIXEL_INPUT}
           >
-            <option value="central_relay">Central Relay</option>
-            <option value="edge">Edge</option>
+            <option value="central_relay">{t('enterprise.relayNodes.relayType.centralRelay')}</option>
+            <option value="edge">{t('enterprise.relayNodes.relayType.edge')}</option>
           </select>
-        </div>
-        <div>
-          <label htmlFor="rn-capacity" className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+        </PixelField>
+        <PixelField label={t('enterprise.relayNodes.form.capacity')} htmlFor="rn-capacity">
           <input
             id="rn-capacity"
             type="number"
             value={form.capacity}
-            onChange={(e) => setForm({ ...form, capacity: e.target.value === '' ? '' : Number(e.target.value) })}
-            className="w-full px-3 py-2 border rounded text-sm"
+            onChange={(e) =>
+              setForm({ ...form, capacity: e.target.value === '' ? '' : Number(e.target.value) })
+            }
+            className={PIXEL_INPUT}
           />
-        </div>
+        </PixelField>
       </FormDialog>
 
       <ConfirmDialog
         open={deleteId !== null}
-        title="Delete Relay Node"
-        message="Are you sure you want to delete this relay node? This action cannot be undone."
+        title={t('enterprise.relayNodes.confirm.deleteTitle')}
+        message={t('enterprise.relayNodes.confirm.deleteMessage')}
         variant="danger"
-        confirmLabel="Delete"
+        confirmLabel={t('enterprise.action.delete')}
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
         onCancel={() => setDeleteId(null)}
       />

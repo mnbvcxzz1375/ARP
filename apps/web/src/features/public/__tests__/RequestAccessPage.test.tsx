@@ -54,7 +54,9 @@ describe('RequestAccessPage', () => {
   it('pre-selects enterprise mode from URL params', () => {
     renderPage(['/request-access?mode=enterprise']);
     const enterpriseBtn = screen.getByText('Enterprise');
-    expect(enterpriseBtn.className).toContain('bg-blue-50');
+    // Visual-only assertion updated for the pixel restyle: the active mode
+    // toggle is now an accent-solid pixel block (was legacy bg-blue-50).
+    expect(enterpriseBtn.className).toContain('bg-pixel-accent');
   });
 
   it('navigates to submitted page with state on API success with request_id', async () => {
@@ -132,7 +134,7 @@ describe('RequestAccessPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('request-error')).toHaveTextContent('A pending request already exists');
     });
-    // Still on form — submit button still present
+    // Still on form - submit button still present
     expect(screen.getByText('Submit Request')).toBeInTheDocument();
   });
 

@@ -1,8 +1,8 @@
-import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import api from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useT } from '../../i18n';
 import DataTable from '../../components/DataTable';
 import Pagination from '../../components/Pagination';
 import RoleBadge from '../../components/RoleBadge';
@@ -10,6 +10,13 @@ import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import StepUpDialog from '../../components/StepUpDialog';
+import {
+  PageHeader,
+  PixelActionButton,
+  ActionErrorBanner,
+  DetailLink,
+} from './PixelKit';
+import { shortUserId } from '../../lib/utils';
 
 type PendingUserAction = {
   type: 'disable' | 'enable' | 'force_revoke';
@@ -27,6 +34,7 @@ export default function AdminUsersPage() {
   const limit = 20;
   const queryClient = useQueryClient();
   const { data: auth } = useAuth();
+  const t = useT();
   const isSuperAdmin = auth?.role === 'super_admin';
 
   const { data, isLoading, isError } = useQuery({
@@ -52,7 +60,7 @@ export default function AdminUsersPage() {
     onError: (err: any) => {
       setPendingAction(null);
       setShowStepUp(false);
-      setActionError(err?.response?.data?.detail || 'Failed to update user');
+      setActionError(err?.response?.data?.detail || t('admin.error.updateUser'));
     },
   });
 
@@ -70,7 +78,7 @@ export default function AdminUsersPage() {
     onError: (err: any) => {
       setPendingAction(null);
       setShowStepUp(false);
-      setActionError(err?.response?.data?.detail || 'Failed to revoke keys');
+      setActionError(err?.response?.data?.detail || t('admin.error.revokeKeys'));
     },
   });
 
@@ -106,72 +114,75 @@ export default function AdminUsersPage() {
   };
 
   if (isLoading) return <LoadingState />;
-  if (isError) return <ErrorState message="Failed to load users" />;
+  if (isError) return <ErrorState message={t('admin.error.loadUsers')} />;
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Users</h2>
-      {actionError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700" data-testid="action-error">
-          {actionError}
-        </div>
-      )}
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <PageHeader title={t('admin.title.users')} />
+      {actionError && <ActionErrorBanner message={actionError} />}
+      {/* DataTable carries its own 2px pixel border + surface; the wrapper
+          only adds the hard pixel-step shadow. */}
+      <div className="shadow-pixel-sm">
         <DataTable
           columns={[
-            { key: 'username', label: 'Username' },
+            {
+              key: 'username',
+              label: t('admin.users.table.username'),
+              // Usernames are non-unique display labels; the short user_id
+              // suffix keeps same-named users distinguishable.
+              render: (r: any) => (
+                <span>
+                  {r.username}{' '}
+                  <span className="font-mono text-pixel-muted">· {shortUserId(r.user_id)}</span>
+                </span>
+              ),
+            },
             {
               key: 'details',
               label: '',
               render: (r: any) => (
-                <Link to={`/admin/users/${r.user_id}`} className="text-blue-600 hover:underline text-xs font-medium">
-                  View
-                </Link>
+                <DetailLink to={`/admin/users/${r.user_id}`}>{t('admin.action.view')}</DetailLink>
               ),
             },
-            { key: 'role', label: 'Role', render: (r: any) => <RoleBadge role={r.role} /> },
-            { key: 'is_disabled', label: 'Disabled', render: (r: any) => r.is_disabled ? 'Yes' : 'No' },
-            { key: 'agents_count', label: 'Agents' },
-            { key: 'active_api_keys_count', label: 'API Keys' },
-            { key: 'tasks_24h', label: 'Tasks (24h)' },
-            { key: 'failed_tasks_24h', label: 'Failed' },
-            { key: 'created_at', label: 'Created' },
+            { key: 'role', label: t('admin.users.table.role'), render: (r: any) => <RoleBadge role={r.role} /> },
+            { key: 'is_disabled', label: t('admin.users.table.disabled'), render: (r: any) => r.is_disabled ? t('admin.value.yes') : t('admin.value.no') },
+            { key: 'agents_count', label: t('admin.users.table.agents') },
+            { key: 'active_api_keys_count', label: t('admin.users.table.apiKeys') },
+            { key: 'tasks_24h', label: t('admin.agents.table.tasks24h') },
+            { key: 'failed_tasks_24h', label: t('admin.users.table.failed') },
+            { key: 'created_at', label: t('admin.table.created') },
             {
               key: 'actions',
-              label: 'Actions',
+              label: t('admin.table.actions'),
               render: (r: any) => (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {isSuperAdmin ? (
                     <>
-                      <button
+                      <PixelActionButton
                         onClick={() => setPendingAction({
                           type: r.is_disabled ? 'enable' : 'disable',
                           userId: r.user_id,
                           username: r.username,
                         })}
                         disabled={disableMutation.isPending || revokeMutation.isPending}
-                        className={`px-2 py-1 text-xs font-medium rounded ${
-                          r.is_disabled
-                            ? 'text-green-700 bg-green-50 border border-green-200 hover:bg-green-100'
-                            : 'text-yellow-700 bg-yellow-50 border border-yellow-200 hover:bg-yellow-100'
-                        } disabled:opacity-50`}
+                        variant={r.is_disabled ? 'accent' : 'danger'}
                       >
-                        {r.is_disabled ? 'Enable' : 'Disable'}
-                      </button>
-                      <button
+                        {r.is_disabled ? t('admin.action.enable') : t('admin.action.disable')}
+                      </PixelActionButton>
+                      <PixelActionButton
                         onClick={() => setPendingAction({
                           type: 'force_revoke',
                           userId: r.user_id,
                           username: r.username,
                         })}
                         disabled={disableMutation.isPending || revokeMutation.isPending}
-                        className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100 disabled:opacity-50"
+                        variant="danger"
                       >
-                        Revoke Keys
-                      </button>
+                        {t('admin.action.revokeKeys')}
+                      </PixelActionButton>
                     </>
                   ) : (
-                    <span className="text-xs text-gray-400">Super admin required</span>
+                    <span className="text-base text-pixel-muted">{t('admin.hint.superAdminRequired')}</span>
                   )}
                 </div>
               ),
@@ -191,25 +202,25 @@ export default function AdminUsersPage() {
         open={pendingAction !== null && !showStepUp}
         title={
           pendingAction?.type === 'force_revoke'
-            ? 'Force Revoke API Keys'
+            ? t('admin.users.confirm.revokeTitle')
             : pendingAction?.type === 'disable'
-            ? 'Disable User'
-            : 'Enable User'
+            ? t('admin.users.confirm.disableTitle')
+            : t('admin.users.confirm.enableTitle')
         }
         message={
           pendingAction?.type === 'force_revoke'
-            ? `Revoke all API keys for user "${pendingAction?.username}"? This will invalidate all their API keys immediately.`
+            ? t('admin.users.confirm.revokeMessage', { name: pendingAction?.username ?? '' })
             : pendingAction?.type === 'disable'
-            ? `Disable user "${pendingAction?.username}"? They will be unable to log in or use the platform.`
-            : `Enable user "${pendingAction?.username}"? They will regain access to the platform.`
+            ? t('admin.users.confirm.disableMessage', { name: pendingAction?.username ?? '' })
+            : t('admin.users.confirm.enableMessage', { name: pendingAction?.username ?? '' })
         }
         variant={pendingAction?.type === 'enable' ? 'default' : 'danger'}
         confirmLabel={
           pendingAction?.type === 'force_revoke'
-            ? 'Revoke Keys'
+            ? t('admin.action.revokeKeys')
             : pendingAction?.type === 'disable'
-            ? 'Disable'
-            : 'Enable'
+            ? t('admin.action.disable')
+            : t('admin.action.enable')
         }
         onConfirm={handleConfirmAction}
         onCancel={() => {

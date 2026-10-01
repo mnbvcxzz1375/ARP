@@ -1,12 +1,25 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/client';
+import { useT } from '../../i18n';
 import DataTable from '../../components/DataTable';
 import FormDialog from '../../components/FormDialog';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import StatusBadge from '../../components/StatusBadge';
+import LoadingState from '../../components/LoadingState';
+import ErrorState from '../../components/ErrorState';
+import Pagination from '../../components/Pagination';
+import {
+  ErrorBanner,
+  NeutralChip,
+  PageTitleRow,
+  PixelField,
+  PixButton,
+  PIXEL_INPUT,
+} from '../connections/pixel-ui';
+import { cn } from '../../lib/utils';
 
 const VALID_ZONE_TYPES = ['regional', 'edge', 'restricted'];
+const VALID_SECURITY_LEVELS = ['standard', 'high', 'critical'];
 const PAGE_SIZE = 50;
 
 interface ZoneRow {
@@ -40,17 +53,23 @@ const emptyForm: ZoneForm = {
   network_cidr: '',
 };
 
-function extractDomainError(err: any): string {
+/**
+ * Server error detail extractor: returns backend messages verbatim (they are
+ * dynamic data, never translated) and falls back to the caller-supplied
+ * translated message when nothing usable is present.
+ */
+function extractDomainError(err: any, fallback: string): string {
   const data = err?.response?.data;
   if (data?.error?.message) return data.error.message;
   if (data?.error?.detail) return data.error.detail;
   if (data?.detail) return data.detail;
   if (data?.message) return data.message;
-  return err?.message || 'Operation failed';
+  return err?.message || fallback;
 }
 
 export default function NetworkZonesPage() {
   const qc = useQueryClient();
+  const t = useT();
   const [offset, setOffset] = useState(0);
   const [scopeIdFilter, setScopeIdFilter] = useState<string>('');
   const [formOpen, setFormOpen] = useState(false);
@@ -79,7 +98,7 @@ export default function NetworkZonesPage() {
       qc.invalidateQueries({ queryKey: ['admin/network/zones'] });
     },
     onError: (err: any) => {
-      setFormError(extractDomainError(err));
+      setFormError(extractDomainError(err, t('enterprise.error.operationFailed')));
     },
   });
 
@@ -93,7 +112,7 @@ export default function NetworkZonesPage() {
       qc.invalidateQueries({ queryKey: ['admin/network/zones'] });
     },
     onError: (err: any) => {
-      setFormError(extractDomainError(err));
+      setFormError(extractDomainError(err, t('enterprise.error.operationFailed')));
     },
   });
 
@@ -106,7 +125,7 @@ export default function NetworkZonesPage() {
       qc.invalidateQueries({ queryKey: ['admin/network/zones'] });
     },
     onError: (err: any) => {
-      setDeleteError(extractDomainError(err));
+      setDeleteError(extractDomainError(err, t('enterprise.error.operationFailed')));
     },
   });
 
@@ -133,7 +152,7 @@ export default function NetworkZonesPage() {
 
   function handleSubmit() {
     if (!form.zone_name.trim()) {
-      setFormError('Zone name is required');
+      setFormError(t('enterprise.zones.error.nameRequired'));
       return;
     }
     const body: Record<string, any> = {
@@ -146,7 +165,7 @@ export default function NetworkZonesPage() {
       updateMutation.mutate({ id: editingId, body });
     } else {
       if (!form.scope_id.trim()) {
-        setFormError('Scope ID is required');
+        setFormError(t('enterprise.zones.error.scopeIdRequired'));
         return;
       }
       body.scope_id = form.scope_id.trim();
@@ -157,48 +176,76 @@ export default function NetworkZonesPage() {
 
   const zones: ZoneRow[] = data?.zones ?? [];
   const total: number = data?.total ?? 0;
-  const canPrev = offset > 0;
-  const canNext = offset + PAGE_SIZE < total;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Network Zones</h2>
-        <button
-          onClick={handleOpenCreate}
-          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Add Zone
-        </button>
-      </div>
+      <PageTitleRow
+        title={t('enterprise.zones.title')}
+        actions={
+          <PixButton onClick={handleOpenCreate}>{t('enterprise.zones.action.add')}</PixButton>
+        }
+      />
 
       <div className="mb-4">
         <input
-          className="border rounded px-3 py-1.5 text-sm w-72"
-          placeholder="Filter by Scope ID"
+          className={cn(PIXEL_INPUT, 'sm:w-72')}
+          placeholder={t('enterprise.zones.filter.scopePlaceholder')}
           value={scopeIdFilter}
-          onChange={(e) => { setScopeIdFilter(e.target.value); setOffset(0); }}
+          onChange={(e) => {
+            setScopeIdFilter(e.target.value);
+            setOffset(0);
+          }}
         />
       </div>
 
-      {isLoading && <p className="text-gray-500">Loading...</p>}
-      {isError && <p className="text-red-600">Failed to load zones</p>}
+      {isLoading && <LoadingState />}
+      {isError && <ErrorState message={t('enterprise.zones.error.load')} />}
 
       {!isLoading && !isError && (
         <DataTable
           columns={[
-            { key: 'zone_id', label: 'ID', render: (r: ZoneRow) => r.zone_id.slice(0, 8) },
-            { key: 'zone_name', label: 'Name' },
-            { key: 'zone_type', label: 'Type', render: (r: ZoneRow) => <StatusBadge status={r.zone_type} /> },
-            { key: 'scope_id', label: 'Scope', render: (r: ZoneRow) => r.scope_id.slice(0, 8) },
-            { key: 'region', label: 'Region' },
-            { key: 'security_level', label: 'Security' },
-            { key: 'agent_count', label: 'Agents' },
+            { key: 'zone_id', label: t('enterprise.table.id'), render: (r: ZoneRow) => r.zone_id.slice(0, 8) },
+            { key: 'zone_name', label: t('enterprise.table.name') },
             {
-              key: 'actions', label: '', render: (r: ZoneRow) => (
+              key: 'zone_type',
+              label: t('enterprise.table.type'),
+              render: (r: ZoneRow) => (
+                <NeutralChip>
+                  {VALID_ZONE_TYPES.includes(r.zone_type)
+                    ? t(`enterprise.zones.zoneType.${r.zone_type}`)
+                    : r.zone_type}
+                </NeutralChip>
+              ),
+            },
+            { key: 'scope_id', label: t('enterprise.zones.table.scope'), render: (r: ZoneRow) => r.scope_id.slice(0, 8) },
+            { key: 'region', label: t('enterprise.zones.table.region') },
+            {
+              key: 'security_level',
+              label: t('enterprise.zones.table.security'),
+              render: (r: ZoneRow) =>
+                r.security_level && VALID_SECURITY_LEVELS.includes(r.security_level)
+                  ? t(`enterprise.zones.security.${r.security_level}`)
+                  : r.security_level ?? '',
+            },
+            { key: 'agent_count', label: t('enterprise.zones.table.agents') },
+            {
+              key: 'actions',
+              label: '',
+              render: (r: ZoneRow) => (
                 <div className="flex gap-2">
-                  <button onClick={() => handleOpenEdit(r)} className="text-xs text-blue-600 hover:underline">Edit</button>
-                  <button onClick={() => { setDeleteId(r.zone_id); setDeleteError(null); }} className="text-xs text-red-600 hover:underline">Delete</button>
+                  <PixButton variant="ghost" compact onClick={() => handleOpenEdit(r)}>
+                    {t('enterprise.action.edit')}
+                  </PixButton>
+                  <PixButton
+                    variant="danger"
+                    compact
+                    onClick={() => {
+                      setDeleteId(r.zone_id);
+                      setDeleteError(null);
+                    }}
+                  >
+                    {t('enterprise.action.delete')}
+                  </PixButton>
                 </div>
               ),
             },
@@ -208,120 +255,106 @@ export default function NetworkZonesPage() {
       )}
 
       {total > PAGE_SIZE && (
-        <div className="flex items-center justify-between mt-4">
-          <span className="text-sm text-gray-600">
-            Showing {offset + 1}-{Math.min(offset + PAGE_SIZE, total)} of {total}
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-              disabled={!canPrev}
-              className="px-3 py-1.5 text-sm rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setOffset(offset + PAGE_SIZE)}
-              disabled={!canNext}
-              className="px-3 py-1.5 text-sm rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <Pagination offset={offset} limit={PAGE_SIZE} total={total} onPageChange={setOffset} />
       )}
 
       <FormDialog
         open={formOpen}
-        title={editingId ? 'Edit Zone' : 'Create Zone'}
-        onClose={() => { setFormOpen(false); setEditingId(null); }}
+        title={editingId ? t('enterprise.zones.form.editTitle') : t('enterprise.zones.form.createTitle')}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingId(null);
+        }}
         onSubmit={handleSubmit}
         loading={createMutation.isPending || updateMutation.isPending}
       >
-        <div className="space-y-3">
+        <div className="space-y-4">
           {!editingId && (
             <>
-              <div>
-                <label htmlFor="zone-scope-id" className="block text-sm font-medium text-gray-700 mb-1">Scope ID</label>
+              <PixelField label={t('enterprise.zones.form.scopeId')} htmlFor="zone-scope-id">
                 <input
                   id="zone-scope-id"
-                  className="w-full border rounded px-3 py-1.5 text-sm"
+                  className={PIXEL_INPUT}
                   value={form.scope_id}
                   onChange={(e) => setForm({ ...form, scope_id: e.target.value })}
-                  placeholder="UUID of parent scope"
+                  placeholder={t('enterprise.zones.form.scopeIdPlaceholder')}
                 />
-              </div>
-              <div>
-                <label htmlFor="zone-type" className="block text-sm font-medium text-gray-700 mb-1">Zone Type</label>
+              </PixelField>
+              <PixelField label={t('enterprise.zones.form.zoneType')} htmlFor="zone-type">
                 <select
                   id="zone-type"
-                  className="w-full border rounded px-3 py-1.5 text-sm"
+                  className={PIXEL_INPUT}
                   value={form.zone_type}
                   onChange={(e) => setForm({ ...form, zone_type: e.target.value })}
                 >
-                  {VALID_ZONE_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                  {VALID_ZONE_TYPES.map((zoneType) => (
+                    <option key={zoneType} value={zoneType}>
+                      {t(`enterprise.zones.zoneType.${zoneType}`)}
+                    </option>
                   ))}
                 </select>
-              </div>
+              </PixelField>
             </>
           )}
-          <div>
-            <label htmlFor="zone-name" className="block text-sm font-medium text-gray-700 mb-1">Zone Name</label>
+          <PixelField label={t('enterprise.zones.form.zoneName')} htmlFor="zone-name">
             <input
               id="zone-name"
-              className="w-full border rounded px-3 py-1.5 text-sm"
+              className={PIXEL_INPUT}
               value={form.zone_name}
               onChange={(e) => setForm({ ...form, zone_name: e.target.value })}
             />
-          </div>
-          <div>
-            <label htmlFor="zone-region" className="block text-sm font-medium text-gray-700 mb-1">Region</label>
+          </PixelField>
+          <PixelField label={t('enterprise.zones.form.region')} htmlFor="zone-region">
             <input
               id="zone-region"
-              className="w-full border rounded px-3 py-1.5 text-sm"
+              className={PIXEL_INPUT}
               value={form.region}
               onChange={(e) => setForm({ ...form, region: e.target.value })}
-              placeholder="e.g. us-east-1"
+              placeholder={t('enterprise.zones.form.regionPlaceholder')}
             />
-          </div>
-          <div>
-            <label htmlFor="zone-security" className="block text-sm font-medium text-gray-700 mb-1">Security Level</label>
+          </PixelField>
+          <PixelField label={t('enterprise.zones.form.securityLevel')} htmlFor="zone-security">
             <select
               id="zone-security"
-              className="w-full border rounded px-3 py-1.5 text-sm"
+              className={PIXEL_INPUT}
               value={form.security_level}
               onChange={(e) => setForm({ ...form, security_level: e.target.value })}
             >
-              <option value="standard">Standard</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
+              {VALID_SECURITY_LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {t(`enterprise.zones.security.${level}`)}
+                </option>
+              ))}
             </select>
-          </div>
-          <div>
-            <label htmlFor="zone-cidr" className="block text-sm font-medium text-gray-700 mb-1">Network CIDR</label>
+          </PixelField>
+          <PixelField label={t('enterprise.zones.form.networkCidr')} htmlFor="zone-cidr">
             <input
               id="zone-cidr"
-              className="w-full border rounded px-3 py-1.5 text-sm"
+              className={PIXEL_INPUT}
               value={form.network_cidr}
               onChange={(e) => setForm({ ...form, network_cidr: e.target.value })}
-              placeholder="e.g. 10.1.0.0/16"
+              placeholder={t('enterprise.zones.form.cidrPlaceholder')}
             />
-          </div>
-          {formError && <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{formError}</div>}
+          </PixelField>
+          {formError && <ErrorBanner message={formError} className="mb-0" />}
         </div>
       </FormDialog>
 
       <ConfirmDialog
         open={!!deleteId}
-        title="Delete Zone"
-        message="This will delete the zone. This action cannot be undone."
+        title={t('enterprise.zones.confirm.deleteTitle')}
+        message={t('enterprise.zones.confirm.deleteMessage', {
+          name: zones.find((z) => z.zone_id === deleteId)?.zone_name ?? '',
+        })}
         variant="danger"
-        confirmLabel="Delete"
+        confirmLabel={t('enterprise.action.delete')}
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
-        onCancel={() => { setDeleteId(null); setDeleteError(null); }}
+        onCancel={() => {
+          setDeleteId(null);
+          setDeleteError(null);
+        }}
       />
-      {deleteError && <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">{deleteError}</div>}
+      {deleteError && <ErrorBanner message={deleteError} className="mt-4" />}
     </div>
   );
 }

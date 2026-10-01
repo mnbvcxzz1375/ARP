@@ -1,22 +1,16 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
 import api from '../../api/client';
+import { useT, useFormat } from '../../i18n';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium text-gray-500 uppercase">{label}</dt>
-      <dd className="mt-1 text-sm text-gray-900">{children}</dd>
-    </div>
-  );
-}
+import { PageHeader, Panel, Field, BackLink, TagChip } from './PixelKit';
 
 export default function AdminAgentDetailPage() {
   const { agentId } = useParams<{ agentId: string }>();
+  const t = useT();
+  const { formatDateTime } = useFormat();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin/agent-detail', agentId],
@@ -25,77 +19,63 @@ export default function AdminAgentDetailPage() {
   });
 
   if (isLoading) return <LoadingState />;
-  if (isError) return <ErrorState message="Failed to load agent detail" />;
+  if (isError) return <ErrorState message={t('admin.error.loadAgentDetail')} />;
 
   const agent = data;
 
   return (
     <div>
-      <Link
-        to="/admin/agents"
-        className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mb-4"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Agents
-      </Link>
-      <h2 className="text-xl font-semibold mb-6">{agent.name || agent.agent_number}</h2>
+      <BackLink to="/admin/agents">{t('admin.back.agents')}</BackLink>
+      <PageHeader title={agent.name || agent.agent_number} />
 
       <div className="space-y-6">
-        <div className="bg-white rounded-lg border p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Core Identity</h3>
-          <dl className="grid grid-cols-2 gap-4">
-            <Field label="Owner">{agent.owner_username}</Field>
-            <Field label="Agent Number">{agent.agent_number}</Field>
-            <Field label="Name">{agent.name}</Field>
-            <Field label="Runtime">{agent.runtime}</Field>
-            <Field label="Status">
+        <Panel title={t('admin.agentDetail.panel.coreIdentity')}>
+          <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label={t('admin.table.owner')}>{agent.owner_username}</Field>
+            <Field label={t('admin.agentDetail.field.agentNumber')}>{agent.agent_number}</Field>
+            <Field label={t('admin.agentDetail.field.name')}>{agent.name}</Field>
+            <Field label={t('admin.agentDetail.field.runtime')}>{agent.runtime}</Field>
+            <Field label={t('admin.table.status')}>
               <StatusBadge status={agent.status} />
             </Field>
-            <Field label="Inbound Policy">{agent.inbound_policy}</Field>
-            <Field label="Discoverable">{agent.discoverable ? 'Yes' : 'No'}</Field>
-            <Field label="Created">{new Date(agent.created_at).toLocaleString()}</Field>
-            <Field label="Updated">{new Date(agent.updated_at).toLocaleString()}</Field>
-            <Field label="Tasks (24h)">{agent.tasks_24h}</Field>
-            <Field label="Failed Tasks (24h)">{agent.failed_tasks_24h}</Field>
+            <Field label={t('admin.agentDetail.field.inboundPolicy')}>{agent.inbound_policy}</Field>
+            <Field label={t('admin.agentDetail.field.discoverable')}>{agent.discoverable ? t('admin.value.yes') : t('admin.value.no')}</Field>
+            <Field label={t('admin.table.created')}>{formatDateTime(agent.created_at)}</Field>
+            <Field label={t('admin.agentDetail.field.updated')}>{formatDateTime(agent.updated_at)}</Field>
+            <Field label={t('admin.agents.table.tasks24h')}>{agent.tasks_24h}</Field>
+            <Field label={t('admin.agentDetail.field.failedTasks24h')}>{agent.failed_tasks_24h}</Field>
           </dl>
-        </div>
+        </Panel>
 
-        <div className="bg-white rounded-lg border p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Capabilities</h3>
+        <Panel title={t('admin.agentDetail.panel.capabilities')}>
           {agent.capabilities && agent.capabilities.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {agent.capabilities.map((c: string) => (
-                <span
-                  key={c}
-                  className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700"
-                >
-                  {c}
-                </span>
+                <TagChip key={c}>{c}</TagChip>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">None</p>
+            <p className="text-base text-pixel-muted">{t('admin.agentDetail.text.none')}</p>
           )}
-        </div>
+        </Panel>
 
-        <div className="bg-white rounded-lg border p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Token Metadata</h3>
-          <dl className="grid grid-cols-2 gap-4">
-            <Field label="Token Prefix">
+        <Panel title={t('admin.agentDetail.panel.tokenMetadata')}>
+          <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label={t('admin.agentDetail.field.tokenPrefix')}>
               {agent.token_metadata?.prefix ?? '-'}
             </Field>
-            <Field label="Token Created">
+            <Field label={t('admin.agentDetail.field.tokenCreated')}>
               {agent.token_metadata?.created_at
-                ? new Date(agent.token_metadata.created_at).toLocaleString()
+                ? formatDateTime(agent.token_metadata.created_at)
                 : '-'}
             </Field>
-            <Field label="Token Rotated">
+            <Field label={t('admin.agentDetail.field.tokenRotated')}>
               {agent.token_metadata?.rotated_at
-                ? new Date(agent.token_metadata.rotated_at).toLocaleString()
-                : 'Never'}
+                ? formatDateTime(agent.token_metadata.rotated_at)
+                : t('admin.value.never')}
             </Field>
           </dl>
-        </div>
+        </Panel>
       </div>
     </div>
   );

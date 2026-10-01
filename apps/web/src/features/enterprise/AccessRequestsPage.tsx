@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/client';
+import { useT, useFormat } from '../../i18n';
 import DataTable from '../../components/DataTable';
 import Pagination from '../../components/Pagination';
 import StatusBadge from '../../components/StatusBadge';
@@ -8,6 +9,16 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
 import EmptyState from '../../components/EmptyState';
+import {
+  ErrorBanner,
+  FilterPill,
+  NeutralChip,
+  PageTitle,
+  PixelField,
+  PixButton,
+  PIXEL_INPUT,
+} from '../connections/pixel-ui';
+import { cn } from '../../lib/utils';
 
 interface DialogState {
   requestId: string;
@@ -25,6 +36,8 @@ interface ProvisionedResult {
 
 export default function AccessRequestsPage() {
   const queryClient = useQueryClient();
+  const t = useT();
+  const { formatDate } = useFormat();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
@@ -58,7 +71,7 @@ export default function AccessRequestsPage() {
     onError: (err: unknown) => {
       setDialogState(null);
       const detail = (err as any)?.response?.data?.detail;
-      setError(detail || (err as any)?.message || 'Failed to approve request');
+      setError(detail || (err as any)?.message || t('enterprise.accessRequests.error.approve'));
     },
   });
 
@@ -76,7 +89,7 @@ export default function AccessRequestsPage() {
     },
     onError: (err: unknown) => {
       const detail = (err as any)?.response?.data?.error?.message;
-      setError(detail || (err as any)?.message || 'Failed to reject request');
+      setError(detail || (err as any)?.message || t('enterprise.accessRequests.error.reject'));
       // Keep dialog open on error so user can fix
     },
   });
@@ -103,7 +116,7 @@ export default function AccessRequestsPage() {
       approveMutation.mutate(dialogState.requestId);
     } else {
       if (!rejectReason.trim()) {
-        setRejectError('Rejection reason is required.');
+        setRejectError(t('enterprise.accessRequests.error.rejectReasonRequired'));
         return;
       }
       rejectMutation.mutate({ requestId: dialogState.requestId, reason: rejectReason });
@@ -111,168 +124,206 @@ export default function AccessRequestsPage() {
   };
 
   if (isLoading) return <LoadingState />;
-  if (isError) return <ErrorState message="Failed to load access requests" />;
+  if (isError) return <ErrorState message={t('enterprise.accessRequests.error.load')} />;
+
+  // Access-request status filter pills: 'all' is page copy, the rest reuse the
+  // shared status labels (namespace `common`) so the pill matches the badge.
+  const statusFilterLabels: Record<string, string> = {
+    all: t('enterprise.filter.all'),
+    pending: t('common.statusLabel.pending'),
+    approved: t('common.statusLabel.approved'),
+    rejected: t('common.statusLabel.rejected'),
+    expired: t('common.statusLabel.expired'),
+  };
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Access Requests</h2>
+      <PageTitle>{t('enterprise.accessRequests.title')}</PageTitle>
 
+      {/* Provisioned result: success state as a solid LED green panel (fixed contrast in both themes). */}
       {provisionedResult && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md">
-          <h3 className="text-sm font-semibold text-green-800 mb-2">
-            Access Request Approved -- User Provisioned
+        <div className="mb-4 border-2 border-[#191a26] bg-pixel-led-green p-4">
+          <h3 className="mb-2 font-pixel text-pixel-sm uppercase tracking-pixel text-[#191a26]">
+            {t('enterprise.accessRequests.result.title')}
           </h3>
-          <div className="space-y-2 text-sm">
-            <div>
-              <span className="text-gray-500">User ID:</span>{' '}
-              <span className="font-mono text-xs">{provisionedResult.user_id}</span>
+          <div className="flex flex-col gap-2">
+            <div className="font-mono text-lg text-[#191a26]">
+              <span className="font-pixel text-pixel-sm uppercase tracking-pixel">
+                {t('enterprise.accessRequests.result.userId')}
+              </span>{' '}
+              {provisionedResult.user_id}
             </div>
             {provisionedResult.scope_id && (
-              <div>
-                <span className="text-gray-500">Scope ID:</span>{' '}
-                <span className="font-mono text-xs">{provisionedResult.scope_id}</span>
+              <div className="font-mono text-lg text-[#191a26]">
+                <span className="font-pixel text-pixel-sm uppercase tracking-pixel">
+                  {t('enterprise.accessRequests.result.scopeId')}
+                </span>{' '}
+                {provisionedResult.scope_id}
               </div>
             )}
-            <div>
-              <span className="text-gray-500">API Key (shown once):</span>{' '}
-              <code className="font-mono text-xs bg-white px-2 py-0.5 border rounded select-all">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-pixel text-pixel-sm uppercase tracking-pixel text-[#191a26]">
+                {t('enterprise.accessRequests.result.apiKey')}
+              </span>
+              <code className="select-all break-all border-2 border-[#191a26] bg-pixel-bg px-2 py-0.5 font-mono text-lg text-pixel-fg">
                 {provisionedResult.api_key}
               </code>
-              <button
+              <PixButton
+                variant="info"
+                compact
                 onClick={() => {
                   navigator.clipboard.writeText(provisionedResult.api_key);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 }}
-                className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline"
               >
-                {copied ? 'Copied' : 'Copy'}
-              </button>
+                {copied
+                  ? t('enterprise.action.copied')
+                  : t('enterprise.action.copy')}
+              </PixButton>
             </div>
-            <p className="text-xs text-green-700 mt-1">
-              Provide this API key to the applicant. It will not be shown again.
+            <p className="font-mono text-base text-[#191a26]">
+              {t('enterprise.accessRequests.result.apiKeyHint')}
             </p>
           </div>
           <button
             onClick={() => setProvisionedResult(null)}
-            className="mt-2 text-xs text-gray-500 hover:text-gray-700 underline"
+            className="mt-2 border-2 border-[#191a26] bg-pixel-led-green px-3 py-1 font-pixel text-pixel-sm text-[#191a26] hover:bg-[#191a26] hover:text-pixel-led-green"
           >
-            Dismiss
+            {t('enterprise.action.dismiss')}
           </button>
         </div>
       )}
 
-      {error && (
-        <div className="mb-4 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
 
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         {['all', 'pending', 'approved', 'rejected', 'expired'].map((s) => (
-          <button
+          <FilterPill
             key={s}
+            active={(s === 'all' && !statusFilter) || statusFilter === s}
             onClick={() => {
               setStatusFilter(s === 'all' ? undefined : s);
               setPage(1);
             }}
-            className={`px-3 py-1.5 text-xs font-medium rounded border ${
-              (s === 'all' && !statusFilter) || statusFilter === s
-                ? 'bg-gray-900 text-white border-gray-900'
-                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-            }`}
           >
-            {s.charAt(0).toUpperCase() + s.slice(1)}
-          </button>
+            {statusFilterLabels[s]}
+          </FilterPill>
         ))}
       </div>
 
-      <div className="bg-white rounded-lg border overflow-hidden">
-        {data?.access_requests?.length === 0 ? (
-          <EmptyState message="No access requests found" />
-        ) : (
+      {data?.access_requests?.length === 0 ? (
+        <EmptyState message={t('enterprise.accessRequests.empty')} />
+      ) : (
+        <div className="bg-pixel-surface border-2 border-pixel-line">
           <DataTable
+            className="border-0"
             columns={[
-              { key: 'request_id', label: 'ID', render: (r: any) => r.request_id?.slice(0, 8) },
-              { key: 'applicant_name', label: 'Name' },
-              { key: 'applicant_email', label: 'Email' },
-              { key: 'organization', label: 'Org', render: (r: any) => r.organization || '-' },
-              { key: 'requested_mode', label: 'Mode', render: (r: any) => (
-                <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-700">
-                  {r.requested_mode}
-                </span>
-              )},
-              { key: 'status', label: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
-              { key: 'created_at', label: 'Submitted', render: (r: any) => new Date(r.created_at).toLocaleDateString() },
+              { key: 'request_id', label: t('enterprise.table.id'), render: (r: any) => r.request_id?.slice(0, 8) },
+              { key: 'applicant_name', label: t('enterprise.table.name') },
+              { key: 'applicant_email', label: t('enterprise.accessRequests.table.email') },
+              { key: 'organization', label: t('enterprise.accessRequests.table.organization'), render: (r: any) => r.organization || '-' },
+              {
+                key: 'requested_mode',
+                label: t('enterprise.accessRequests.table.mode'),
+                render: (r: any) => (
+                  <NeutralChip>
+                    {r.requested_mode === 'personal' || r.requested_mode === 'enterprise'
+                      ? t(`enterprise.accessRequests.mode.${r.requested_mode}`)
+                      : r.requested_mode}
+                  </NeutralChip>
+                ),
+              },
+              { key: 'status', label: t('enterprise.table.status'), render: (r: any) => <StatusBadge status={r.status} /> },
+              {
+                key: 'created_at',
+                label: t('enterprise.accessRequests.table.submitted'),
+                render: (r: any) => formatDate(r.created_at),
+              },
               {
                 key: 'actions',
                 label: '',
                 render: (r: any) =>
                   r.status === 'pending' ? (
                     <div className="flex gap-2">
-                      <button
+                      <PixButton
+                        variant="ok"
+                        compact
                         onClick={() => handleDialogOpen(r.request_id, 'approve')}
                         disabled={isMutating}
-                        className="px-3 py-1 text-xs font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50"
                       >
-                        Approve
-                      </button>
-                      <button
+                        {t('enterprise.action.approve')}
+                      </PixButton>
+                      <PixButton
+                        variant="danger"
+                        compact
                         onClick={() => handleDialogOpen(r.request_id, 'reject')}
                         disabled={isMutating}
-                        className="px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50"
                       >
-                        Reject
-                      </button>
+                        {t('enterprise.action.reject')}
+                      </PixButton>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400">
-                      {r.reviewed_at ? new Date(r.reviewed_at).toLocaleDateString() : ''}
+                    <span className="font-mono text-base text-pixel-muted">
+                      {r.reviewed_at ? formatDate(r.reviewed_at) : ''}
                     </span>
                   ),
               },
             ]}
             data={data?.access_requests ?? []}
           />
-        )}
-        <Pagination
-          offset={(page - 1) * limit}
-          limit={limit}
-          total={data?.total ?? 0}
-          onPageChange={(offset) => setPage(Math.floor(offset / limit) + 1)}
-        />
-      </div>
+          <Pagination
+            offset={(page - 1) * limit}
+            limit={limit}
+            total={data?.total ?? 0}
+            onPageChange={(offset) => setPage(Math.floor(offset / limit) + 1)}
+          />
+        </div>
+      )}
 
       <ConfirmDialog
         open={dialogState !== null}
-        title={dialogState?.action === 'approve' ? 'Approve Access Request' : 'Reject Access Request'}
+        title={
+          dialogState?.action === 'approve'
+            ? t('enterprise.accessRequests.confirm.approveTitle')
+            : t('enterprise.accessRequests.confirm.rejectTitle')
+        }
         message={
           dialogState?.action === 'approve'
-            ? 'Are you sure you want to approve this access request? The applicant will be granted access after approval.'
-            : 'Are you sure you want to reject this access request? The applicant will need to reapply.'
+            ? t('enterprise.accessRequests.confirm.approveMessage')
+            : t('enterprise.accessRequests.confirm.rejectMessage')
         }
         variant={dialogState?.action === 'approve' ? 'default' : 'danger'}
-        confirmLabel={dialogState?.action === 'approve' ? 'Approve' : 'Reject'}
+        confirmLabel={
+          dialogState?.action === 'approve'
+            ? t('enterprise.action.approve')
+            : t('enterprise.action.reject')
+        }
         onConfirm={handleConfirm}
         onCancel={handleDialogCancel}
       >
         {dialogState?.action === 'reject' && (
           <div className="mt-3">
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Rejection Reason <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={rejectReason}
-              onChange={(e) => {
-                setRejectReason(e.target.value);
-                if (rejectError) setRejectError(null);
-              }}
-              rows={2}
-              className={`w-full px-3 py-2 border rounded text-sm ${rejectError ? 'border-red-400' : ''}`}
-              placeholder="Reason for rejection (required)"
-            />
+            <PixelField
+              label={t('enterprise.accessRequests.form.rejectReason')}
+              htmlFor="reject-reason"
+            >
+              <textarea
+                id="reject-reason"
+                value={rejectReason}
+                onChange={(e) => {
+                  setRejectReason(e.target.value);
+                  if (rejectError) setRejectError(null);
+                }}
+                rows={2}
+                className={cn(PIXEL_INPUT, rejectError && 'border-pixel-led-red')}
+                placeholder={t('enterprise.accessRequests.form.rejectReasonPlaceholder')}
+              />
+            </PixelField>
             {rejectError && (
-              <p className="mt-1 text-xs text-red-600">{rejectError}</p>
+              <div className="mt-2 border-2 border-[#191a26] bg-pixel-led-red p-2 font-pixel text-pixel-sm text-[#f4f4fa]">
+                {rejectError}
+              </div>
             )}
           </div>
         )}

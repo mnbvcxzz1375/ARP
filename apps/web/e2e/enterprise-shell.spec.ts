@@ -3,44 +3,44 @@ import { test, expect } from '@playwright/test';
 test.describe('Enterprise console routes', () => {
   test('enterprise pages redirect to login when unauthenticated', async ({ page }) => {
     await page.goto('/enterprise/overview');
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(\?|$)/);
   });
 
   test('enterprise relay-nodes redirects when unauthenticated', async ({ page }) => {
     await page.goto('/enterprise/relay-nodes');
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(\?|$)/);
   });
 
   test('enterprise route-policies redirects when unauthenticated', async ({ page }) => {
     await page.goto('/enterprise/route-policies');
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(\?|$)/);
   });
 
   test('enterprise egress redirects when unauthenticated', async ({ page }) => {
     await page.goto('/enterprise/egress');
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(\?|$)/);
   });
 
   test('enterprise sla redirects when unauthenticated', async ({ page }) => {
     await page.goto('/enterprise/sla');
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(\?|$)/);
   });
 
   test('enterprise access-requests redirects when unauthenticated', async ({ page }) => {
     await page.goto('/enterprise/access-requests');
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(\?|$)/);
   });
 });
 
 test.describe('Personal console routes', () => {
   test('personal overview redirects when unauthenticated', async ({ page }) => {
     await page.goto('/app/overview');
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(\?|$)/);
   });
 
   test('personal routing redirects when unauthenticated', async ({ page }) => {
     await page.goto('/app/routing');
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login(\?|$)/);
   });
 });
 

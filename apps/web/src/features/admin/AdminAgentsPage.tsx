@@ -1,8 +1,8 @@
-import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import api from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useT } from '../../i18n';
 import DataTable from '../../components/DataTable';
 import Pagination from '../../components/Pagination';
 import StatusBadge from '../../components/StatusBadge';
@@ -10,6 +10,12 @@ import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import StepUpDialog from '../../components/StepUpDialog';
+import {
+  PageHeader,
+  PixelActionButton,
+  ActionErrorBanner,
+  DetailLink,
+} from './PixelKit';
 
 type PendingAgentAction = {
   type: 'disable' | 'enable';
@@ -27,6 +33,7 @@ export default function AdminAgentsPage() {
   const limit = 20;
   const queryClient = useQueryClient();
   const { data: auth } = useAuth();
+  const t = useT();
   const isSuperAdmin = auth?.role === 'super_admin';
 
   const { data, isLoading, isError } = useQuery({
@@ -52,7 +59,7 @@ export default function AdminAgentsPage() {
     onError: (err: any) => {
       setPendingAction(null);
       setShowStepUp(false);
-      setActionError(err?.response?.data?.detail || 'Failed to update agent');
+      setActionError(err?.response?.data?.detail || t('admin.error.updateAgent'));
     },
   });
 
@@ -79,59 +86,51 @@ export default function AdminAgentsPage() {
   };
 
   if (isLoading) return <LoadingState />;
-  if (isError) return <ErrorState message="Failed to load agents" />;
+  if (isError) return <ErrorState message={t('admin.error.loadAgents')} />;
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Agents</h2>
-      {actionError && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700" data-testid="action-error">
-          {actionError}
-        </div>
-      )}
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <PageHeader title={t('admin.title.agents')} />
+      {actionError && <ActionErrorBanner message={actionError} />}
+      {/* DataTable carries its own 2px pixel border + surface; the wrapper
+          only adds the hard pixel-step shadow. */}
+      <div className="shadow-pixel-sm">
         <DataTable
           columns={[
-            { key: 'name', label: 'Name' },
-            { key: 'agent_number', label: 'Agent Number' },
+            { key: 'name', label: t('admin.agents.table.name') },
+            { key: 'agent_number', label: t('admin.agents.table.agentNumber') },
             {
               key: 'details',
               label: '',
               render: (r: any) => (
-                <Link to={`/admin/agents/${r.agent_id}`} className="text-blue-600 hover:underline text-xs font-medium">
-                  View
-                </Link>
+                <DetailLink to={`/admin/agents/${r.agent_id}`}>{t('admin.action.view')}</DetailLink>
               ),
             },
-            { key: 'owner_username', label: 'Owner' },
-            { key: 'status', label: 'Status', render: (r: any) => <StatusBadge status={r.status} /> },
-            { key: 'runtime', label: 'Runtime' },
-            { key: 'inbound_policy', label: 'Policy' },
-            { key: 'tasks_24h', label: 'Tasks (24h)' },
-            { key: 'failed_tasks_24h', label: 'Failed' },
+            { key: 'owner_username', label: t('admin.table.owner') },
+            { key: 'status', label: t('admin.table.status'), render: (r: any) => <StatusBadge status={r.status} /> },
+            { key: 'runtime', label: t('admin.agents.table.runtime') },
+            { key: 'inbound_policy', label: t('admin.agents.table.policy') },
+            { key: 'tasks_24h', label: t('admin.agents.table.tasks24h') },
+            { key: 'failed_tasks_24h', label: t('admin.agents.table.failed') },
             {
               key: 'actions',
-              label: 'Actions',
+              label: t('admin.table.actions'),
               render: (r: any) => (
                 <div className="flex gap-2">
                   {isSuperAdmin ? (
-                    <button
+                    <PixelActionButton
                       onClick={() => setPendingAction({
                         type: r.status === 'offline' ? 'enable' : 'disable',
                         agentId: r.agent_id,
                         agentName: r.name || r.agent_number,
                       })}
                       disabled={toggleMutation.isPending}
-                      className={`px-2 py-1 text-xs font-medium rounded ${
-                        r.status === 'offline'
-                          ? 'text-green-700 bg-green-50 border border-green-200 hover:bg-green-100'
-                          : 'text-yellow-700 bg-yellow-50 border border-yellow-200 hover:bg-yellow-100'
-                      } disabled:opacity-50`}
+                      variant={r.status === 'offline' ? 'accent' : 'danger'}
                     >
-                      {r.status === 'offline' ? 'Enable' : 'Disable'}
-                    </button>
+                      {r.status === 'offline' ? t('admin.action.enable') : t('admin.action.disable')}
+                    </PixelActionButton>
                   ) : (
-                    <span className="text-xs text-gray-400">Super admin required</span>
+                    <span className="text-base text-pixel-muted">{t('admin.hint.superAdminRequired')}</span>
                   )}
                 </div>
               ),
@@ -149,14 +148,14 @@ export default function AdminAgentsPage() {
 
       <ConfirmDialog
         open={pendingAction !== null && !showStepUp}
-        title={pendingAction?.type === 'disable' ? 'Disable Agent' : 'Enable Agent'}
+        title={pendingAction?.type === 'disable' ? t('admin.agents.confirm.disableTitle') : t('admin.agents.confirm.enableTitle')}
         message={
           pendingAction?.type === 'disable'
-            ? `Disable agent "${pendingAction?.agentName}"? It will go offline and stop accepting tasks.`
-            : `Enable agent "${pendingAction?.agentName}"? It will be able to come online and accept tasks.`
+            ? t('admin.agents.confirm.disableMessage', { name: pendingAction?.agentName ?? '' })
+            : t('admin.agents.confirm.enableMessage', { name: pendingAction?.agentName ?? '' })
         }
         variant={pendingAction?.type === 'disable' ? 'danger' : 'default'}
-        confirmLabel={pendingAction?.type === 'disable' ? 'Disable' : 'Enable'}
+        confirmLabel={pendingAction?.type === 'disable' ? t('admin.action.disable') : t('admin.action.enable')}
         onConfirm={handleConfirmAction}
         onCancel={() => {
           setPendingAction(null);

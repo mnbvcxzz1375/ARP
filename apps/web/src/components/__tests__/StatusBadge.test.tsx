@@ -7,14 +7,14 @@ describe('StatusBadge', () => {
     render(<StatusBadge status="completed" />);
     const badge = screen.getByText('Completed');
     expect(badge).toBeInTheDocument();
-    expect(badge.className).toContain('bg-green-100');
+    expect(badge.className).toContain('bg-pixel-led-green');
   });
 
   it('renders Failed status correctly', () => {
     render(<StatusBadge status="failed" />);
     const badge = screen.getByText('Failed');
     expect(badge).toBeInTheDocument();
-    expect(badge.className).toContain('bg-red-100');
+    expect(badge.className).toContain('bg-pixel-led-red');
   });
 
   it('renders Running status correctly', () => {

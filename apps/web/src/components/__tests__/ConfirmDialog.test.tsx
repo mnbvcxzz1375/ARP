@@ -45,7 +45,7 @@ describe('ConfirmDialog', () => {
       <ConfirmDialog open={true} title="Danger" message="Dangerous!" variant="danger" onConfirm={vi.fn()} onCancel={vi.fn()} />
     );
     const btn = screen.getByText('Confirm');
-    expect(btn.className).toContain('bg-red-600');
+    expect(btn.className).toContain('bg-pixel-led-red');
   });
 
   it('renders custom confirm label', () => {

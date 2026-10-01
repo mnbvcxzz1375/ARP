@@ -10,19 +10,19 @@ describe('RiskBadge', () => {
   it('renders low risk', () => {
     render(<RiskBadge level="low" />);
     const badge = screen.getByText('low');
-    expect(badge.className).toContain('bg-green-100');
+    expect(badge.className).toContain('bg-pixel-led-green');
   });
 
   it('renders medium risk', () => {
     render(<RiskBadge level="medium" />);
     const badge = screen.getByText('medium');
-    expect(badge.className).toContain('bg-yellow-100');
+    expect(badge.className).toContain('bg-pixel-led-amber');
   });
 
   it('renders high risk', () => {
     render(<RiskBadge level="high" />);
     const badge = screen.getByText('high');
-    expect(badge.className).toContain('bg-red-100');
+    expect(badge.className).toContain('bg-pixel-led-red');
   });
 
   it('renders critical risk', () => {
@@ -35,19 +35,21 @@ describe('RoleBadge', () => {
   it('renders user role', () => {
     render(<RoleBadge role="user" />);
     const badge = screen.getByText('user');
-    expect(badge.className).toContain('bg-blue-100');
+    expect(badge.className).toContain('bg-pixel-accent-2');
   });
 
   it('renders admin role', () => {
     render(<RoleBadge role="admin" />);
     const badge = screen.getByText('admin');
-    expect(badge.className).toContain('bg-purple-100');
+    expect(badge.className).toContain('bg-pixel-accent');
   });
 
   it('renders super_admin role', () => {
     render(<RoleBadge role="super_admin" />);
     const badge = screen.getByText('super admin');
-    expect(badge.className).toContain('bg-red-100');
+    // Role is identity, not status: neutral chip, never the LED-red status color.
+    expect(badge.className).toContain('bg-[#4b4968]');
+    expect(badge.className).not.toContain('bg-pixel-led-red');
   });
 
   it('formats underscores as spaces', () => {
@@ -80,7 +82,7 @@ describe('Pagination', () => {
 
   it('renders page info for multiple pages', () => {
     render(<Pagination offset={0} limit={50} total={120} onPageChange={vi.fn()} />);
-    expect(screen.getByText('Showing 1–50 of 120')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1-50 of 120')).toBeInTheDocument();
     expect(screen.getByText('1 / 3')).toBeInTheDocument();
   });
 

@@ -1,9 +1,15 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../api/client';
+import { useT, useFormat } from '../../i18n';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
+import EmptyState from '../../components/EmptyState';
 import StatusBadge from '../../components/StatusBadge';
+import DataTable from '../../components/DataTable';
+import { PageTitle, PixelPanel } from '../connections/pixel-ui';
+import { PIXEL_CHIP } from '../../lib/tokens';
+import { cn } from '../../lib/utils';
 
 interface AuditEntry {
   audit_id: string;
@@ -21,6 +27,8 @@ interface AuditEntry {
 
 export default function AccessRequestDetailPage() {
   const { requestId } = useParams<{ requestId: string }>();
+  const t = useT();
+  const { formatDateTime } = useFormat();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['admin/access-requests', requestId],
@@ -44,12 +52,12 @@ export default function AccessRequestDetailPage() {
   if (isError) {
     const statusCode = (error as any)?.response?.status;
     if (statusCode === 404) {
-      return <ErrorState message="Access request not found" />;
+      return <ErrorState message={t('enterprise.accessRequestDetail.error.notFound')} />;
     }
     if (statusCode === 403) {
-      return <ErrorState message="Access denied" />;
+      return <ErrorState message={t('enterprise.error.accessDenied')} />;
     }
-    return <ErrorState message="Failed to load access request" />;
+    return <ErrorState message={t('enterprise.accessRequestDetail.error.load')} />;
   }
 
   const auditEntries: AuditEntry[] = auditData?.audit_logs ?? [];
@@ -59,125 +67,168 @@ export default function AccessRequestDetailPage() {
       <div className="mb-4">
         <Link
           to="/enterprise/access-requests"
-          className="text-sm text-blue-600 hover:underline"
+          className="font-pixel text-pixel-sm text-pixel-accent-2 hover:underline"
         >
-          &larr; Back to Access Requests
+          &larr; {t('enterprise.accessRequestDetail.back')}
         </Link>
       </div>
 
-      <h2 className="text-xl font-semibold mb-6">Access Request Detail</h2>
+      <PageTitle>{t('enterprise.accessRequestDetail.title')}</PageTitle>
 
-      <div className="bg-white rounded-lg border p-6 space-y-4">
-        <DetailRow label="Request ID" value={data?.request_id} />
-        <DetailRow label="Status">
-          <StatusBadge status={data?.status} />
-        </DetailRow>
+      <PixelPanel bodyClassName="p-4 md:p-6">
+        <div className="flex flex-col gap-4">
+          <DetailRow
+            label={t('enterprise.accessRequestDetail.label.requestId')}
+            value={data?.request_id}
+          />
+          <DetailRow label={t('enterprise.accessRequestDetail.label.status')}>
+            <StatusBadge status={data?.status} />
+          </DetailRow>
 
-        <h3 className="text-sm font-medium text-gray-500 pt-4 border-t">
-          Applicant Information
-        </h3>
-        <DetailRow label="Name" value={data?.applicant_name} />
-        <DetailRow label="Email" value={data?.applicant_email} />
-        <DetailRow label="Organization" value={data?.organization || 'Not provided'} />
+          <SectionLabel>
+            {t('enterprise.accessRequestDetail.section.applicant')}
+          </SectionLabel>
+          <DetailRow label={t('enterprise.accessRequestDetail.label.name')} value={data?.applicant_name} />
+          <DetailRow label={t('enterprise.accessRequestDetail.label.email')} value={data?.applicant_email} />
+          <DetailRow
+            label={t('enterprise.accessRequestDetail.label.organization')}
+            value={data?.organization || t('enterprise.accessRequestDetail.value.notProvided')}
+          />
 
-        <h3 className="text-sm font-medium text-gray-500 pt-4 border-t">
-          Request Details
-        </h3>
-        <DetailRow label="Requested Mode">
-          <span className="text-xs font-medium px-2 py-0.5 rounded bg-blue-100 text-blue-800">
-            {data?.requested_mode}
-          </span>
-        </DetailRow>
-        <DetailRow label="Use Case" value={data?.use_case} />
-        <DetailRow
-          label="Terms Acknowledged"
-          value={data?.terms_acknowledged ? 'Yes' : 'No'}
-        />
+          <SectionLabel>
+            {t('enterprise.accessRequestDetail.section.requestDetails')}
+          </SectionLabel>
+          <DetailRow label={t('enterprise.accessRequestDetail.label.requestedMode')}>
+            <span
+              className={cn(
+                'inline-flex items-center px-2 py-0.5 font-pixel text-sm leading-none',
+                PIXEL_CHIP.info,
+              )}
+            >
+              {data?.requested_mode === 'personal' || data?.requested_mode === 'enterprise'
+                ? t(`enterprise.accessRequests.mode.${data.requested_mode}`)
+                : data?.requested_mode}
+            </span>
+          </DetailRow>
+          <DetailRow label={t('enterprise.accessRequestDetail.label.useCase')} value={data?.use_case} />
+          <DetailRow
+            label={t('enterprise.accessRequestDetail.label.termsAcknowledged')}
+            value={data?.terms_acknowledged ? t('enterprise.value.yes') : t('enterprise.value.no')}
+          />
 
-        {data?.request_ip && (
-          <DetailRow label="Request IP" value={data.request_ip} />
-        )}
+          {data?.request_ip && (
+            <DetailRow
+              label={t('enterprise.accessRequestDetail.label.requestIp')}
+              value={data.request_ip}
+            />
+          )}
 
-        <h3 className="text-sm font-medium text-gray-500 pt-4 border-t">
-          Review Information
-        </h3>
-        <DetailRow label="Reviewed By" value={data?.reviewed_by || 'Not reviewed'} />
-        <DetailRow
-          label="Reviewed At"
-          value={
-            data?.reviewed_at
-              ? new Date(data.reviewed_at).toLocaleString()
-              : 'Not reviewed'
-          }
-        />
-        <DetailRow
-          label="Review Notes"
-          value={data?.review_notes || 'No notes'}
-        />
+          <SectionLabel>
+            {t('enterprise.accessRequestDetail.section.review')}
+          </SectionLabel>
+          <DetailRow
+            label={t('enterprise.accessRequestDetail.label.reviewedBy')}
+            value={data?.reviewed_by || t('enterprise.accessRequestDetail.value.notReviewed')}
+          />
+          <DetailRow
+            label={t('enterprise.accessRequestDetail.label.reviewedAt')}
+            value={
+              data?.reviewed_at
+                ? formatDateTime(data.reviewed_at)
+                : t('enterprise.accessRequestDetail.value.notReviewed')
+            }
+          />
+          <DetailRow
+            label={t('enterprise.accessRequestDetail.label.reviewNotes')}
+            value={data?.review_notes || t('enterprise.accessRequestDetail.value.noNotes')}
+          />
 
-        <h3 className="text-sm font-medium text-gray-500 pt-4 border-t">
-          Timestamps
-        </h3>
-        <DetailRow
-          label="Created At"
-          value={
-            data?.created_at
-              ? new Date(data.created_at).toLocaleString()
-              : '-'
-          }
-        />
-      </div>
+          <SectionLabel>
+            {t('enterprise.accessRequestDetail.section.timestamps')}
+          </SectionLabel>
+          <DetailRow
+            label={t('enterprise.accessRequestDetail.label.createdAt')}
+            value={data?.created_at ? formatDateTime(data.created_at) : '-'}
+          />
+        </div>
+      </PixelPanel>
 
       {/* Audit Trail Section */}
       <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-4">Audit Trail</h3>
+        <h3 className="mb-4 font-display text-pixel-base text-pixel-fg">
+          {t('enterprise.accessRequestDetail.audit.title')}
+        </h3>
         {auditError ? (
-          <ErrorState message="Failed to load audit trail" />
+          <ErrorState message={t('enterprise.accessRequestDetail.error.loadAudit')} />
         ) : !auditData ? (
           <LoadingState />
         ) : auditEntries.length === 0 ? (
-          <p className="text-sm text-gray-500">No audit entries for this request.</p>
+          <EmptyState message={t('enterprise.accessRequestDetail.empty.audit')} />
         ) : (
-          <div className="bg-white rounded-lg border overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Time</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Action</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Actor</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">IP</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {auditEntries.map((entry) => (
-                  <tr key={entry.audit_id}>
-                    <td className="px-4 py-2 text-xs text-gray-600 whitespace-nowrap">
-                      {new Date(entry.created_at).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-gray-900 font-mono">
-                      {entry.action}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-gray-600">
+          <PixelPanel>
+            <DataTable
+              className="border-0"
+              columns={[
+                {
+                  key: 'created_at',
+                  label: t('enterprise.accessRequestDetail.audit.table.time'),
+                  render: (entry: AuditEntry) => (
+                    <span className="whitespace-nowrap font-mono">
+                      {formatDateTime(entry.created_at)}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'action',
+                  label: t('enterprise.accessRequestDetail.audit.table.action'),
+                  render: (entry: AuditEntry) => <span className="font-mono">{entry.action}</span>,
+                },
+                {
+                  key: 'actor',
+                  label: t('enterprise.accessRequestDetail.audit.table.actor'),
+                  render: (entry: AuditEntry) => (
+                    <span className="font-mono">
                       {entry.actor_type}:{entry.actor_id?.slice(0, 8)}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-gray-600 font-mono">
-                      {entry.request_ip || '-'}
-                    </td>
-                    <td className="px-4 py-2 text-xs text-gray-600 max-w-xs truncate">
+                    </span>
+                  ),
+                },
+                {
+                  key: 'request_ip',
+                  label: t('enterprise.accessRequestDetail.audit.table.ip'),
+                  render: (entry: AuditEntry) => (
+                    <span className="font-mono">{entry.request_ip || '-'}</span>
+                  ),
+                },
+                {
+                  key: 'details',
+                  label: t('enterprise.accessRequestDetail.audit.table.details'),
+                  render: (entry: AuditEntry) => (
+                    <span className="block max-w-xs truncate font-mono">
                       {entry.details ? JSON.stringify(entry.details) : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="px-4 py-2 text-xs text-gray-500 border-t">
-              Showing {auditEntries.length} of {auditData.total} entries
+                    </span>
+                  ),
+                },
+              ]}
+              data={auditEntries}
+            />
+            <div className="border-t-2 border-pixel-line px-4 py-2 font-mono text-base text-pixel-muted">
+              {t('enterprise.accessRequestDetail.audit.count', {
+                count: auditEntries.length,
+                total: auditData.total,
+              })}
             </div>
-          </div>
+          </PixelPanel>
         )}
       </div>
     </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="border-t-2 border-pixel-line pt-4 font-pixel text-pixel-sm uppercase tracking-pixel text-pixel-muted">
+      {children}
+    </h3>
   );
 }
 
@@ -191,11 +242,11 @@ function DetailRow({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-4">
-      <span className="text-sm text-gray-500 w-40 shrink-0">{label}</span>
-      <span className="text-sm text-gray-900">
-        {children ?? value ?? '-'}
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-4">
+      <span className="w-full font-pixel text-pixel-sm uppercase tracking-pixel text-pixel-muted sm:w-40 sm:shrink-0">
+        {label}
       </span>
+      <span className="break-all font-mono text-lg text-pixel-fg">{children ?? value ?? '-'}</span>
     </div>
   );
 }

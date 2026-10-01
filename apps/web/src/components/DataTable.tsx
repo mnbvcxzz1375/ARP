@@ -1,3 +1,4 @@
+import { useT } from '../i18n';
 import { cn } from '../lib/utils';
 
 interface DataTableProps<T> {
@@ -11,26 +12,39 @@ export default function DataTable<T extends object>({
   data,
   className,
 }: DataTableProps<T>) {
+  const t = useT();
   return (
-    <div className={cn('overflow-x-auto', className)}>
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+    <div
+      className={cn(
+        'overflow-x-auto border-2 border-pixel-line bg-pixel-surface',
+        className,
+      )}
+    >
+      <table className="min-w-full">
+        <thead className="border-b-2 border-pixel-line bg-pixel-raised">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                className="px-4 py-2 text-left font-pixel text-pixel-sm uppercase tracking-pixel text-pixel-muted"
               >
                 {col.label}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        {/* NOTE: Tailwind 3 silently drops divide-pixel-line/60 (opacity
+            modifier on a var() color produces no rule at all), which would
+            fall back to preflight #e5e7eb and draw light lines on the dark
+            surface. Bare divide-pixel-line generates correctly. */}
+        <tbody className="divide-y divide-pixel-line">
           {data.map((row, idx) => (
-            <tr key={idx} className="hover:bg-gray-50">
+            <tr key={idx} className="hover:bg-pixel-raised">
               {columns.map((col) => (
-                <td key={col.key} className="px-4 py-3 text-sm text-gray-900">
+                <td
+                  key={col.key}
+                  className="px-4 py-2 text-base leading-relaxed text-pixel-fg"
+                >
                   {col.render ? col.render(row) : String((row as Record<string, any>)[col.key] ?? '')}
                 </td>
               ))}
@@ -38,8 +52,11 @@ export default function DataTable<T extends object>({
           ))}
           {data.length === 0 && (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-8 text-center text-sm text-gray-500">
-                No data
+              <td
+                colSpan={columns.length}
+                className="px-4 py-8 text-center text-base text-pixel-muted"
+              >
+                {t('common.status.noData')}
               </td>
             </tr>
           )}

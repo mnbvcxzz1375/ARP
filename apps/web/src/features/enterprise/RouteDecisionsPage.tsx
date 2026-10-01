@@ -1,13 +1,29 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../api/client';
+import { useT, useFormat } from '../../i18n';
 import DataTable from '../../components/DataTable';
 import Pagination from '../../components/Pagination';
 import RiskBadge from '../../components/RiskBadge';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
+import { NeutralChip, PageTitle, PixelPanel, PixButton, YesNoChip, PIXEL_INPUT } from '../connections/pixel-ui';
+import { cn } from '../../lib/utils';
+
+/**
+ * Translation keys for the selected_route_type column. Values not in the
+ * backend's path-optimizer vocabulary fall back to the raw string.
+ */
+const ROUTE_TYPE_LABEL_KEYS: Record<string, string> = {
+  central_relay: 'enterprise.decisions.routeType.central_relay',
+  regional_relay: 'enterprise.decisions.routeType.regional_relay',
+  personal_edge: 'enterprise.decisions.routeType.personal_edge',
+  dedicated_channel: 'enterprise.decisions.routeType.dedicated_channel',
+};
 
 export default function RouteDecisionsPage() {
+  const t = useT();
+  const { formatDateTime } = useFormat();
   const [page, setPage] = useState(1);
   const [taskIdFilter, setTaskIdFilter] = useState('');
   const [appliedFilter, setAppliedFilter] = useState<string | undefined>(undefined);
@@ -33,69 +49,69 @@ export default function RouteDecisionsPage() {
   };
 
   if (isLoading) return <LoadingState />;
-  if (isError) return <ErrorState message="Failed to load route decisions" />;
+  if (isError) return <ErrorState message={t('enterprise.decisions.error.load')} />;
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">Route Decisions</h2>
+      <PageTitle>{t('enterprise.decisions.title')}</PageTitle>
 
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
           type="text"
           value={taskIdFilter}
           onChange={(e) => setTaskIdFilter(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="Filter by Task ID"
-          className="px-3 py-1.5 text-sm border rounded bg-white"
+          placeholder={t('enterprise.decisions.filter.taskIdPlaceholder')}
+          className={cn(PIXEL_INPUT, 'w-full sm:w-72')}
         />
-        <button
-          onClick={handleSearch}
-          className="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded hover:bg-gray-800"
-        >
-          Search
-        </button>
+        <PixButton onClick={handleSearch}>{t('enterprise.action.search')}</PixButton>
         {appliedFilter && (
-          <button
+          <PixButton
+            variant="ghost"
             onClick={() => {
               setTaskIdFilter('');
               setAppliedFilter(undefined);
               setPage(1);
             }}
-            className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
           >
-            Clear
-          </button>
+            {t('enterprise.action.clear')}
+          </PixButton>
         )}
       </div>
 
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <PixelPanel>
         <DataTable
+          className="border-0"
           columns={[
-            { key: 'task_id', label: 'Task ID', render: (r: any) => r.task_id?.slice(0, 8) ?? '-' },
-            { key: 'selected_route_type', label: 'Route Type' },
-            { key: 'risk_level', label: 'Risk', render: (r: any) => <RiskBadge level={r.risk_level ?? 'low'} /> },
-            { key: 'fallback_from_route', label: 'Fallback From', render: (r: any) => r.fallback_from_route || '-' },
-            { key: 'fallback_reason', label: 'Fallback Reason', render: (r: any) => r.fallback_reason || '-' },
+            { key: 'task_id', label: t('enterprise.decisions.table.taskId'), render: (r: any) => r.task_id?.slice(0, 8) ?? '-' },
+            {
+              key: 'selected_route_type',
+              label: t('enterprise.decisions.table.routeType'),
+              render: (r: any) => (
+                <NeutralChip>
+                  {r.selected_route_type && ROUTE_TYPE_LABEL_KEYS[r.selected_route_type]
+                    ? t(ROUTE_TYPE_LABEL_KEYS[r.selected_route_type])
+                    : r.selected_route_type || '-'}
+                </NeutralChip>
+              ),
+            },
+            { key: 'risk_level', label: t('enterprise.decisions.table.risk'), render: (r: any) => <RiskBadge level={r.risk_level ?? 'low'} /> },
+            { key: 'fallback_from_route', label: t('enterprise.decisions.table.fallbackFrom'), render: (r: any) => r.fallback_from_route || '-' },
+            { key: 'fallback_reason', label: t('enterprise.decisions.table.fallbackReason'), render: (r: any) => r.fallback_reason || '-' },
             {
               key: 'shadow_mode',
-              label: 'Shadow',
-              render: (r: any) => (
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                  r.shadow_mode ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {r.shadow_mode ? 'Yes' : 'No'}
-                </span>
-              ),
+              label: t('enterprise.decisions.table.shadow'),
+              render: (r: any) => <YesNoChip value={!!r.shadow_mode} />,
             },
             {
               key: 'decision_time_ms',
-              label: 'Decision (ms)',
-              render: (r: any) => r.decision_time_ms != null ? `${r.decision_time_ms}` : '-',
+              label: t('enterprise.decisions.table.decisionTime'),
+              render: (r: any) => (r.decision_time_ms != null ? `${r.decision_time_ms}` : '-'),
             },
             {
               key: 'created_at',
-              label: 'Created',
-              render: (r: any) => r.created_at ? new Date(r.created_at).toLocaleString() : '-',
+              label: t('enterprise.table.created'),
+              render: (r: any) => (r.created_at ? formatDateTime(r.created_at) : '-'),
             },
           ]}
           data={data?.decisions ?? []}
@@ -106,7 +122,7 @@ export default function RouteDecisionsPage() {
           total={data?.total ?? 0}
           onPageChange={(offset) => setPage(Math.floor(offset / limit) + 1)}
         />
-      </div>
+      </PixelPanel>
     </div>
   );
 }

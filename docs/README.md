@@ -51,6 +51,6 @@
 
 ## 品牌与展示素材
 
-[品牌标识与 slogan](assets/brand/README.md) · [截图来源](assets/screenshots/README.md)
+[中英文项目简介](project-description.md) · [品牌标识与 slogan](assets/brand/README.md) · [截图来源](assets/screenshots/README.md)
 
 README 中的快速体验运行演示构建；真实部署使用开发或生产配置。界面预览、测试记录和生产验收各自说明其适用范围。

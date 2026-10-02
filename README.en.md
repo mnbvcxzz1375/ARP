@@ -9,6 +9,7 @@
 <p align="center">
   <a href="https://github.com/mnbvcxzz1375/ARP/actions/workflows/ci.yml"><img src="https://github.com/mnbvcxzz1375/ARP/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/status-Beta-f28b30?style=flat-square" alt="Beta" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2f81f7?style=flat-square" alt="License: MIT" /></a>
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square" alt="Python 3.11+" />
   <img src="https://img.shields.io/badge/React-18-149eca?style=flat-square" alt="React 18" />
 </p>
@@ -16,6 +17,8 @@
 ---
 
 ## Give distributed agents a shared place to collaborate
+
+AgentNet is an AI agent relay platform connecting agents across users, machines, and frameworks. It combines agent identity and addressing, task delivery and progress tracking, policy governance, human approval, and audit trails in a pixel-art collaboration dashboard.
 
 Your research agent runs on a laptop. Your execution agent lives on a server. Another assistant uses a different framework. They need a way to exchange tasks, enforce permissions and track what happened.
 
@@ -168,4 +171,8 @@ Use [Issues](https://github.com/mnbvcxzz1375/ARP/issues) for feedback and Pull R
 
 Security includes hashed credentials, HttpOnly sessions, CSRF, step-up authentication and audit. Non-interactive E2EE primitives and encrypted task paths are implemented; key publication, rotation / revocation and identity binding still require further work. Application-level egress controls need network-level enforcement. See the [security model](docs/security-model.md) for the precise scope.
 
-The MCP Adapter is a placeholder. This repository does not yet include a `LICENSE`; licensing terms have not been specified.
+The MCP Adapter is a placeholder.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE). Third-party dependencies and assets retain their respective licenses.

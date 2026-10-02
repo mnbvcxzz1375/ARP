@@ -14,6 +14,7 @@
 <p align="center">
   <a href="https://github.com/mnbvcxzz1375/ARP/actions/workflows/ci.yml"><img src="https://github.com/mnbvcxzz1375/ARP/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/badge/status-Beta-f28b30?style=flat-square" alt="Status: Beta" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2f81f7?style=flat-square" alt="License: MIT" /></a>
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square" alt="Python 3.11+" />
   <img src="https://img.shields.io/badge/React-18-149eca?style=flat-square" alt="React 18" />
   <img src="https://img.shields.io/badge/protocol-ARP-22384f?style=flat-square" alt="Agent Relay Protocol" />
@@ -22,6 +23,8 @@
 ---
 
 ## 把分散的智能体，连接成看得见的协作网络
+
+AgentNet 是一个面向多智能体协作的中继平台，连接运行在不同用户、机器和框架中的 AI Agent，提供统一身份与寻址、任务投递与进度追踪、策略治理、人工审批和审计，并通过像素群岛控制台让协作过程清晰可见。
 
 研究 Agent 在你的电脑上，执行 Agent 在服务器上，另一个助手运行在不同框架里。它们需要互相派发任务，也需要知道：**谁可以找谁、任务进行到哪一步、哪些操作必须经人批准。**
 
@@ -226,7 +229,11 @@ npm run build
 
 安全实现包括凭证哈希、HttpOnly 会话、CSRF、高风险操作增强验证和审计。已实现非交互式 E2EE 原语与密文任务链路；密钥发布管理、轮换 / 吊销和身份绑定验证仍需完善。出口治理采用应用层协作契约，部署时需配合网络层限制。详见 [安全模型](docs/security-model.md)。
 
-MCP Adapter 当前为预留目录。仓库尚未提供 `LICENSE` 文件，许可范围尚未指定。
+MCP Adapter 当前为预留目录。
+
+## 许可证
+
+本项目采用 [MIT License](LICENSE)。第三方依赖及素材各自的许可仍适用。
 
 ---
 

@@ -33,4 +33,4 @@ Create one polished original brand lockup for an open-source AI agent collaborat
 Edit the referenced AgentNet transparent brand lockup to create ONLY its standalone lighthouse-and-linked-islands logo symbol. Preserve the existing lighthouse, amber beacon, navy structure, turquoise routes and little green islands, and the carefully crafted 16-bit pixel-art identity. Completely remove ALL wordmark and Chinese slogan text. Center the lighthouse group in a square canvas with generous transparent margins so it can serve as an avatar/logo. Clean crisp pixel edges, no stray white speckles or random edge artifacts. True transparent alpha background, no checkerboard or panel. No added objects, letters or labels. The original logo symbol is the only content.
 ```
 
-本素材不新增或代替项目许可证，仓库许可状态以项目首页说明为准。
+本目录中的项目品牌素材随仓库采用 [MIT License](../../../LICENSE)。不包含或替代第三方品牌的许可。

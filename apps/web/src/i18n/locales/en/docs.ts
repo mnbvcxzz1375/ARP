@@ -44,6 +44,7 @@ const docs = {
   'title.consoleRbac': 'Console RBAC',
   'title.consoleSecurity': 'Console Security',
   'title.consoleDeploy': 'Console Deploy',
+  'title.consoleConfiguration': 'Configuration Guide',
   'title.opsProductionDeploy': 'Production Deploy',
   'title.opsChecklist': 'Production Checklist',
   'title.opsCloseout': 'Production Closeout',

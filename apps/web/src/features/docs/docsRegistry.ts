@@ -32,6 +32,7 @@ import openclawAdapterRaw from '../../../../../docs/openclaw-adapter.md?raw';
 import consoleRbacRaw from '../../../../../docs/dashboard-rbac.md?raw';
 import consoleSecurityRaw from '../../../../../docs/dashboard-security.md?raw';
 import consoleDeployRaw from '../../../../../docs/dashboard-deploy.md?raw';
+import consoleConfigurationRaw from '../../../../../docs/configuration-guide.md?raw';
 import opsProductionDeployRaw from '../../../../../docs/production-deploy.md?raw';
 import opsChecklistRaw from '../../../../../docs/production-checklist.md?raw';
 import opsCloseoutRaw from '../../../../../docs/production-closeout.md?raw';
@@ -56,7 +57,7 @@ import opsProductionDeployZhRaw from './content/zh/production-deploy.md?raw';
 import opsChecklistZhRaw from './content/zh/production-checklist.md?raw';
 import opsCloseoutZhRaw from './content/zh/production-closeout.md?raw';
 
-// English mirrors of the twelve repository docs that are written in Chinese
+// English mirrors of the thirteen repository docs that are written in Chinese
 // (or carry a Chinese heading, like quickstart) but are not pinned by tests.
 // The eight English repository docs need no en mirror. sdk-python-quickstart
 // is deliberately excluded: its Chinese heading is pinned by
@@ -69,6 +70,7 @@ import openapiDocEnRaw from './content/en/openapi.md?raw';
 import cliEnRaw from './content/en/cli.md?raw';
 import sdkPythonEnRaw from './content/en/sdk-python.md?raw';
 import openclawAdapterEnRaw from './content/en/openclaw-adapter.md?raw';
+import consoleConfigurationEnRaw from './content/en/configuration-guide.md?raw';
 import opsBackupRestoreEnRaw from './content/en/backup-restore.md?raw';
 import opsSecretsRotationEnRaw from './content/en/secrets-rotation.md?raw';
 import opsObservabilityEnRaw from './content/en/observability.md?raw';
@@ -157,6 +159,7 @@ export const DOCS_ENTRIES: DocEntry[] = [
   { docId: 'dashboard-rbac', group: 'console', titleKey: 'title.consoleRbac', source: consoleRbacRaw, sourceZh: consoleRbacZhRaw },
   { docId: 'dashboard-security', group: 'console', titleKey: 'title.consoleSecurity', source: consoleSecurityRaw, sourceZh: consoleSecurityZhRaw },
   { docId: 'dashboard-deploy', group: 'console', titleKey: 'title.consoleDeploy', source: consoleDeployRaw, sourceZh: consoleDeployZhRaw },
+  { docId: 'configuration-guide', group: 'console', titleKey: 'title.consoleConfiguration', source: consoleConfigurationRaw, sourceEn: consoleConfigurationEnRaw },
 
   // Deploy & ops
   { docId: 'production-deploy', group: 'ops', titleKey: 'title.opsProductionDeploy', source: opsProductionDeployRaw, sourceZh: opsProductionDeployZhRaw },

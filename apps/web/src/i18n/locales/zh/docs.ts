@@ -46,6 +46,7 @@ const docs = {
   'title.consoleRbac': '控制台 RBAC',
   'title.consoleSecurity': '控制台安全',
   'title.consoleDeploy': '控制台部署',
+  'title.consoleConfiguration': '配置指南',
   'title.opsProductionDeploy': '生产部署',
   'title.opsChecklist': '生产检查表',
   'title.opsCloseout': '生产收尾',

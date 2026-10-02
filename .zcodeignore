@@ -1,0 +1,128 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+coverage/
+playwright-report/
+blob-report/
+test-results/
+.playwright-mcp/
+*.spec.ts-snapshots/
+!apps/web/e2e/visual-regression.spec.ts-snapshots/
+
+# Environment / secrets
+.env
+.env.*
+*.env.local
+*.env.*.local
+!infra/.env.production.example
+!.env.example
+!.env.*.example
+
+# IDE
+.vscode/
+CLAUDE.md
+.claude/
+.history/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AgentNet runtime
+agentnet_session.json
+.learnings/
+
+# Test artifacts (reports, result dumps, debug output)
+test_model_results.json
+reports/
+*.test.log
+*.tmp.log
+*.out.log
+*.err.log
+.tmp_*/
+.tmp_*
+IMPLEMENTATION_STATUS.md
+ROUTING_RUNTIME_PROGRESS.md
+PHASE*-*_COMPLETION_REPORT.md
+aliyun-dns-snapshot.md
+aliyun-login.png
+
+# Frontend build
+apps/web/node_modules/
+apps/web/dist/
+apps/web/*.tsbuildinfo
+apps/web/.vite/
+apps/web/.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Docker volumes and data
+infra/postgres_data/
+infra/redis_data/
+docker-compose.override.yml
+backups/
+*.dump
+*.rdb
+*.aof
+*.sha256
+
+# Credentials (absolute — never commit real keys/tokens)
+credentials/
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+!infra/.env.production.example
+
+# AI assistant config (personal, not project)
+*.agent.md
+.ai/
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+node_modules/
+bower_components/
+jspm_packages/
+site-packages/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+allure-results/
+allure-report/
+cdk.out/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

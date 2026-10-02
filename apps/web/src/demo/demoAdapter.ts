@@ -631,7 +631,7 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
   if (url === '/v1/dashboard/admin/access-requests') {
     const offset = num(params, 'offset', 0);
     const limit = num(params, 'limit', 20);
-    const statusFilter = param(params, 'status');
+    const statusFilter = param(params, 'status_filter') ?? param(params, 'status');
     let reqs = world.accessRequests;
     if (statusFilter) reqs = reqs.filter((r) => r.status === statusFilter);
     const sliced = pageSlice(reqs, offset, limit);
@@ -650,6 +650,22 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
       total: sliced.total,
       offset: sliced.offset,
       limit: sliced.limit,
+    };
+  }
+
+  if ((m = match(url, '/v1/dashboard/admin/access-requests/([0-9a-zA-Z-]+)'))) {
+    const request = world.accessRequests.find((r) => r.request_id === m![1]);
+    if (!request) return rejectDemo(404, 'access request not found');
+    return { ...request };
+  }
+
+  if ((m = match(url, '/v1/dashboard/admin/access-requests/([0-9a-zA-Z-]+)/audit-trail'))) {
+    const request = world.accessRequests.find((r) => r.request_id === m![1]);
+    if (!request) return rejectDemo(404, 'access request not found');
+    return {
+      audit_logs: world.auditLogs
+        .filter((entry) => entry.resource_type === 'access_request' && entry.resource_id === request.request_id)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     };
   }
 

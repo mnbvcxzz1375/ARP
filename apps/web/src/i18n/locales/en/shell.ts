@@ -16,6 +16,8 @@ const shell = {
   // Sidebar controls
   'sidebar.expand': 'Expand sidebar',
   'sidebar.collapse': 'Collapse sidebar',
+  'sidebar.resize': 'Resize sidebar width',
+  'sidebar.resizeHint': 'Drag to resize, or focus and use Left / Right arrow keys',
   'sidebar.open': 'Open navigation',
   'sidebar.close': 'Close navigation',
   'sidebar.menu': 'Menu',

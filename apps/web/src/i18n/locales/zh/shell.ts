@@ -16,6 +16,8 @@ const shell = {
   // 侧边栏控件
   'sidebar.expand': '展开侧边栏',
   'sidebar.collapse': '折叠侧边栏',
+  'sidebar.resize': '调整侧边栏宽度',
+  'sidebar.resizeHint': '拖拽调整宽度，或聚焦后用左右方向键调节',
   'sidebar.open': '打开导航',
   'sidebar.close': '关闭导航',
   'sidebar.menu': '菜单',

@@ -223,7 +223,7 @@
 .archipelago-activity-cell li span:last-child { font-size: 20px; }
 
 @media (min-width: 768px) {
-  .agentnet-shell.agentnet-shell--archipelago { grid-template-columns: 168px minmax(0, 1fr); }
+  .agentnet-shell.agentnet-shell--archipelago { grid-template-columns: var(--shell-sidebar-w, 168px) minmax(0, 1fr); }
   .agentnet-shell.agentnet-shell--archipelago.is-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
   .agentnet-shell--archipelago > aside nav .font-display { font-family: var(--font-pixel); font-size: 14px; letter-spacing: 0; }
   .agentnet-shell--archipelago > aside nav a { margin-left: 6px; margin-right: 6px; gap: 10px; }

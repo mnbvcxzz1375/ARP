@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { BookOpen, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react';
 import { useAuth, useLogout } from '../hooks/useAuth';
+import { SIDEBAR_KEYBOARD_STEP, SIDEBAR_MAX, SIDEBAR_MIN, useSidebarWidth } from '../hooks/useSidebarWidth';
 import { useTheme } from '../hooks/useTheme';
 import { useT } from '../i18n';
 import { hasEnterpriseConsoleAccess } from '../lib/permissions';
@@ -25,6 +26,8 @@ interface DashboardShellProps {
  * Layout: CSS Grid only - sidebar column + main column using
  * minmax(0,1fr) so wide tables can never force document-level horizontal
  * overflow (e2e asserts scrollWidth <= clientWidth + 2 at 375px).
+ * The sidebar column width is --shell-sidebar-w (useSidebarWidth) and can
+ * be dragged wider/narrower when expanded; collapsed is a fixed 4rem rail.
  * Mobile (<768px): single column, navigation collapses to a fixed bottom
  * bar (icon + label, 44px touch targets, horizontal scroll when needed).
  *
@@ -33,6 +36,9 @@ interface DashboardShellProps {
  */
 export default function DashboardShell({ navGroups, scope }: DashboardShellProps) {
   const [collapsed, setCollapsed] = useState(false);
+  // Sidebar width (expanded only). The archipelago overview ships a
+  // tighter 168px default than the standard 16rem; a saved width wins.
+  const sidebar = useSidebarWidth(scope === 'personal' ? 168 : 256);
   // Mobile drawer (<768px): the console nav no longer fits a horizontal
   // bottom bar once the enterprise nav groups are in play (15+ items).
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -118,11 +124,14 @@ export default function DashboardShell({ navGroups, scope }: DashboardShellProps
 
   return (
     <div
-      className={'agentnet-shell ' + (isArchipelago ? 'agentnet-shell--archipelago ' : '') + (collapsed ? 'is-collapsed ' : '') + (
-        collapsed
-          ? 'grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-pixel-bg [height:var(--app-vh,100dvh)] md:grid-cols-[4rem_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]'
-          : 'grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-pixel-bg [height:var(--app-vh,100dvh)] md:grid-cols-[16rem_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]'
-      )}
+      className={
+        'agentnet-shell relative ' +
+        (isArchipelago ? 'agentnet-shell--archipelago ' : '') +
+        (collapsed ? 'is-collapsed ' : '') +
+        (sidebar.dragging ? 'is-dragging ' : '') +
+        'grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-pixel-bg [height:var(--app-vh,100dvh)] md:grid-rows-[minmax(0,1fr)]'
+      }
+      style={{ '--shell-sidebar-w': `${sidebar.width}px` } as CSSProperties}
     >
       {/* CRT overlay layers: fixed, pointer-events:none; auto-disabled on
           mobile (<768px) and under prefers-reduced-motion (index.css). */}
@@ -311,6 +320,37 @@ export default function DashboardShell({ navGroups, scope }: DashboardShellProps
           )}
         </div>
       </aside>
+
+      {/* Sidebar resize handle (expanded, desktop only). The shell is the
+          offset parent because the aside clips its own overflow. Dragging
+          uses pointer capture; keyboard uses role=separator + arrows. The
+          strip is 10px wide with a 2px accent line on the border itself
+          (visible on hover/focus/drag), so the resting edge stays clean. */}
+      {!collapsed && (
+        <div
+          className="shell-sidebar-resize hidden md:block"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t('shell.sidebar.resize')}
+          aria-valuemin={SIDEBAR_MIN}
+          aria-valuemax={SIDEBAR_MAX}
+          aria-valuenow={sidebar.width}
+          title={t('shell.sidebar.resizeHint')}
+          tabIndex={0}
+          onPointerDown={sidebar.onPointerDown}
+          onPointerMove={sidebar.onPointerMove}
+          onPointerUp={sidebar.onPointerUp}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              sidebar.adjustWidth(-SIDEBAR_KEYBOARD_STEP);
+            } else if (e.key === 'ArrowRight') {
+              e.preventDefault();
+              sidebar.adjustWidth(SIDEBAR_KEYBOARD_STEP);
+            }
+          }}
+        />
+      )}
 
       {/* Mobile top bar (only <768px): opens the nav drawer. The console
           nav is too long for a horizontal bottom tab bar once the

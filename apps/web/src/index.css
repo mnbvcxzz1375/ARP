@@ -134,6 +134,43 @@ body {
   border-radius: 0 !important;
 }
 
+/* ===== Console shell: draggable sidebar width ========================= *
+ * The shell is a CSS grid; the sidebar column width is the
+ * --shell-sidebar-w custom property (set inline by DashboardShell from
+ * useSidebarWidth). Collapsed mode is a fixed icon rail (4rem) and does
+ * not take part in resizing. Mobile (<768px) is single-column and the
+ * sidebar is hidden, so the handle (inside the aside) is hidden too.
+ */
+@media (min-width: 768px) {
+  .agentnet-shell { grid-template-columns: var(--shell-sidebar-w, 16rem) minmax(0, 1fr); }
+  .agentnet-shell.is-collapsed { grid-template-columns: 4rem minmax(0, 1fr); }
+  .agentnet-shell.is-dragging { cursor: col-resize; user-select: none; }
+}
+
+/* Drag handle: an 10px strip centered on the sidebar's 2px right border
+ * (positioned against the shell root, because the aside clips its own
+ * overflow). Resting state is a muted transparent strip; hover/focus/drag
+ * raise a 2px accent line on the border itself. Keyboard reachable
+ * (role=separator, arrow keys adjust width). */
+.shell-sidebar-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--shell-sidebar-w, 16rem) - 5px);
+  width: 10px;
+  /* The handle straddles the grid border; without an explicit stack it
+   * loses its right half to the main column (later in DOM order). */
+  z-index: 30;
+  cursor: col-resize;
+  touch-action: none;
+  border-right: 2px solid transparent;
+}
+.shell-sidebar-resize:hover,
+.shell-sidebar-resize:focus-visible,
+.agentnet-shell.is-dragging .shell-sidebar-resize {
+  border-right-color: var(--pixel-accent);
+}
+
 /* Accessible focus state: 2px pixel outline in the functional accent-2
  * (a11y role, not decoration -- see the single-accent rule in :root). */
 *:focus-visible {

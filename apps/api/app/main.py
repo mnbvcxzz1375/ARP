@@ -70,12 +70,21 @@ async def lifespan(app: FastAPI):
     from app.workers.timeout_worker import timeout_loop
     from app.workers.sla_monitoring_worker import sla_monitoring_loop
     from app.workers.continuity_worker import continuity_monitoring_loop
+    from app.workers.offline_delivery_worker import offline_delivery_loop
+    from app.workers.cleanup_worker import lease_cleanup_loop, stale_relay_cleanup_loop
 
     settings = get_settings()
 
     mgr = get_connection_manager()
     await mgr.start_cleanup_loop()
+    # M3: subscribe this node's channel for cross-node delivery.
+    await mgr.start_pubsub()
 
+    # M3: seven periodic workers. Every loop takes a per-cycle SET NX lock
+    # (app.workers.locking) so a multi-replica deployment runs each cycle
+    # on exactly one replica; the SKIP LOCKED claims in the retry and
+    # offline workers additionally keep concurrent in-flight instances of
+    # the same loop on disjoint rows.
     retry_task = asyncio.create_task(retry_loop(10.0))
     timeout_task = asyncio.create_task(
         timeout_loop(
@@ -85,13 +94,33 @@ async def lifespan(app: FastAPI):
     )
     sla_monitoring_task = asyncio.create_task(sla_monitoring_loop(60.0))
     continuity_task = asyncio.create_task(continuity_monitoring_loop(30.0))
+    offline_delivery_task = asyncio.create_task(offline_delivery_loop(10.0))
+    lease_cleanup_task = asyncio.create_task(lease_cleanup_loop(300.0))
+    stale_relay_cleanup_task = asyncio.create_task(stale_relay_cleanup_loop(60.0))
 
     yield
 
-    for task in (retry_task, timeout_task, sla_monitoring_task, continuity_task):
+    for task in (
+        retry_task,
+        timeout_task,
+        sla_monitoring_task,
+        continuity_task,
+        offline_delivery_task,
+        lease_cleanup_task,
+        stale_relay_cleanup_task,
+    ):
         task.cancel()
     try:
-        await asyncio.gather(retry_task, timeout_task, sla_monitoring_task, continuity_task, return_exceptions=True)
+        await asyncio.gather(
+            retry_task,
+            timeout_task,
+            sla_monitoring_task,
+            continuity_task,
+            offline_delivery_task,
+            lease_cleanup_task,
+            stale_relay_cleanup_task,
+            return_exceptions=True,
+        )
     except Exception:
         pass
 

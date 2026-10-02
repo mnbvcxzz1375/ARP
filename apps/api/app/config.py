@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     ws_heartbeat_interval_s: int = Field(default=15, alias="WS_HEARTBEAT_INTERVAL_S")
     ws_heartbeat_timeout_s: int = Field(default=45, alias="WS_HEARTBEAT_TIMEOUT_S")
     ws_max_connections_per_agent: int = Field(default=3, alias="WS_MAX_CONNECTIONS_PER_AGENT")
+    # M3: which API node this process is. Presence keys store this value so
+    # peer nodes can dispatch cross-node messages to the right channel.
+    node_id: str = Field(default="local", alias="NODE_ID")
     db_pool_pre_ping: bool = Field(default=False, alias="DB_POOL_PRE_PING")
     db_null_pool: bool = Field(default=False, alias="DB_NULL_POOL",
         description="Use NullPool instead of QueuePool (for tests)")

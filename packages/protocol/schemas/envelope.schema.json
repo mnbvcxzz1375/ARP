@@ -71,6 +71,18 @@
         "encryption": { "type": "string", "default": "none" },
         "key_id": { "type": ["string", "null"] },
         "nonce": { "type": ["string", "null"] }
+      },
+      "if": {
+        "properties": { "mode": { "const": "e2ee" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "required": ["mode", "encryption", "key_id", "nonce"],
+        "properties": {
+          "encryption": { "minLength": 1 },
+          "key_id": { "type": "string" },
+          "nonce": { "type": "string" }
+        }
       }
     },
     "limits": {

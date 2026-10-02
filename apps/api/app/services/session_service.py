@@ -1,8 +1,9 @@
 
 """Session resume service for recovering un-acked messages.
 
-Uses Redis lists to track pending deliveries per session.
-Full delivery queue arrives in Phase 4.
+Uses Redis lists to track pending deliveries per session:
+each un-acked message is stored on delivery, re-read on session
+resume, and removed once acknowledged by the client.
 """
 
 import json
@@ -118,6 +119,32 @@ async def ack_message_for_agent(
     keys = await r.keys(pattern)
     for key in keys:
         await _remove_message_from_key(r, key, message_id)
+
+
+async def message_in_pending_queue(
+    agent_id: uuid.UUID,
+    message_id: str,
+    redis: Redis | None = None,
+) -> bool:
+    """Return True if ``message_id`` is still in any pending queue for agent.
+
+    The offline delivery worker uses this to tell a queue-intact message
+    (connect-time delivery still owns it) from a queue-lost one (Redis
+    restarted / entry evicted): only the latter is handed to the worker.
+    Mirrors ``ack_message_for_agent``'s agent-wide key scan.
+    """
+    r = redis or redis_client
+    pattern = _SESSION_PENDING_KEY.format(agent_id=agent_id, session_id="*")
+    keys = await r.keys(pattern)
+    for key in keys:
+        for raw in await r.lrange(key, 0, -1):
+            try:
+                msg = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if msg.get("message_id") == message_id:
+                return True
+    return False
 
 
 async def clear_session(

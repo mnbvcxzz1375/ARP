@@ -1,6 +1,7 @@
 """Egress service: external API/service access control and proxying."""
 
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -20,6 +21,7 @@ from app.exceptions import DomainException
 from app.metrics import EGRESS_REQUESTS_TOTAL, EGRESS_LATENCY_MS
 from app.models.egress_gateway import EgressGateway
 from app.models.egress_log import EgressLog
+from app.models.network_scope import NetworkScope
 from app.protocol.constants import ErrorCode
 from app.services.approval_service import create_approval
 from app.services.audit_service import write_audit
@@ -32,6 +34,269 @@ HIGH_RISK_OPERATIONS = {
     "secret_update", "secret_create", "secret_delete",
     "production", "prod", "live"
 }
+
+# ── Egress policy decision point (default deny) ─────────────────────
+# proxy_external_request is the ONLY permitted outbound valve. Before
+# any allowlist / secret / rate-limit handling, the target itself must
+# pass the host policy:
+#   * scheme must be http or https;
+#   * the target host must not be loopback / private / reserved /
+#     link-local / multicast, nor fall inside the gateway scope's
+#     network_cidr — unless the gateway explicitly opts in with
+#     allow_internal_egress=True (which is audited).
+#
+# Coverage note (honest scope marking): proxy_external_request currently
+# has zero live callers in the request path (dispatch_task is only
+# invoked from tests). The host-validation utilities below
+# (is_internal_host / validate_host_not_internal) are this round's only
+# live consumers' foundation: M5's MCP adapter reuses them to validate
+# HTTP-type MCP server addresses. Direct `import httpx` usage inside
+# adapters and stdio child-process spawning bypass this valve entirely;
+# covering those requires network-level defence in depth (post-milestone).
+
+_ALLOWED_EGRESS_SCHEMES = {"http", "https"}
+
+
+def normalize_target_host(netloc_or_host: str) -> str:
+    """Normalize a URL netloc or bare host to a comparable host string.
+
+    Strips userinfo (user:pass@), brackets around IPv6 literals, port,
+    surrounding whitespace, and a trailing root label dot; lowercases.
+    "API.Example.com:8443" -> "api.example.com".
+    Invalid input yields "" (callers must treat that as a deny).
+    """
+    if not netloc_or_host:
+        return ""
+    raw = netloc_or_host.strip()
+    if "@" in raw:
+        raw = raw.rsplit("@", 1)[1]
+    if raw.startswith("["):
+        # IPv6 literal: [::1]:8080 or [::1]
+        end = raw.find("]")
+        if end == -1:
+            return ""
+        host = raw[1:end]
+        port_part = raw[end + 1:]
+    elif raw.count(":") > 1:
+        # Bare IPv6 literal without brackets ("::1").
+        return raw.strip().lower().rstrip(".")
+    else:
+        host, _sep, port_part = raw.partition(":")
+    host = host.strip().lower().rstrip(".")
+    if port_part and not port_part.lstrip(":").isdigit():
+        return ""
+    return host
+
+
+def is_internal_host(host: str) -> bool:
+    """True when host is a loopback/private/reserved/link-local address,
+    or the literal hostname 'localhost' (incl. *.localhost).
+
+    DNS names are never resolved here — a name that does not parse as
+    an IP literal is treated as non-internal. DNS-rebinding-style
+    attacks via a resolving name are covered by network-layer defence in
+    depth, not by this check (documented gap).
+    """
+    if not host:
+        return True  # empty host can only be internal/local — deny
+    host = host.strip().lower().rstrip(".")
+    if host == "localhost" or host.endswith(".localhost"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return bool(
+        ip.is_loopback
+        or ip.is_private
+        or ip.is_reserved
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+
+def host_matches_cidr(host: str, cidr: str) -> bool:
+    """True when host is an IP literal inside the given CIDR network."""
+    try:
+        network = ipaddress.ip_network(cidr, strict=False)
+        ip = ipaddress.ip_address(host)
+    except (ValueError, TypeError):
+        return False
+    return ip in network
+
+
+def validate_host_not_internal(host: str) -> None:
+    """Reject internal hosts (fail closed) — exposed for M5 reuse.
+
+    The MCP adapter calls this to validate HTTP-type MCP server
+    addresses (the only live consumer of the host policy outside the
+    egress proxy). Raises DomainException(EGRESS_BLOCKED, 403) for
+    loopback/private/reserved/link-local hosts or an empty host.
+    """
+    normalized = normalize_target_host(host)
+    if is_internal_host(normalized):
+        raise DomainException(
+            ErrorCode.EGRESS_BLOCKED,
+            f"Host {normalized or host!r} is internal (loopback/private/reserved) "
+            "and is not permitted by the default-deny egress policy",
+            status_code=403,
+        )
+
+
+async def _scope_network_cidr(session: AsyncSession, scope_id: UUID) -> str | None:
+    """Network CIDR of the scope a gateway belongs to, if any.
+
+    Gateways created before scope registration enforcement (or with an
+    ad-hoc scope_id) have no matching NetworkScope row — that means no
+    CIDR filter applies, and only the loopback/private/reserved checks
+    guard the target.
+    """
+    result = await session.execute(
+        select(NetworkScope.network_cidr).where(NetworkScope.id == scope_id)
+    )
+    row = result.first()
+    return row.network_cidr if row else None
+
+
+async def _deny_target(
+    session: AsyncSession,
+    *,
+    gateway: EgressGateway,
+    target_url: str,
+    host: str,
+    reason: str,
+    agent_id: UUID,
+    task_id: UUID | None,
+    request_type: str,
+) -> None:
+    """Persist egress log + audit for a policy-denied target, then raise.
+
+    Same evidence contract as the allowlist-deny path: _log_egress →
+    write_audit → commit, then DomainException(EGRESS_BLOCKED, 403).
+    """
+    await _log_egress(
+        session,
+        gateway_id=gateway.id,
+        task_id=task_id,
+        agent_id=agent_id,
+        request_type=request_type,
+        target_domain=host,
+        status_code=403,
+    )
+    await _persist_failure_evidence(
+        session,
+        agent_id=agent_id,
+        gateway_id=gateway.id,
+        task_id=task_id,
+        request_type=request_type,
+        target_url=target_url,
+        status_code=403,
+        latency_ms=0,
+        reason=reason,
+    )
+    raise DomainException(
+        ErrorCode.EGRESS_BLOCKED,
+        reason,
+        status_code=403,
+    )
+
+
+async def check_egress_target_policy(
+    session: AsyncSession,
+    *,
+    gateway: EgressGateway,
+    target_url: str,
+    request_type: str,
+    agent_id: UUID,
+    task_id: UUID | None = None,
+) -> None:
+    """Egress policy decision point — runs before the domain allowlist.
+
+    Default deny: anything not explicitly permitted here is blocked with
+    persisted evidence (egress log + audit + commit), not silently.
+    Permitted-but-internal targets require gateway.allow_internal_egress
+    and are audited as egress.internal_allowed.
+    """
+    parsed = urlparse(target_url)
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in _ALLOWED_EGRESS_SCHEMES:
+        await _deny_target(
+            session,
+            gateway=gateway,
+            target_url=target_url,
+            host=parsed.netloc or parsed.path.split("/")[0],
+            reason=(
+                f"Egress policy denies non-http(s) target {target_url!r} "
+                "(scheme must be http or https)"
+            ),
+            agent_id=agent_id,
+            task_id=task_id,
+            request_type=request_type,
+        )
+
+    host = normalize_target_host(parsed.netloc or parsed.path.split("/")[0])
+    if not host:
+        await _deny_target(
+            session,
+            gateway=gateway,
+            target_url=target_url,
+            host="",
+            reason=f"Egress policy denies target {target_url!r} with empty host",
+            agent_id=agent_id,
+            task_id=task_id,
+            request_type=request_type,
+        )
+
+    internal = is_internal_host(host)
+    reason_category = "loopback/private/reserved"
+    if not internal:
+        scope_cidr = await _scope_network_cidr(session, gateway.scope_id)
+        if scope_cidr and host_matches_cidr(host, scope_cidr):
+            internal = True
+            reason_category = f"scope network_cidr {scope_cidr}"
+
+    if not internal:
+        return
+
+    if not gateway.allow_internal_egress:
+        await _deny_target(
+            session,
+            gateway=gateway,
+            target_url=target_url,
+            host=host,
+            reason=(
+                f"Egress policy denies internal target {host!r} "
+                f"({reason_category}) for gateway {gateway.id}; "
+                "enable allow_internal_egress to permit internal egress"
+            ),
+            agent_id=agent_id,
+            task_id=task_id,
+            request_type=request_type,
+        )
+
+    # Explicitly permitted internal egress — leave an audit trail.
+    logger.info(
+        "Internal egress permitted for gateway %s -> %s (allow_internal_egress=True)",
+        gateway.id, host,
+    )
+    await write_audit(
+        session,
+        actor_type="agent",
+        actor_id=str(agent_id),
+        action="egress.internal_allowed",
+        resource_type="egress_gateway",
+        resource_id=str(gateway.id),
+        task_id=str(task_id) if task_id else None,
+        details={
+            "request_type": request_type,
+            "target_url": target_url,
+            "host": host,
+            "category": reason_category,
+            "allow_internal_egress": True,
+        },
+    )
+
 
 
 async def check_domain_allowlist(
@@ -50,7 +315,10 @@ async def check_domain_allowlist(
         )
 
     parsed = urlparse(target_url)
-    target_domain = parsed.netloc or parsed.path.split('/')[0]
+    # Normalize the netloc (strip userinfo/port, lowercase, drop the
+    # trailing root dot) so "API.example.com:8443" matches an allowlist
+    # entry of "api.example.com".
+    target_domain = normalize_target_host(parsed.netloc or parsed.path.split('/')[0])
 
     allowlist = gateway.domain_allowlist or []
 
@@ -84,6 +352,18 @@ async def proxy_external_request(
     Agents cannot bypass this gateway to use enterprise secrets.
     """
     gateway = await _get_gateway(session, gateway_id)
+
+    # 0. Policy decision point (default deny): scheme + host/CIDR gates.
+    #    Runs before the allowlist so a policy-denied target never
+    #    reaches secret injection or the network.
+    await check_egress_target_policy(
+        session,
+        gateway=gateway,
+        target_url=target_url,
+        request_type=request_type,
+        agent_id=agent_id,
+        task_id=task_id,
+    )
 
     # 1. Check domain allowlist
     if not await check_domain_allowlist(session, gateway_id, target_url):

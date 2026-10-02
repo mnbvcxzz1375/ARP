@@ -1,5 +1,6 @@
 """Network Topology Service: manage enterprise network scopes and zones."""
 
+import ipaddress
 import logging
 import uuid
 from typing import Any
@@ -14,6 +15,26 @@ from app.models.user import User
 from app.protocol.constants import ErrorCode
 
 logger = logging.getLogger(__name__)
+
+
+def validate_network_cidr(network_cidr: str | None) -> None:
+    """Registration-time validation of a scope's network_cidr.
+
+    The egress policy decision point filters target IPs against this
+    CIDR, so an unparseable value would silently disable the CIDR filter
+    (fail open). Reject it here instead: it must parse as an IPv4/IPv6
+    network via ipaddress. None or "" (clear) are allowed.
+    """
+    if network_cidr is None or network_cidr == "":
+        return
+    try:
+        ipaddress.ip_network(network_cidr, strict=False)
+    except (ValueError, TypeError) as exc:
+        raise DomainException(
+            ErrorCode.INVALID_REQUEST,
+            f"Invalid network_cidr {network_cidr!r}: {exc}",
+            status_code=400,
+        )
 
 
 async def create_network_scope(
@@ -60,6 +81,10 @@ async def create_network_scope(
             ErrorCode.INVALID_REQUEST,
             f"Invalid scope_type '{scope_type}'. Must be one of: {valid_scope_types}",
         )
+
+    # The egress policy decision point filters target IPs against this
+    # CIDR; reject unparseable values at registration time.
+    validate_network_cidr(network_cidr)
 
     scope = NetworkScope(
         id=uuid.uuid4(),
@@ -334,6 +359,9 @@ async def update_network_scope(
     if scope_name is not None:
         scope.scope_name = scope_name
     if network_cidr is not None:
+        # Re-run the registration-time CIDR validation on update too:
+        # a scope-level CIDR change reaches the egress policy point.
+        validate_network_cidr(network_cidr)
         scope.network_cidr = network_cidr
     if agent_ids is not None:
         scope.agent_ids = agent_ids

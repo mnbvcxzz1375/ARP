@@ -36,9 +36,48 @@
 
 ## E2EE 状态
 
-E2EE 字段在协议层预留，但当前未实现。信封接受 `security.mode = e2ee`，
-业务校验会返回 `E2EE_NOT_IMPLEMENTED`。相关预留代码见
-`packages/python-sdk/agentnet/crypto.py`。
+非交互式 E2EE 已落地（M2）。算法：发送方一次性 X25519 ephemeral +
+接收方长期 KEM 公钥（`agents.public_keys` 组合列 `{kem, sig, v}`）派生
+共享密钥，HKDF-SHA256 + AES-256-GCM 加密，Ed25519 签名绑 from 身份。
+原语见 `packages/python-sdk/agentnet/crypto.py`。
+
+标记机制与平台约束：
+
+- 标记块（`security` / `encrypted_payload` / `aad`）复用信封已有保留字段，
+  不新建 schema 文件；其唯一事实来源是**发送方信封**——`create_task`
+  时并入 `Message.content` 逐字存储，投递时由 routing_service **原样复制**
+  到 `ws_payload.security`，平台从不构造、改写或推断（不会升降级 mode、
+  不会重生成 nonce）。
+- 先校验后落库：`app/protocol/validators.py` 在任务创建时校验信封结构；
+  缺 `encrypted_payload` 的纯 e2ee 标记仍是保留形态（501
+  `E2EE_NOT_IMPLEMENTED`），缺 nonce / 密文非 base64 / aad 非对象一律 400
+  且不留任何持久化残留。
+- 三处密文存储一致：`Message.content`、`task.result`（接收方回写密文信封，
+  `handlers._handle_task_result` 原样存储不做内容级解析）、
+  `ws:session_pending` 队列存投递 JSON 原字符串；重连重投
+  `deliver_pending_on_connect` 重放同一字符串，`message_id` 是明文路由
+  字段，ack 幂等 Lua 与 SDK 去重在密文模式行为不变。
+- 协商 fail closed：`connection_service` 从接收方 `public_keys` 推导
+  支持模式，无密钥的老 agent 请求 e2ee 返回 400
+  `SECURITY_MODE_NOT_SUPPORTED` 且无 pending Connection 残留、不撞
+  `uq_pending_connection` 唯一索引；含 `relay_visible` 的请求按优先级
+  回退。同 owner / PUBLIC 链路无平台协商记录，模式判定完全由信封
+  security 块承载。
+- 读取侧降级：非 `relay_visible` 且结构合法的密文返回加密标志 + 原样
+  密文；非法 enc（缺 nonce / 密文非 base64）返回 `encrypted_parse_error`
+  标志而非 500；每条消息按自身 security 块独立判定，明文历史与密文新
+  消息交错可读（明文永久明文、密文永久密文）。
+- 伪装防护误判率为零：判定只看顶层标记块，payload 内同名字段
+  （`payload.security` / `payload.encrypted_payload` 等）永远不会把
+  明文判成密文。
+- 解密失败 fail closed：SDK 解不开密文时回发 `DECRYPT_FAILED` 的
+  `task.failed`，任务按失败状态机终结，不会对不可验证字节调用 handler。
+  签名验证使用 aad 中携带的发送方签名公钥（TOFU 语义，密钥轮换/吊销
+  与身份绑定验证属于后续里程碑）。
+
+未实现（后续里程碑）：Double Ratchet、密钥轮换/吊销、TOFU 身份验证、
+TS SDK、密文场景内容级风控、public_keys 发布/管理 API（当前测试与
+演练以直接写列方式发布密钥）。
 
 ## 生产路径禁止事项
 

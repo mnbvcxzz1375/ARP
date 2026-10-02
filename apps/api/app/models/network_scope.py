@@ -37,6 +37,9 @@ class NetworkScope(Base):
     # Network definition
     network_cidr: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Example: "10.0.0.0/8", "192.168.1.0/24"
+    # Must parse via ipaddress.ip_network — validated at registration
+    # time (network_topology_service.validate_network_cidr) and read by
+    # the egress policy decision point to filter target IPs.
 
     # Agent membership (array of agent IDs)
     agent_ids: Mapped[list[str]] = mapped_column(ARRAY(UUID(as_uuid=True)), default=list, nullable=False)

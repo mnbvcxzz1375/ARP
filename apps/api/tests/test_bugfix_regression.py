@@ -185,10 +185,24 @@ class TestRetryWorkerBookkeeping:
             message_id = message.message_id
 
         class _Manager:
-            """Online but never delivers: exercises the failure branch."""
+            """Online but never delivers: exercises the failure branch.
+
+            M3: the transport layer resolves agent reachability through
+            get_agent_node (presence value = owning node id) instead of
+            is_agent_online. The double mirrors that contract: presence
+            says the agent is connected on THIS node, but send_to_agent
+            always fails — exactly the "online but send failed" case the
+            failure-branch assertions below check. The assertions
+            themselves are unchanged.
+            """
 
             def __init__(self, owner_agent_id):
                 self.owner_agent_id = owner_agent_id
+                self.node_id = "local"
+
+            async def get_agent_node(self, agent_id):
+                # Presence exists (agent "online" on this node).
+                return self.node_id if agent_id == self.owner_agent_id else None
 
             async def is_agent_online(self, agent_id):
                 return agent_id == self.owner_agent_id

@@ -35,6 +35,14 @@ class EgressGateway(Base):
     )
     cost_tracking: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Default-deny baseline: requests to internal (loopback / private /
+    # reserved / link-local) hosts or to the scope's network_cidr are
+    # denied unless an admin explicitly opts in here. Self-hosted model
+    # gateaways on the internal network are the intended use case.
+    allow_internal_egress: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default="false",
+        comment="Explicit opt-in to reach internal/private network targets"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

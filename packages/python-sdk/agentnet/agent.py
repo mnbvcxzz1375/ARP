@@ -21,6 +21,25 @@ TaskHandler = Callable[[TaskContext], Awaitable[None]]
 _NOT_SET = object()
 
 
+def _env_private_key(env_name: str) -> bytes | None:
+    """Read a base64 private key from an environment variable.
+
+    Private key material is only ever read from the environment (or
+    passed in directly) — never written to source, examples, logs, or
+    the session store.
+    """
+    import base64
+
+    raw = os.getenv(env_name)
+    if not raw:
+        return None
+    try:
+        return base64.standard_b64decode(raw.encode("ascii"))
+    except (ValueError, UnicodeDecodeError):
+        logger.warning("Env var %s is not valid base64; ignoring", env_name)
+        return None
+
+
 class Agent:
     """AgentNet agent runtime.
 
@@ -40,6 +59,11 @@ class Agent:
         AGENTNET_WS_URL      - WebSocket endpoint (default ws://localhost:8000/v1/ws)
         AGENTNET_AGENT_TOKEN - agent token (agt_sk_...)
         AGENTNET_SESSION_FILE - session store path (default ./agentnet_session.json)
+
+        E2EE (M2) — raw private keys may be passed directly or read from
+        base64 environment variables (never logged, never persisted):
+        AGENTNET_E2EE_KEM_PRIVATE_KEY      - base64 X25519 private key
+        AGENTNET_E2EE_SIGNING_PRIVATE_KEY  - base64 Ed25519 private key
     """
 
     def __init__(
@@ -48,6 +72,8 @@ class Agent:
         ws_url: str | None = None,
         agent_token: str | None = None,
         session_file: str | Path | None = None,
+        e2ee_kem_private_key: bytes | None = None,
+        e2ee_signing_private_key: bytes | None = None,
     ) -> None:
         self._base_url = base_url or os.getenv("AGENTNET_BASE_URL", "http://localhost:8000")
         ws_base = ws_url or os.getenv("AGENTNET_WS_URL") or self._base_url.replace("http", "ws")
@@ -56,7 +82,13 @@ class Agent:
             session_file or os.getenv("AGENTNET_SESSION_FILE", "agentnet_session.json")
         )
         self._idempotency = IdempotencyCache()
-        self._ws = AgentWebSocket(self._session_store, idempotency_cache=self._idempotency)
+        self._ws = AgentWebSocket(
+            self._session_store,
+            idempotency_cache=self._idempotency,
+            kem_private_key=e2ee_kem_private_key or _env_private_key("AGENTNET_E2EE_KEM_PRIVATE_KEY"),
+            signing_private_key=e2ee_signing_private_key
+            or _env_private_key("AGENTNET_E2EE_SIGNING_PRIVATE_KEY"),
+        )
 
         # Build WS URL (token is NOT in the URL — sent via Authorization header)
         self._ws_url = ws_base.rstrip("/") + "/v1/ws"
@@ -148,7 +180,9 @@ class Agent:
 
     async def _handle_task_request(self, msg: dict[str, Any]) -> None:
         # msg is the full ARP envelope; task_id is at the top level,
-        # task payload is nested inside msg["payload"].
+        # task payload is nested inside msg["payload"]. For e2ee tasks
+        # the websocket layer has already opened the sealed payload and
+        # replaced msg["payload"] with the plaintext.
         task_id = msg.get("task_id", "")
         task_payload = msg.get("payload", {}) or {}
 
@@ -160,11 +194,19 @@ class Agent:
             logger.warning("No task_handler registered; ignoring task %s", task_id)
             return
 
+        # M2: when the task arrived sealed, wire the reply sealer so
+        # ctx.result() seals the reply instead of sending plaintext.
+        security = msg.get("security")
+        seal_fn = None
+        if isinstance(security, dict) and security.get("mode") == "e2ee":
+            seal_fn = self._ws.seal_reply(task_id)
+
         ctx = TaskContext(
             task_id=task_id,
             payload=task_payload,
             session_store=self._session_store,
             send_fn=self._ws.send_message,
+            seal_fn=seal_fn,
         )
 
         logger.info("Dispatching task %s to handler", task_id)

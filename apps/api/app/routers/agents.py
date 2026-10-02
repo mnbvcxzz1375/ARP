@@ -1,9 +1,15 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
+from app.exceptions import DomainException
+from app.models.egress_gateway import EgressGateway
 from app.models.user import User
+from app.protocol.constants import ErrorCode
+from app.schemas.agent import PublicKeys
 from app.services.agent_service import (
     create_agent,
     delete_agent,
@@ -30,6 +36,13 @@ class CreateAgentRequest(BaseModel):
         description="Inbound policy: private, contacts_only, request_approval, or public.",
     )
     discoverable: bool = Field(default=False, description="Whether other users can discover this agent.")
+    public_keys: PublicKeys | None = Field(
+        default=None,
+        description=(
+            "Published E2EE public keys: {'kem': base64 X25519, 'sig': base64 "
+            "Ed25519, 'v': 1}. Omit for a plaintext-only (legacy) agent."
+        ),
+    )
 
 
 class AgentResponse(BaseModel):
@@ -43,6 +56,30 @@ class AgentResponse(BaseModel):
     inbound_policy: str = Field(description="Inbound policy for cross-agent requests.")
     discoverable: bool = Field(description="Whether the agent is discoverable.")
     status: str = Field(description="Current presence status.")
+    public_keys: PublicKeys | None = Field(
+        default=None,
+        description="Published E2EE public keys, if the agent registered any.",
+    )
+    egress_gateway_id: str | None = Field(
+        default=None,
+        description="Egress gateway this agent must route external requests through, if any.",
+    )
+
+
+class UpdateAgentRequest(BaseModel):
+    """Request body for PATCH /v1/agents/{id}.
+
+    The agent↔gateway binding is the egress policy attachment point:
+    binding an agent to a gateway forces all of its permitted external
+    traffic through the egress policy decision point. Omit the field to
+    leave the binding unchanged; send explicit null to unbind (which
+    fails the adapter closed — no external access at all).
+    """
+
+    egress_gateway_id: UUID | None = Field(
+        default=None,
+        description="Bind (UUID) or unbind (null) this agent's egress gateway.",
+    )
 
 
 class AgentListResponse(BaseModel):
@@ -81,6 +118,9 @@ async def create_agent_endpoint(
         capabilities=body.capabilities,
         inbound_policy=body.inbound_policy,
         discoverable=body.discoverable,
+        public_keys=(
+            body.public_keys.model_dump() if body.public_keys is not None else None
+        ),
     )
     raw_token = getattr(agent, "_raw_token", None)
     await session.commit()
@@ -95,6 +135,8 @@ async def create_agent_endpoint(
         inbound_policy=agent.inbound_policy,
         discoverable=agent.discoverable,
         status=agent.status,
+        public_keys=agent.public_keys,
+        egress_gateway_id=str(agent.egress_gateway_id) if agent.egress_gateway_id else None,
     )
 
 
@@ -132,6 +174,8 @@ async def list_agents_endpoint(
                 inbound_policy=a.inbound_policy,
                 discoverable=a.discoverable,
                 status=a.status,
+                public_keys=a.public_keys,
+                egress_gateway_id=str(a.egress_gateway_id) if a.egress_gateway_id else None,
             )
             for a in agents
         ],
@@ -165,6 +209,63 @@ async def get_agent_endpoint(
         inbound_policy=agent.inbound_policy,
         discoverable=agent.discoverable,
         status=agent.status,
+        public_keys=agent.public_keys,
+        egress_gateway_id=str(agent.egress_gateway_id) if agent.egress_gateway_id else None,
+    )
+
+
+@router.patch(
+    "/{agent_id}",
+    response_model=AgentResponse,
+    summary="Update an agent",
+    description=(
+        "Bind or unbind an agent's egress gateway. Binding forces the agent's "
+        "external requests through the egress policy decision point "
+        "(default deny); unbinding leaves it fail closed (no external access). "
+        "Omit egress_gateway_id to leave the binding unchanged, send null to unbind."
+    ),
+)
+async def update_agent_endpoint(
+    agent_id: str,
+    body: UpdateAgentRequest,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(authenticate),
+):
+    from uuid import UUID
+
+    agent = await get_agent_by_id(session, UUID(agent_id), user)
+    updates = body.model_dump(exclude_unset=True)
+    if "egress_gateway_id" in updates:
+        gateway_id = updates["egress_gateway_id"]
+        if gateway_id is not None:
+            gateway = await session.get(EgressGateway, gateway_id)
+            if gateway is None:
+                raise DomainException(
+                    ErrorCode.RESOURCE_NOT_FOUND,
+                    f"Egress gateway {gateway_id} not found",
+                    status_code=404,
+                )
+            if not gateway.enabled:
+                raise DomainException(
+                    ErrorCode.INVALID_REQUEST,
+                    f"Egress gateway {gateway_id} is disabled",
+                    status_code=400,
+                )
+        agent.egress_gateway_id = gateway_id
+    await session.commit()
+    await session.refresh(agent)
+    return AgentResponse(
+        agent_id=str(agent.id),
+        agent_number=agent.agent_number,
+        name=agent.name,
+        runtime=agent.runtime,
+        description=agent.description,
+        capabilities=agent.capabilities,
+        inbound_policy=agent.inbound_policy,
+        discoverable=agent.discoverable,
+        status=agent.status,
+        public_keys=agent.public_keys,
+        egress_gateway_id=str(agent.egress_gateway_id) if agent.egress_gateway_id else None,
     )
 
 

@@ -385,6 +385,60 @@ paths:
       security:
       - ApiKeyBearer: []
       - LegacyApiKeyHeader: []
+    patch:
+      tags:
+      - agents
+      summary: Update an agent
+      description: Bind or unbind an agent's egress gateway. Binding forces the agent's
+        external requests through the egress policy decision point (default deny);
+        unbinding leaves it fail closed (no external access). Omit egress_gateway_id
+        to leave the binding unchanged, send null to unbind.
+      operationId: update_agent_endpoint_v1_agents__agent_id__patch
+      parameters:
+      - name: agent_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Agent Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      - name: Authorization
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/app__routers__agents__UpdateAgentRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
     delete:
       tags:
       - agents
@@ -2324,6 +2378,16 @@ paths:
           - type: string
           - type: 'null'
           title: Search
+      - name: order
+        in: query
+        required: false
+        schema:
+          enum:
+          - oldest
+          - newest
+          type: string
+          default: newest
+          title: Order
       - name: X-CSRF-Token
         in: header
         required: false
@@ -2508,7 +2572,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateAgentRequest'
+              $ref: '#/components/schemas/app__schemas__dashboard__UpdateAgentRequest'
       responses:
         '200':
           description: Successful Response
@@ -2624,6 +2688,60 @@ paths:
       security:
       - ApiKeyBearer: []
       - LegacyApiKeyHeader: []
+  /v1/dashboard/task-traffic:
+    get:
+      tags:
+      - dashboard-user
+      summary: Task Traffic
+      operationId: task_traffic_v1_dashboard_task_traffic_get
+      parameters:
+      - name: agent_ids
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 256
+          title: Agent Ids
+      - name: X-CSRF-Token
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Csrf-Token
+      - name: agentnet_session
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Session
+      - name: agentnet_csrf
+        in: cookie
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Agentnet Csrf
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - ApiKeyBearer: []
+      - LegacyApiKeyHeader: []
   /v1/dashboard/tasks:
     get:
       tags:
@@ -2664,6 +2782,36 @@ paths:
           - type: string
           - type: 'null'
           title: Error Code
+      - name: view
+        in: query
+        required: false
+        schema:
+          enum:
+          - all
+          - active
+          - attention
+          - history
+          type: string
+          default: all
+          title: View
+      - name: agent_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Agent Id
+      - name: search
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Search
       - name: X-CSRF-Token
         in: header
         required: false
@@ -6227,7 +6375,13 @@ paths:
 
         The secret_store_ref is a reference (env:VAR_NAME), never a secret
 
-        value; the runtime resolves it server-side at request time.'
+        value; the runtime resolves it server-side at request time.
+
+        Registration-time validation: scope_id must reference an existing
+
+        network scope, domain_allowlist entries must be hostname patterns,
+
+        and secret_store_ref must be env:-prefixed.'
       operationId: create_egress_gateway_v1_egress_gateways_post
       parameters:
       - name: X-CSRF-Token
@@ -6319,7 +6473,14 @@ paths:
       tags:
       - egress-gateways
       summary: Update Egress Gateway
-      description: Partially update an egress gateway (super admin, step-up + CSRF).
+      description: 'Partially update an egress gateway (super admin, step-up + CSRF).
+
+
+        Mutable policy fields re-run the registration-time validation
+
+        (domain format, secret ref shape) so a later config change cannot
+
+        smuggle an invalid entry past the policy point.'
       operationId: update_egress_gateway_v1_egress_gateways__gateway_id__patch
       parameters:
       - name: gateway_id
@@ -6382,9 +6543,13 @@ paths:
       description: 'Delete an egress gateway (super admin, step-up + CSRF).
 
 
-        Agents referencing the gateway keep working: agents.egress_gateway_id
+        Deleting a gateway that agents are still bound to would silently
 
-        is ON DELETE SET NULL, so their egress falls back to direct routing.'
+        degrade their egress to no-gateway fail-closed — a hidden policy
+
+        change. Such a delete is rejected with 409; unbind the agents first
+
+        (PATCH /v1/agents/{id}).'
       operationId: delete_egress_gateway_v1_egress_gateways__gateway_id__delete
       parameters:
       - name: gateway_id
@@ -8099,6 +8264,18 @@ components:
           type: string
           title: Status
           description: Current presence status.
+        public_keys:
+          anyOf:
+          - $ref: '#/components/schemas/PublicKeys'
+          - type: 'null'
+          description: Published E2EE public keys, if the agent registered any.
+        egress_gateway_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Egress Gateway Id
+          description: Egress gateway this agent must route external requests through,
+            if any.
       type: object
       required:
       - agent_id
@@ -8720,6 +8897,30 @@ components:
           type: object
           title: Payload
           description: Task payload delivered to the target agent.
+        security:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Security
+          description: Envelope security marker block {mode, encryption, key_id, nonce}.
+            Copied verbatim into the task message content and into the delivered WS
+            payload; the platform never constructs or rewrites it.
+        encrypted_payload:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Encrypted Payload
+          description: Base64 ciphertext. Stored verbatim in Message.content when
+            security is present.
+        aad:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Aad
+          description: Additional authenticated data object, stored verbatim with
+            the ciphertext.
         timeliness_mode:
           anyOf:
           - type: string
@@ -9022,6 +9223,13 @@ components:
           title: Cost Tracking
           description: Track per-gateway cost
           default: true
+        allow_internal_egress:
+          type: boolean
+          title: Allow Internal Egress
+          description: Explicit opt-in permitting egress to internal targets (loopback/private/reserved
+            hosts or the scope's network_cidr). Defaults to False — the default-deny
+            baseline.
+          default: false
       type: object
       required:
       - scope_id
@@ -9089,6 +9297,9 @@ components:
         enabled:
           type: boolean
           title: Enabled
+        allow_internal_egress:
+          type: boolean
+          title: Allow Internal Egress
         created_at:
           type: string
           format: date-time
@@ -9109,6 +9320,7 @@ components:
       - cache_config
       - cost_tracking
       - enabled
+      - allow_internal_egress
       - created_at
       - updated_at
       title: EgressGatewayResponse
@@ -9164,6 +9376,11 @@ components:
           - type: boolean
           - type: 'null'
           title: Enabled
+        allow_internal_egress:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Allow Internal Egress
       type: object
       title: EgressGatewayUpdate
       description: Request body for partially updating an egress gateway.
@@ -10208,6 +10425,9 @@ components:
         enable_secure_channel:
           type: boolean
           title: Enable Secure Channel
+        routing_strategy:
+          type: string
+          title: Routing Strategy
         created_at:
           type: string
           format: date-time
@@ -10223,6 +10443,7 @@ components:
       - default_relay_type
       - enable_edge_relay
       - enable_secure_channel
+      - routing_strategy
       - created_at
       - updated_at
       title: PersonalScopeResponse
@@ -10239,9 +10460,47 @@ components:
           - type: boolean
           - type: 'null'
           title: Enable Secure Channel
+        routing_strategy:
+          anyOf:
+          - type: string
+            enum:
+            - fast
+            - normal
+            - reliable
+          - type: 'null'
+          title: Routing Strategy
       type: object
       title: PersonalScopeUpdate
       description: Update personal scope configuration.
+    PublicKeys:
+      properties:
+        kem:
+          type: string
+          minLength: 1
+          title: Kem
+          description: Base64 X25519 KEM public key.
+        sig:
+          type: string
+          minLength: 1
+          title: Sig
+          description: Base64 Ed25519 signing public key.
+        v:
+          type: integer
+          maximum: 1.0
+          minimum: 1.0
+          title: V
+          description: Key bundle version.
+          default: 1
+      type: object
+      required:
+      - kem
+      - sig
+      title: PublicKeys
+      description: "An agent's published composite public keys (E2EE trust root).\n\
+        \n- ``kem``: base64-encoded X25519 public key (32 raw bytes) — the\n  recipient\
+        \ key for non-interactive E2EE key agreement.\n- ``sig``: base64-encoded Ed25519\
+        \ public key (32 raw bytes) — the\n  sender identity key used to verify sealed-message\
+        \ signatures.\n- ``v``: key-bundle version. Currently 1."
     RegisterRelayNodeRequest:
       properties:
         node_name:
@@ -11107,32 +11366,6 @@ components:
       - created_at
       - updated_at
       title: TaskResponse
-    UpdateAgentRequest:
-      properties:
-        name:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Name
-        inbound_policy:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Inbound Policy
-        discoverable:
-          anyOf:
-          - type: boolean
-          - type: 'null'
-          title: Discoverable
-        capabilities:
-          anyOf:
-          - items:
-              type: string
-            type: array
-          - type: 'null'
-          title: Capabilities
-      type: object
-      title: UpdateAgentRequest
     UpdateUserPreferencesRequest:
       properties:
         locale:
@@ -11277,11 +11510,40 @@ components:
           title: Discoverable
           description: Whether other users can discover this agent.
           default: false
+        public_keys:
+          anyOf:
+          - $ref: '#/components/schemas/PublicKeys'
+          - type: 'null'
+          description: 'Published E2EE public keys: {''kem'': base64 X25519, ''sig'':
+            base64 Ed25519, ''v'': 1}. Omit for a plaintext-only (legacy) agent.'
       type: object
       required:
       - name
       - runtime
       title: CreateAgentRequest
+    app__routers__agents__UpdateAgentRequest:
+      properties:
+        egress_gateway_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Egress Gateway Id
+          description: Bind (UUID) or unbind (null) this agent's egress gateway.
+      type: object
+      title: UpdateAgentRequest
+      description: 'Request body for PATCH /v1/agents/{id}.
+
+
+        The agent↔gateway binding is the egress policy attachment point:
+
+        binding an agent to a gateway forces all of its permitted external
+
+        traffic through the egress policy decision point. Omit the field to
+
+        leave the binding unchanged; send explicit null to unbind (which
+
+        fails the adapter closed — no external access at all).'
     app__schemas__dashboard__AgentListResponse:
       properties:
         agents:
@@ -11336,6 +11598,32 @@ components:
       - name
       - runtime
       title: CreateAgentRequest
+    app__schemas__dashboard__UpdateAgentRequest:
+      properties:
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        inbound_policy:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Inbound Policy
+        discoverable:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Discoverable
+        capabilities:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Capabilities
+      type: object
+      title: UpdateAgentRequest
   securitySchemes:
     ApiKeyBearer:
       type: http

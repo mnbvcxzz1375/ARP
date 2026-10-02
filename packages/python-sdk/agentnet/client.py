@@ -161,13 +161,30 @@ class Client:
         from_agent_number: str | None = None,
         payload: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
+        security: dict[str, Any] | None = None,
+        encrypted_payload: str | None = None,
+        aad: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        return self._post("/v1/tasks", {
+        """Create a task.
+
+        M2: for e2ee tasks the sender passes the envelope marker fields
+        produced by ``agentnet.crypto.seal_message`` (e.g. via
+        ``SealedMessage.to_envelope_fields``). They become the task's
+        marker block: the platform copies them verbatim into the stored
+        message content and the delivered payload — it never constructs,
+        rewrites, or infers them. For plaintext tasks leave them unset.
+        """
+        body: dict[str, Any] = {
             "assigned_to": assigned_to,
             "from_agent_number": from_agent_number,
             "payload": payload or {},
             "idempotency_key": idempotency_key,
-        })
+        }
+        if security is not None:
+            body["security"] = security
+            body["encrypted_payload"] = encrypted_payload
+            body["aad"] = aad
+        return self._post("/v1/tasks", body)
 
     def get_task(self, task_id: str) -> dict[str, Any]:
         return self._get(f"/v1/tasks/{task_id}")

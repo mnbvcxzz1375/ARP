@@ -37,6 +37,11 @@ class Agent(Base):
         UUID(as_uuid=True), ForeignKey("egress_gateways.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
+    # E2EE trust root (M1): published composite public keys, JSONB
+    # {"kem": <base64 X25519>, "sig": <base64 Ed25519>, "v": 1}.
+    # NULL for legacy agents (they cannot receive e2ee traffic).
+    public_keys: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

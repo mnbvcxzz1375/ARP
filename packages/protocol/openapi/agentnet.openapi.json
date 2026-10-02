@@ -947,6 +947,18 @@
             "title": "Discoverable",
             "type": "boolean"
           },
+          "egress_gateway_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Egress gateway this agent must route external requests through, if any.",
+            "title": "Egress Gateway Id"
+          },
           "inbound_policy": {
             "description": "Inbound policy for cross-agent requests.",
             "title": "Inbound Policy",
@@ -956,6 +968,17 @@
             "description": "Human-readable agent name.",
             "title": "Name",
             "type": "string"
+          },
+          "public_keys": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicKeys"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Published E2EE public keys, if the agent registered any."
           },
           "runtime": {
             "description": "Runtime or framework label.",
@@ -1871,6 +1894,19 @@
       },
       "CreateTaskRequest": {
         "properties": {
+          "aad": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Additional authenticated data object, stored verbatim with the ciphertext.",
+            "title": "Aad"
+          },
           "assigned_to": {
             "description": "Agent number of the target agent",
             "title": "Assigned To",
@@ -1888,6 +1924,18 @@
             ],
             "description": "Absolute deadline timestamp. Task expires if not completed by this time.",
             "title": "Deadline At"
+          },
+          "encrypted_payload": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Base64 ciphertext. Stored verbatim in Message.content when security is present.",
+            "title": "Encrypted Payload"
           },
           "from_agent_number": {
             "anyOf": [
@@ -1972,6 +2020,19 @@
             ],
             "description": "Routing policy hint (e.g., 'prefer_local', 'require_secure', 'cost_optimized').",
             "title": "Route Policy Hint"
+          },
+          "security": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Envelope security marker block {mode, encryption, key_id, nonce}. Copied verbatim into the task message content and into the delivered WS payload; the platform never constructs or rewrites it.",
+            "title": "Security"
           },
           "timeliness_mode": {
             "anyOf": [
@@ -2299,6 +2360,12 @@
       "EgressGatewayCreate": {
         "description": "Request body for creating an egress gateway.",
         "properties": {
+          "allow_internal_egress": {
+            "default": false,
+            "description": "Explicit opt-in permitting egress to internal targets (loopback/private/reserved hosts or the scope's network_cidr). Defaults to False — the default-deny baseline.",
+            "title": "Allow Internal Egress",
+            "type": "boolean"
+          },
           "cache_config": {
             "anyOf": [
               {
@@ -2405,6 +2472,10 @@
       "EgressGatewayResponse": {
         "description": "Single egress gateway response.",
         "properties": {
+          "allow_internal_egress": {
+            "title": "Allow Internal Egress",
+            "type": "boolean"
+          },
           "cache_config": {
             "anyOf": [
               {
@@ -2495,6 +2566,7 @@
           "cache_config",
           "cost_tracking",
           "enabled",
+          "allow_internal_egress",
           "created_at",
           "updated_at"
         ],
@@ -2504,6 +2576,17 @@
       "EgressGatewayUpdate": {
         "description": "Request body for partially updating an egress gateway.",
         "properties": {
+          "allow_internal_egress": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allow Internal Egress"
+          },
           "cache_config": {
             "anyOf": [
               {
@@ -4130,6 +4213,10 @@
             "title": "Enable Secure Channel",
             "type": "boolean"
           },
+          "routing_strategy": {
+            "title": "Routing Strategy",
+            "type": "string"
+          },
           "scope_name": {
             "title": "Scope Name",
             "type": "string"
@@ -4150,6 +4237,7 @@
           "default_relay_type",
           "enable_edge_relay",
           "enable_secure_channel",
+          "routing_strategy",
           "created_at",
           "updated_at"
         ],
@@ -4180,9 +4268,56 @@
               }
             ],
             "title": "Enable Secure Channel"
+          },
+          "routing_strategy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "fast",
+                  "normal",
+                  "reliable"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Routing Strategy"
           }
         },
         "title": "PersonalScopeUpdate",
+        "type": "object"
+      },
+      "PublicKeys": {
+        "description": "An agent's published composite public keys (E2EE trust root).\n\n- ``kem``: base64-encoded X25519 public key (32 raw bytes) — the\n  recipient key for non-interactive E2EE key agreement.\n- ``sig``: base64-encoded Ed25519 public key (32 raw bytes) — the\n  sender identity key used to verify sealed-message signatures.\n- ``v``: key-bundle version. Currently 1.",
+        "properties": {
+          "kem": {
+            "description": "Base64 X25519 KEM public key.",
+            "minLength": 1,
+            "title": "Kem",
+            "type": "string"
+          },
+          "sig": {
+            "description": "Base64 Ed25519 signing public key.",
+            "minLength": 1,
+            "title": "Sig",
+            "type": "string"
+          },
+          "v": {
+            "default": 1,
+            "description": "Key bundle version.",
+            "maximum": 1.0,
+            "minimum": 1.0,
+            "title": "V",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kem",
+          "sig"
+        ],
+        "title": "PublicKeys",
         "type": "object"
       },
       "RegisterRelayNodeRequest": {
@@ -5534,59 +5669,6 @@
         "title": "TaskResponse",
         "type": "object"
       },
-      "UpdateAgentRequest": {
-        "properties": {
-          "capabilities": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Capabilities"
-          },
-          "discoverable": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discoverable"
-          },
-          "inbound_policy": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Inbound Policy"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          }
-        },
-        "title": "UpdateAgentRequest",
-        "type": "object"
-      },
       "UpdateUserPreferencesRequest": {
         "description": "Partial update of user preferences.\n\nAbsent fields are left untouched; ``locale: null`` explicitly clears\nthe stored locale. Invalid locales, unknown preference keys, or\nvalues that fail appearance validation are rejected with 400\n(not Pydantic's 422) so clients get a uniform error envelope.",
         "properties": {
@@ -5766,6 +5848,17 @@
             "title": "Name",
             "type": "string"
           },
+          "public_keys": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PublicKeys"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Published E2EE public keys: {'kem': base64 X25519, 'sig': base64 Ed25519, 'v': 1}. Omit for a plaintext-only (legacy) agent."
+          },
           "runtime": {
             "description": "Runtime or framework label.",
             "maxLength": 64,
@@ -5779,6 +5872,26 @@
           "runtime"
         ],
         "title": "CreateAgentRequest",
+        "type": "object"
+      },
+      "app__routers__agents__UpdateAgentRequest": {
+        "description": "Request body for PATCH /v1/agents/{id}.\n\nThe agent↔gateway binding is the egress policy attachment point:\nbinding an agent to a gateway forces all of its permitted external\ntraffic through the egress policy decision point. Omit the field to\nleave the binding unchanged; send explicit null to unbind (which\nfails the adapter closed — no external access at all).",
+        "properties": {
+          "egress_gateway_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Bind (UUID) or unbind (null) this agent's egress gateway.",
+            "title": "Egress Gateway Id"
+          }
+        },
+        "title": "UpdateAgentRequest",
         "type": "object"
       },
       "app__schemas__dashboard__AgentListResponse": {
@@ -5850,6 +5963,59 @@
           "runtime"
         ],
         "title": "CreateAgentRequest",
+        "type": "object"
+      },
+      "app__schemas__dashboard__UpdateAgentRequest": {
+        "properties": {
+          "capabilities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capabilities"
+          },
+          "discoverable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discoverable"
+          },
+          "inbound_policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inbound Policy"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "UpdateAgentRequest",
         "type": "object"
       }
     },
@@ -6277,6 +6443,97 @@
           }
         ],
         "summary": "Get an agent",
+        "tags": [
+          "agents"
+        ]
+      },
+      "patch": {
+        "description": "Bind or unbind an agent's egress gateway. Binding forces the agent's external requests through the egress policy decision point (default deny); unbinding leaves it fail closed (no external access). Omit egress_gateway_id to leave the binding unchanged, send null to unbind.",
+        "operationId": "update_agent_endpoint_v1_agents__agent_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "title": "Agent Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__agents__UpdateAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Update an agent",
         "tags": [
           "agents"
         ]
@@ -12063,6 +12320,20 @@
             }
           },
           {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "enum": [
+                "oldest",
+                "newest"
+              ],
+              "title": "Order",
+              "type": "string"
+            }
+          },
+          {
             "in": "header",
             "name": "X-CSRF-Token",
             "required": false,
@@ -12491,7 +12762,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateAgentRequest"
+                "$ref": "#/components/schemas/app__schemas__dashboard__UpdateAgentRequest"
               }
             }
           },
@@ -14317,6 +14588,104 @@
         ]
       }
     },
+    "/v1/dashboard/task-traffic": {
+      "get": {
+        "operationId": "task_traffic_v1_dashboard_task_traffic_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "agent_ids",
+            "required": true,
+            "schema": {
+              "maxLength": 256,
+              "minLength": 1,
+              "title": "Agent Ids",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Session"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "agentnet_csrf",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agentnet Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyBearer": []
+          },
+          {
+            "LegacyApiKeyHeader": []
+          }
+        ],
+        "summary": "Task Traffic",
+        "tags": [
+          "dashboard-user"
+        ]
+      }
+    },
     "/v1/dashboard/tasks": {
       "get": {
         "operationId": "list_tasks_v1_dashboard_tasks_get",
@@ -14374,6 +14743,56 @@
                 }
               ],
               "title": "Error Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "active",
+                "attention",
+                "history"
+              ],
+              "title": "View",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "agent_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Agent Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
             }
           },
           {
@@ -14851,7 +15270,7 @@
         ]
       },
       "post": {
-        "description": "Create an egress gateway (super admin, step-up + CSRF).\n\nThe secret_store_ref is a reference (env:VAR_NAME), never a secret\nvalue; the runtime resolves it server-side at request time.",
+        "description": "Create an egress gateway (super admin, step-up + CSRF).\n\nThe secret_store_ref is a reference (env:VAR_NAME), never a secret\nvalue; the runtime resolves it server-side at request time.\nRegistration-time validation: scope_id must reference an existing\nnetwork scope, domain_allowlist entries must be hostname patterns,\nand secret_store_ref must be env:-prefixed.",
         "operationId": "create_egress_gateway_v1_egress_gateways_post",
         "parameters": [
           {
@@ -14951,7 +15370,7 @@
     },
     "/v1/egress/gateways/{gateway_id}": {
       "delete": {
-        "description": "Delete an egress gateway (super admin, step-up + CSRF).\n\nAgents referencing the gateway keep working: agents.egress_gateway_id\nis ON DELETE SET NULL, so their egress falls back to direct routing.",
+        "description": "Delete an egress gateway (super admin, step-up + CSRF).\n\nDeleting a gateway that agents are still bound to would silently\ndegrade their egress to no-gateway fail-closed — a hidden policy\nchange. Such a delete is rejected with 409; unbind the agents first\n(PATCH /v1/agents/{id}).",
         "operationId": "delete_egress_gateway_v1_egress_gateways__gateway_id__delete",
         "parameters": [
           {
@@ -15108,7 +15527,7 @@
         ]
       },
       "patch": {
-        "description": "Partially update an egress gateway (super admin, step-up + CSRF).",
+        "description": "Partially update an egress gateway (super admin, step-up + CSRF).\n\nMutable policy fields re-run the registration-time validation\n(domain format, secret ref shape) so a later config change cannot\nsmuggle an invalid entry past the policy point.",
         "operationId": "update_egress_gateway_v1_egress_gateways__gateway_id__patch",
         "parameters": [
           {

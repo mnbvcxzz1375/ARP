@@ -7,6 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.message import Message
 from app.protocol.constants import DeliveryStatus
+from app.services.message_content_view import build_content_view
+
+__all__ = ["build_content_view", "list_task_messages", "create_delivery_message"]
 
 
 async def list_task_messages(

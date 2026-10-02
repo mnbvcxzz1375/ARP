@@ -1,5 +1,6 @@
 ﻿"""Connection service: policy enforcement, security mode negotiation, CRUD."""
 
+import base64
 import logging
 from datetime import UTC, datetime
 
@@ -13,6 +14,51 @@ from app.protocol.constants import ErrorCode, InboundPolicy, SecurityMode
 
 logger = logging.getLogger(__name__)
 
+_E2EE_KEY_FIELDS = ("kem", "sig")
+_E2EE_KEY_RAW_LENGTH = 32
+
+
+def _public_keys_look_valid(public_keys: object) -> bool:
+    """Structural check of a ``public_keys`` column value.
+
+    Validates the composite shape {kem, sig, v} without importing the SDK:
+    each key must be a base64 string decoding to 32 raw bytes. Deliberately
+    fails closed — a malformed bundle means the agent cannot be trusted to
+    receive e2ee traffic, so e2ee is not advertised for it.
+    """
+    if not isinstance(public_keys, dict):
+        return False
+    try:
+        version = public_keys.get("v", 1)
+        if version != 1:
+            return False
+        for field in _E2EE_KEY_FIELDS:
+            raw = public_keys.get(field)
+            if not isinstance(raw, str):
+                return False
+            # validate=True: non-alphabet characters are rejected rather
+            # than silently discarded.
+            decoded = base64.b64decode(raw.encode("ascii"), validate=True)
+            if len(decoded) != _E2EE_KEY_RAW_LENGTH:
+                return False
+    except (ValueError, UnicodeDecodeError):
+        return False
+    return True
+
+
+def agent_supported_security_modes(agent: Agent) -> list[str]:
+    """Security modes an agent can receive.
+
+    Legacy agents have no ``public_keys`` (NULL) and can only receive
+    ``relay_visible`` traffic. Agents with a valid published composite key
+    bundle also accept ``e2ee``. Malformed key bundles fail closed: e2ee
+    is not advertised.
+    """
+    modes = [SecurityMode.RELAY_VISIBLE.value]
+    if _public_keys_look_valid(getattr(agent, "public_keys", None)):
+        modes.append(SecurityMode.E2EE.value)
+    return modes
+
 
 def negotiate_security_mode(
     requested_modes: list[str],
@@ -20,8 +66,9 @@ def negotiate_security_mode(
 ) -> str:
     """Find the highest-priority intersecting security mode.
 
-    MVP only supports relay_visible; e2ee is reserved.
-    Raises SECURITY_MODE_NOT_SUPPORTED if no intersection.
+    M2: supported modes are derived from the receiver's published key
+    bundle (``agent_supported_security_modes``) instead of a hardcoded
+    [relay_visible]. Raises SECURITY_MODE_NOT_SUPPORTED if no intersection.
     """
     requested = set(requested_modes)
     supported = set(supported_modes)
@@ -134,10 +181,18 @@ async def create_connection_request(
     requested_capabilities: list[str] | None = None,
     requested_security_modes: list[str] | None = None,
 ) -> Connection:
-    """Create a pending connection request."""
+    """Create a pending connection request.
+
+    M2: security-mode negotiation is derived from the receiver's published
+    ``public_keys`` (legacy agents without keys only support
+    relay_visible). The negotiation runs BEFORE the Connection row is
+    added or committed, so a SECURITY_MODE_NOT_SUPPORTED (400) rejection
+    leaves no pending residue and the pair's uq_pending_connection unique
+    index stays free for a clean retry.
+    """
     preferred_mode = None
     if requested_security_modes:
-        security_modes = [SecurityMode.RELAY_VISIBLE.value]
+        security_modes = agent_supported_security_modes(to_agent)
         preferred_mode = negotiate_security_mode(requested_security_modes, security_modes)
 
     conn = Connection(

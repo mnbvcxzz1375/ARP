@@ -14,6 +14,13 @@ import websockets
 import websockets.asyncio.client
 from websockets.asyncio.client import ClientConnection
 
+from .crypto import (
+    SealedMessage,
+    b64decode,
+    b64encode,
+    open_message,
+    seal_message,
+)
 from .idempotency import IdempotencyCache
 from .session_store import SessionStore
 from .types import MessageType
@@ -21,6 +28,45 @@ from .types import MessageType
 logger = logging.getLogger(__name__)
 
 MessageHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
+
+
+def _marker_mode(msg: dict[str, Any]) -> str | None:
+    """Read the marker-block security mode of a received WS message.
+
+    Classification uses ONLY the top-level marker. A message whose
+    ``payload`` carries same-named lookalike fields (e.g. a plaintext
+    payload that happens to contain ``security``) is judged by the
+    top-level block — zero misclassification.
+    """
+    security = msg.get("security")
+    if not isinstance(security, dict):
+        return None
+    mode = security.get("mode")
+    return mode if isinstance(mode, str) else None
+
+
+def _public_kem_key(private_key_bytes: bytes) -> bytes:
+    """Derive the X25519 public key from a raw private key."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import x25519
+
+    private = x25519.X25519PrivateKey.from_private_bytes(private_key_bytes)
+    return private.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+
+
+def _public_signing_key(private_key_bytes: bytes) -> bytes:
+    """Derive the Ed25519 public key from a raw private key."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    private = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
+    return private.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
 
 
 class AgentWebSocket:
@@ -46,6 +92,8 @@ class AgentWebSocket:
         session_store: SessionStore,
         *,
         idempotency_cache: IdempotencyCache | None = None,
+        kem_private_key: bytes | None = None,
+        signing_private_key: bytes | None = None,
     ) -> None:
         self._url: str | None = None
         self._token: str | None = None
@@ -72,6 +120,18 @@ class AgentWebSocket:
 
         # event for tracking connection state
         self._connected_event = asyncio.Event()
+
+        # M2: long-lived E2EE key material. The KEM private key opens
+        # sealed task requests addressed to this agent; the Ed25519 key
+        # signs sealed replies. Only raw bytes are held — never written
+        # to disk or logs. Agents without keys cannot receive e2ee
+        # traffic (the platform rejects it with 400 and old agents stay
+        # plaintext-only).
+        self._kem_private_key = kem_private_key
+        self._signing_private_key = signing_private_key
+        # task_id -> peer key material learned from a received sealed
+        # request, used only to seal the reply for that task.
+        self._e2ee_peers: dict[str, dict[str, bytes]] = {}
 
     # ------------------------------------------------------------------
     # properties
@@ -150,9 +210,21 @@ class AgentWebSocket:
     # send helpers
     # ------------------------------------------------------------------
 
-    async def send_message(self, msg_type: str, payload: dict[str, Any] | None = None) -> str:
-        """Send a typed WS message; returns the generated message_id."""
-        msg = self._build_message(msg_type, payload or {})
+    async def send_message(
+        self,
+        msg_type: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        sealed: SealedMessage | None = None,
+    ) -> str:
+        """Send a typed WS message; returns the generated message_id.
+
+        When *sealed* is given, the message is marked e2ee and carries
+        the base64 ciphertext in ``encrypted_payload`` (the plaintext
+        payload is NOT sent). Otherwise the message is plaintext:
+        ``security.mode=relay_visible`` and ``encrypted_payload=null``.
+        """
+        msg = self._build_message(msg_type, payload or {}, sealed=sealed)
         raw = json.dumps(msg)
         if self._ws and self.connected:
             await self._ws.send(raw)
@@ -200,10 +272,21 @@ class AgentWebSocket:
         except Exception as exc:
             logger.warning("WebSocket receive error: %s", exc)
         finally:
+            ws = self._ws
             self._connected_event.clear()
             self._ws = None
             if self._running:
                 await self._schedule_reconnect()
+            elif ws is not None:
+                # Shutting down: close the socket here. disconnect()
+                # cancels this task before closing self._ws itself, and
+                # this finally runs first — without closing here the
+                # socket reference would be dropped open, and the server
+                # keeps delivering to a connection nobody reads.
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
 
     async def _heartbeat_loop(self) -> None:
         """Periodic presence.heartbeat."""
@@ -298,7 +381,9 @@ class AgentWebSocket:
             MessageType.PRESENCE_HEARTBEAT,
             MessageType.SESSION_RESUME_RESULT,
         ):
-            # Deduplicate
+            # Deduplicate. message_id is a plaintext routing field, so
+            # ciphertext-mode dedup behaves exactly like plaintext-mode
+            # dedup (replay/redelivery is accepted exactly once).
             if message_id and self._idempotency.has(message_id):
                 logger.debug("Duplicate message_id=%s, re-acking", message_id)
                 await self.ack(message_id)
@@ -309,6 +394,36 @@ class AgentWebSocket:
             # Ack
             if message_id:
                 await self.ack(message_id)
+
+        # M2: e2ee dispatch. The marker block (top-level ``security``) is
+        # the single source of truth for per-message classification. A
+        # plaintext message whose *payload* happens to contain same-named
+        # fields is judged by the top-level marker, never by the payload
+        # lookalikes (zero misclassification).
+        if (
+            msg_type == MessageType.TASK_REQUEST
+            and _marker_mode(msg) == "e2ee"
+        ):
+            decrypted = self._open_sealed_task_request(msg)
+            if decrypted is None:
+                # DECRYPT_FAILED: fail closed and end the task in the
+                # failed state instead of invoking the handler on
+                # unverifiable bytes.
+                logger.warning(
+                    "DECRYPT_FAILED for message_id=%s task_id=%s",
+                    message_id,
+                    msg.get("task_id"),
+                )
+                await self.send_message(
+                    MessageType.TASK_FAILED,
+                    {
+                        "task_id": msg.get("task_id") or "",
+                        "error_message": "DECRYPT_FAILED: unable to open sealed task request",
+                    },
+                )
+                return
+            msg = dict(msg)
+            msg["payload"] = decrypted
 
         # Dispatch — pass the full envelope so handlers can access top-level
         # fields like task_id that the relay places outside the inner payload.
@@ -322,17 +437,135 @@ class AgentWebSocket:
             logger.error("Server error: %s", payload)
 
     # ------------------------------------------------------------------
+    # private: e2ee open / seal
+    # ------------------------------------------------------------------
+
+    def _open_sealed_task_request(self, msg: dict[str, Any]) -> dict[str, Any] | None:
+        """Open a sealed task.request with this agent's long-lived KEM key.
+
+        Returns the decrypted payload dict, or ``None`` when the message
+        cannot be opened (malformed envelope, missing sender signing key,
+        bad signature, or AEAD tag mismatch). The caller maps ``None`` to
+        DECRYPT_FAILED.
+        """
+        if self._kem_private_key is None:
+            logger.warning("Sealed task request received but no KEM private key is configured")
+            return None
+        envelope = msg.get("payload") if isinstance(msg.get("payload"), dict) else {}
+        try:
+            sealed = SealedMessage.from_envelope_fields(
+                {
+                    "security": msg.get("security") or envelope.get("security"),
+                    "encrypted_payload": envelope.get("encrypted_payload"),
+                    "aad": envelope.get("aad"),
+                }
+            )
+            sender_sig = sealed.aad.get("from_sig")
+            if not isinstance(sender_sig, str):
+                return None
+            sender_sig_key = b64decode(sender_sig)
+            plaintext = open_message(
+                sealed,
+                recipient_kem_private_key=self._kem_private_key,
+                sender_signing_public_key=sender_sig_key,
+            )
+            if plaintext is None:
+                return None
+            payload_dict = json.loads(plaintext.decode("utf-8"))
+            if not isinstance(payload_dict, dict):
+                return None
+        except (AttributeError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+            return None
+
+        # Record the peer KEM fingerprint + reply key material for this task.
+        task_id = msg.get("task_id") or payload_dict.get("task_id")
+        from_kem = sealed.aad.get("from_kem")
+        if task_id and isinstance(from_kem, str):
+            try:
+                self._e2ee_peers[str(task_id)] = {
+                    "kem": b64decode(from_kem),
+                    "sig": sender_sig_key,
+                }
+            except ValueError:
+                pass
+            self._session_store.set_peer_key_fingerprint(
+                str(sealed.aad.get("from") or task_id), sealed.key_id
+            )
+        return payload_dict
+
+    def seal_reply(self, task_id: str, body: dict[str, Any]) -> SealedMessage | None:
+        """Seal a reply body for the peer that sent the sealed task request.
+
+        Returns ``None`` when the peer's key material is unknown or this
+        agent has no signing key — callers must NOT fall back to
+        plaintext (that would leak the reply).
+        """
+        peer = self._e2ee_peers.get(str(task_id))
+        if peer is None or self._signing_private_key is None:
+            return None
+
+        from .crypto import KEY_SIZE, AgentPublicKeys
+
+        peer_sig = peer.get("sig") or bytes(KEY_SIZE)
+        sealed = seal_message(
+            json.dumps(body).encode("utf-8"),
+            recipient_public_keys=AgentPublicKeys(
+                kem=peer["kem"], sig=peer_sig
+            ),
+            sender_signing_private_key=self._signing_private_key,
+            extra_aad={
+                "task_id": str(task_id),
+                # crypto.b64encode already returns str
+                "from_kem": b64encode(_public_kem_key(self._kem_private_key)),
+                "from_sig": b64encode(
+                    _public_signing_key(self._signing_private_key)
+                ),
+            },
+        )
+        return sealed
+
+    # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _build_message(msg_type: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return {
+    def _build_message(
+        msg_type: str,
+        payload: dict[str, Any],
+        *,
+        sealed: SealedMessage | None = None,
+    ) -> dict[str, Any]:
+        """Build a WS message envelope.
+
+        Fills the envelope's existing reserved security/encrypted_payload/aad
+        fields. For e2ee (sealed given) the platform-visible payload stays
+        routing metadata only; the base64 ciphertext rides in
+        ``encrypted_payload``. For plaintext, ``security.mode`` is
+        ``relay_visible`` and ``encrypted_payload`` is null — one
+        well-defined marker block per message, per message independently
+        decidable.
+
+        This method never constructs or infers security material it was
+        not handed: ``sealed`` is produced by the sender's crypto layer.
+        """
+        msg = {
             "type": msg_type,
             "message_id": str(uuid.uuid4()),
             "timestamp": datetime.now(UTC).isoformat(),
             "payload": payload,
         }
+        if sealed is None:
+            msg["security"] = {
+                "mode": "relay_visible",
+                "encryption": "none",
+                "key_id": None,
+                "nonce": None,
+            }
+            msg["encrypted_payload"] = None
+            msg["aad"] = None
+        else:
+            msg.update(sealed.to_envelope_fields())
+        return msg
 
     async def _cancel_all_tasks(self) -> None:
         """Cancel all background tasks including reconnect."""

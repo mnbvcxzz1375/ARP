@@ -14,6 +14,7 @@ console narrows by scope/type client-side.
 from __future__ import annotations
 
 import logging
+import re
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response
@@ -25,7 +26,9 @@ from app.dependencies.auth import CurrentSession
 from app.dependencies.csrf import require_csrf
 from app.dependencies.rbac import require_high_risk, require_permission
 from app.exceptions import DomainException
+from app.models.agent import Agent
 from app.models.egress_gateway import EgressGateway
+from app.models.network_scope import NetworkScope
 from app.protocol.constants import ErrorCode
 from app.schemas.egress_gateway import (
     EgressGatewayCreate,
@@ -39,6 +42,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/egress/gateways", tags=["egress-gateways"])
 
+# Hostname pattern for allowlist entries: optional leading "*." label,
+# then dot-separated labels of 1-63 alphanumeric/hyphen characters (no
+# leading/trailing hyphens). "*" alone is also allowed. Entries with a
+# scheme, port, path or userinfo are rejected at registration time.
+_DOMAIN_LABEL = r"(?!-)[a-zA-Z0-9-]{1,63}(?<!-)"
+_DOMAIN_ENTRY_RE = re.compile(rf"^(\*\.)?{_DOMAIN_LABEL}(\.{_DOMAIN_LABEL})*$|^\*$")
+
 
 def _not_found() -> DomainException:
     return DomainException(
@@ -46,6 +56,58 @@ def _not_found() -> DomainException:
         "Egress gateway not found",
         status_code=404,
     )
+
+
+def _bad_request(message: str) -> DomainException:
+    return DomainException(
+        ErrorCode.INVALID_REQUEST,
+        message,
+        status_code=400,
+    )
+
+
+async def _validate_scope_exists(session: AsyncSession, scope_id: UUID) -> None:
+    """Registration-time check: a gateway's scope_id must resolve to an
+    existing network scope (the policy scope whose network_cidr the
+    egress policy decision point filters against)."""
+    result = await session.execute(
+        select(NetworkScope.id).where(NetworkScope.id == scope_id)
+    )
+    if result.first() is None:
+        raise _bad_request(f"Network scope {scope_id} does not exist")
+
+
+def _validate_domain_allowlist(entries: list[str]) -> None:
+    """Registration-time check: every allowlist entry must be a hostname
+    pattern (optionally wildcard-prefixed) or "*". Rejects URLs, ports,
+    paths and empty entries so the pattern cannot be smuggled past the
+    matching logic."""
+    for entry in entries or []:
+        if entry is None or entry == "" or _DOMAIN_ENTRY_RE.match(entry) is None:
+            raise _bad_request(
+                f"Invalid domain_allowlist entry {entry!r}: expected a hostname "
+                "pattern like 'api.example.com', '*.example.com' or '*'"
+            )
+
+
+def _validate_secret_store_ref(secret_store_ref: str | None) -> None:
+    """Registration-time check: secrets are only ever read from
+    environment variables. A ref must be None or 'env:VAR_NAME' with a
+    non-empty variable name; anything else (including a literal secret
+    value or a vault:// URL) is rejected at registration time."""
+    if secret_store_ref is None:
+        return
+    if not secret_store_ref.startswith("env:"):
+        raise _bad_request(
+            f"Invalid secret_store_ref {secret_store_ref!r}: only 'env:VAR_NAME' "
+            "references are supported (never the secret value itself)"
+        )
+    var_name = secret_store_ref[len("env:"):].strip()
+    if not var_name or any(c.isspace() for c in var_name):
+        raise _bad_request(
+            f"Invalid secret_store_ref {secret_store_ref!r}: env variable name "
+            "must be non-empty and contain no whitespace"
+        )
 
 
 async def _load_gateway(session: AsyncSession, gateway_id: UUID) -> EgressGateway:
@@ -67,6 +129,7 @@ def _to_response(gateway: EgressGateway) -> EgressGatewayResponse:
         cache_config=gateway.cache_config,
         cost_tracking=gateway.cost_tracking,
         enabled=gateway.enabled,
+        allow_internal_egress=gateway.allow_internal_egress,
         created_at=gateway.created_at,
         updated_at=gateway.updated_at,
     )
@@ -128,7 +191,14 @@ async def create_egress_gateway(
 
     The secret_store_ref is a reference (env:VAR_NAME), never a secret
     value; the runtime resolves it server-side at request time.
+    Registration-time validation: scope_id must reference an existing
+    network scope, domain_allowlist entries must be hostname patterns,
+    and secret_store_ref must be env:-prefixed.
     """
+    await _validate_scope_exists(session, body.scope_id)
+    _validate_domain_allowlist(body.domain_allowlist)
+    _validate_secret_store_ref(body.secret_store_ref)
+
     gateway = EgressGateway(
         scope_id=body.scope_id,
         gateway_name=body.gateway_name,
@@ -138,6 +208,7 @@ async def create_egress_gateway(
         rate_limit_config=body.rate_limit_config,
         cache_config=body.cache_config,
         cost_tracking=body.cost_tracking,
+        allow_internal_egress=body.allow_internal_egress,
         enabled=True,
     )
     session.add(gateway)
@@ -171,9 +242,18 @@ async def update_egress_gateway(
     _csrf: None = Depends(require_csrf),
     session: AsyncSession = Depends(get_session),
 ):
-    """Partially update an egress gateway (super admin, step-up + CSRF)."""
+    """Partially update an egress gateway (super admin, step-up + CSRF).
+
+    Mutable policy fields re-run the registration-time validation
+    (domain format, secret ref shape) so a later config change cannot
+    smuggle an invalid entry past the policy point.
+    """
     gateway = await _load_gateway(session, gateway_id)
     updates = body.model_dump(exclude_unset=True)
+    if "domain_allowlist" in updates:
+        _validate_domain_allowlist(updates["domain_allowlist"])
+    if "secret_store_ref" in updates:
+        _validate_secret_store_ref(updates["secret_store_ref"])
     for field, value in updates.items():
         setattr(gateway, field, value)
     await session.flush()
@@ -203,10 +283,24 @@ async def delete_egress_gateway(
 ):
     """Delete an egress gateway (super admin, step-up + CSRF).
 
-    Agents referencing the gateway keep working: agents.egress_gateway_id
-    is ON DELETE SET NULL, so their egress falls back to direct routing.
+    Deleting a gateway that agents are still bound to would silently
+    degrade their egress to no-gateway fail-closed — a hidden policy
+    change. Such a delete is rejected with 409; unbind the agents first
+    (PATCH /v1/agents/{id}).
     """
     gateway = await _load_gateway(session, gateway_id)
+
+    referenced = await session.execute(
+        select(Agent.id).where(Agent.egress_gateway_id == gateway_id).limit(1)
+    )
+    if referenced.first() is not None:
+        raise DomainException(
+            ErrorCode.INVALID_STATE,
+            f"Egress gateway {gateway_id} is still bound to agents "
+            "(agents.egress_gateway_id); unbind them before deleting",
+            status_code=409,
+        )
+
     await session.delete(gateway)
     await write_audit(
         session,

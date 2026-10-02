@@ -750,6 +750,11 @@ class TestConnectionEndpoints:
         req = data["pending_requests"][0]
         assert req["agent_number"] == requester_agent.agent_number
         assert req["requester_agent"] == str(requester_agent.id)
+        # to_agent_id revision: the row the query already selects exposes
+        # the request's target so the overview list/detail can show
+        # requester -> target (the map still only draws it when BOTH ends
+        # are the caller's own agents).
+        assert req["to_agent_id"] == str(user_agent.id)
 
     async def test_accept_connection(self, client: AsyncClient, dashboard_user, other_user, session: AsyncSession):
         user, _, user_agent, plain_key = dashboard_user

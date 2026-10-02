@@ -22,6 +22,26 @@ logger = logging.getLogger(__name__)
 CIRCUIT_BREAKER_OPEN_DURATION_SECONDS = 60
 CIRCUIT_BREAKER_HALF_OPEN_TEST_WINDOW = 30
 
+# M3: the single relay-heartbeat freshness window. Both the selection path
+# (path_optimizer._get_healthy_relays) and the health-check path
+# (check_relay_health below) must agree on this, otherwise a relay could be
+# selected as healthy while check_relay_health simultaneously reported a
+# heartbeat timeout for the same node.
+RELAY_HEARTBEAT_TIMEOUT_S = 60
+
+
+def relay_heartbeat_is_fresh(relay: RelayNode, now: datetime | None = None) -> bool:
+    """True when the relay reported a heartbeat within the 60s window.
+
+    Shared by check_relay_health and path_optimizer._get_healthy_relays so
+    selection and health checking cannot disagree.
+    """
+    if now is None:
+        now = datetime.now(UTC)
+    if not relay.last_heartbeat_at:
+        return False
+    return (now - relay.last_heartbeat_at).total_seconds() <= RELAY_HEARTBEAT_TIMEOUT_S
+
 
 async def check_relay_health(session: AsyncSession, relay_node_id: uuid.UUID) -> dict:
     """Check relay node health status.
@@ -69,7 +89,7 @@ async def check_relay_health(session: AsyncSession, relay_node_id: uuid.UUID) ->
     now = datetime.now(UTC)
     age_seconds = (now - relay.last_heartbeat_at).total_seconds()
 
-    if age_seconds > 60:
+    if age_seconds > RELAY_HEARTBEAT_TIMEOUT_S:
         return {
             "is_healthy": False,
             "status": "heartbeat_timeout",
@@ -452,16 +472,50 @@ async def execute_failover(
 
             migrated_count += 1
 
+        # M3: the notification list is no longer audit-only metadata.
+        # Running tasks on the failed relay are armed for immediate
+        # re-delivery through the REAL transport path (the retry worker
+        # re-sends the task.request envelope on the new relay's route;
+        # message-level dedup by message_id keeps this from double-executing
+        # an already-running task). If the agent is unreachable, the message
+        # simply lands back in the offline queue — the failover itself
+        # already succeeded.
+        notified = 0
+        for info in tasks_needing_notification:
+            try:
+                from app.models.message import Message
+
+                msg_result = await session.execute(
+                    select(Message)
+                    .join(
+                        RouteDecision,
+                        Message.message_id == RouteDecision.message_id,
+                    )
+                    .where(RouteDecision.task_id == uuid.UUID(info["task_id"]))
+                )
+                msg = msg_result.scalar_one_or_none()
+                if msg is None:
+                    continue
+                msg.next_retry_at = datetime.now(UTC)
+                notified += 1
+            except Exception:
+                logger.warning(
+                    "Failed to arm failover re-delivery for task %s",
+                    info.get("task_id"),
+                    exc_info=True,
+                )
+
         event.affected_task_count = migrated_count
 
         # Log the failover execution with details
         logger.info(
-            "Executing failover %s: migrated %d tasks from %s to %s (%d running tasks may need notification)",
+            "Executing failover %s: migrated %d tasks from %s to %s "
+            "(%d running tasks notified via re-delivery arming)",
             event.id,
             migrated_count,
             event.from_relay_id,
             event.to_relay_id,
-            len(tasks_needing_notification),
+            notified,
         )
 
         # Mark failover as completed

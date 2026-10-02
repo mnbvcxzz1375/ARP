@@ -11,13 +11,86 @@ from typing import Any, AsyncIterator
 import uvicorn
 
 
+class InMemoryPubSub:
+    """Minimal pubsub stub backing InMemoryRedis.publish/subscribe.
+
+    M3: cross-node delivery in tests is exercised for real — node A's
+    ConnectionManager publishes to `agentnet:node:{node_b}` and node B's
+    instance, which subscribed on start_pubsub(), receives the payload on
+    its own queue and hands it to its local connection.
+    """
+
+    def __init__(self, redis: "InMemoryRedis") -> None:
+        self._redis = redis
+        self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._channels: set[str] = set()
+        self._closed = False
+
+    async def subscribe(self, *channels: str) -> None:
+        for channel in channels:
+            self._channels.add(channel)
+            self._redis._subscribers.setdefault(channel, []).append(self._queue)
+
+    async def unsubscribe(self, *channels: str) -> None:
+        for channel in channels:
+            self._channels.discard(channel)
+            queues = self._redis._subscribers.get(channel, [])
+            if self._queue in queues:
+                queues.remove(self._queue)
+
+    async def aclose(self) -> None:
+        await self.unsubscribe(*list(self._channels))
+        self._closed = True
+
+    async def close(self) -> None:
+        await self.aclose()
+
+    async def get_message(
+        self, ignore_subscribe_messages: bool = True, timeout: float = 1.0
+    ) -> dict[str, Any] | None:
+        try:
+            return await asyncio.wait_for(self._queue.get(), timeout=timeout)
+        except asyncio.TimeoutError:
+            return None
+
+    async def listen(self):
+        while not self._closed:
+            msg = await self.get_message(timeout=1.0)
+            if msg is not None:
+                yield msg
+
+
 class InMemoryRedis:
-    """Small async Redis subset for WebSocket E2E tests."""
+    """Small async Redis subset for WebSocket E2E tests.
+
+    M3 additions:
+    - set(nx=True) for worker leadership locks,
+    - publish/subscribe for cross-node delivery,
+    - pubsub_failing: fault injection for the Redis-down degradation path
+      (an AsyncMock's publish never raises, so the degraded outcome can
+      only be tested with a controllable fake).
+    """
 
     def __init__(self) -> None:
         self.values: dict[str, Any] = {}
         self.lists: dict[str, list[str]] = {}
         self.eval_calls: list[tuple[Any, ...]] = []
+        self._subscribers: dict[str, list[asyncio.Queue]] = {}
+        self.pubsub_failing = False
+
+    def pubsub(self) -> InMemoryPubSub:
+        return InMemoryPubSub(self)
+
+    async def publish(self, channel: str, message: str) -> int:
+        if self.pubsub_failing:
+            raise RuntimeError("publish failed: pubsub disabled (fault injection)")
+        count = 0
+        for queue in list(self._subscribers.get(channel, [])):
+            await queue.put(
+                {"type": "message", "channel": channel, "data": message}
+            )
+            count += 1
+        return count
 
     async def ping(self) -> bool:
         return True
@@ -25,8 +98,20 @@ class InMemoryRedis:
     async def aclose(self) -> None:
         return None
 
-    async def set(self, key: str, value: Any, ex: int | None = None) -> None:
+    async def set(
+        self,
+        key: str,
+        value: Any,
+        ex: int | None = None,
+        nx: bool = False,
+        xx: bool = False,
+    ) -> bool | None:
+        if nx and key in self.values:
+            return None
+        if xx and key not in self.values:
+            return None
         self.values[key] = value
+        return True
 
     async def get(self, key: str) -> Any:
         return self.values.get(key)
@@ -108,8 +193,13 @@ async def run_live_server(monkeypatch) -> AsyncIterator[LiveServer]:
 
     monkeypatch.setattr(redis_module, "redis_client", redis)
     monkeypatch.setattr(rate_limit_service, "redis_client", redis)
+    # M3: session_service binds `redis_client` at module import
+    # (from app.redis import redis_client), so patching app.redis alone
+    # leaves the module-level binding pointed at the real client (or the
+    # autouse mock). Patch the binding in session_service too.
     monkeypatch.setattr(session_service, "redis_client", redis)
     manager_module._manager = None
+    manager_module._managers_by_node.clear()
 
     port = _free_port()
     config = uvicorn.Config(
@@ -139,3 +229,4 @@ async def run_live_server(monkeypatch) -> AsyncIterator[LiveServer]:
         server.should_exit = True
         await task
         manager_module._manager = None
+        manager_module._managers_by_node.clear()

@@ -37,6 +37,12 @@ class EgressGatewayCreate(BaseModel):
     rate_limit_config: dict[str, Any] | None = Field(None, description="Rate limit rules")
     cache_config: dict[str, Any] | None = Field(None, description="Cache TTL and rules")
     cost_tracking: bool = Field(True, description="Track per-gateway cost")
+    allow_internal_egress: bool = Field(
+        False,
+        description="Explicit opt-in permitting egress to internal targets "
+        "(loopback/private/reserved hosts or the scope's network_cidr). "
+        "Defaults to False — the default-deny baseline.",
+    )
 
 
 class EgressGatewayUpdate(BaseModel):
@@ -50,6 +56,7 @@ class EgressGatewayUpdate(BaseModel):
     cache_config: dict[str, Any] | None = None
     cost_tracking: bool | None = None
     enabled: bool | None = None
+    allow_internal_egress: bool | None = None
 
 
 class EgressGatewayResponse(BaseModel):
@@ -65,6 +72,7 @@ class EgressGatewayResponse(BaseModel):
     cache_config: dict[str, Any] | None
     cost_tracking: bool
     enabled: bool
+    allow_internal_egress: bool
     created_at: datetime
     updated_at: datetime
 

@@ -335,7 +335,11 @@ class TestConnectionManagerPresence:
 
         mock_redis.set.assert_called()
         call_args = mock_redis.set.call_args
-        assert "online" in call_args[0]
+        # M3: the presence VALUE is the owning node_id (cross-node dispatch
+        # resolves the target node from this key); it is no longer the
+        # constant "online".
+        assert call_args[0][0] == f"ws:presence:{agent_id}"
+        assert call_args[0][1] == mgr.node_id
         await mgr.unregister(state.connection_id)
 
     async def test_presence_removed_on_last_unregister(self):

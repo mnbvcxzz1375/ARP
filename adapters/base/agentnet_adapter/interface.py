@@ -5,6 +5,29 @@ Production adapters that need external HTTP/API access MUST use
 AdapterContext.make_external_request() -- direct outbound calls bypass
 egress policy enforcement and are considered a contract violation.
 
+Default-deny guard: with no egress gateway bound, external_request()
+fails closed (RuntimeError) — the agent cannot reach any external host.
+With a gateway bound, every request passes the egress policy decision
+point: http/https only, target host rejected if loopback/private/
+reserved/link-local or inside the scope's network_cidr unless the
+gateway was explicitly registered with allow_internal_egress=True.
+
+Honest coverage marking: this guard protects only the permitted path
+(egress_service.proxy_external_request). Coverage gaps that remain and
+are NOT protected by it in this round:
+  * direct ``import httpx`` / aiohttp / requests usage inside adapter
+    code or the API server itself — network-layer defence in depth
+    (post-milestone) is required to close this;
+  * stdio-type adapter child processes that make their own outbound
+    connections (e.g. an MCP stdio server spawning a subprocess);
+  * DNS names are not resolved by the host policy — a name that does
+    not parse as an IP literal is treated as non-internal, so
+    DNS-rebinding style targets need network-layer controls too.
+
+The host-validation utility itself (egress_service.validate_host_not_
+internal) is reused by the MCP adapter to validate HTTP-type MCP server
+addresses — that is its only live consumer this round.
+
 Security note: this is a *cooperative* contract at the application
 layer.  For defence-in-depth, production deployments should additionally
 enforce network-level egress restrictions (e.g. Kubernetes network

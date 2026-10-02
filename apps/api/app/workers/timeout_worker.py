@@ -12,6 +12,7 @@ from sqlalchemy import select, update
 from app.database import SessionLocal
 from app.models.task import Task
 from app.protocol.constants import TaskStatus, ErrorCode
+from app.workers.locking import acquire_worker_lock, release_worker_lock
 
 logger = logging.getLogger(__name__)
 
@@ -132,14 +133,21 @@ async def timeout_loop(
     while True:
         try:
             await asyncio.sleep(interval_s)
-            lease_expired = await expire_stale_tasks()
-            long_running = await expire_long_running_tasks(max_task_runtime_s)
-            approvals = await expire_stale_approvals()
-            if lease_expired or long_running or approvals:
-                logger.debug(
-                    "Timeout cycle: lease=%d runtime=%d approvals=%d",
-                    lease_expired, long_running, approvals,
-                )
+            # M3: SET NX lock — in a multi-replica deployment only one
+            # replica runs each timeout cycle.
+            if not await acquire_worker_lock("timeout", max(interval_s * 2, 60)):
+                continue
+            try:
+                lease_expired = await expire_stale_tasks()
+                long_running = await expire_long_running_tasks(max_task_runtime_s)
+                approvals = await expire_stale_approvals()
+                if lease_expired or long_running or approvals:
+                    logger.debug(
+                        "Timeout cycle: lease=%d runtime=%d approvals=%d",
+                        lease_expired, long_running, approvals,
+                    )
+            finally:
+                await release_worker_lock("timeout")
         except asyncio.CancelledError:
             logger.info("Timeout worker cancelled")
             return

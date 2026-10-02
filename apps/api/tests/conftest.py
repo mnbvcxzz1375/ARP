@@ -37,7 +37,24 @@ async def session() -> AsyncIterator[AsyncSession]:
 
 @pytest.fixture(autouse=True)
 def _mock_redis():
-    """Mock Redis for all tests — the test environment has no real Redis."""
+    """Mock Redis for all tests — the test environment has no real Redis.
+
+    M3: coverage note on the patched surface. app.services.session_service
+    binds the redis client at MODULE IMPORT (`from app.redis import
+    redis_client` at session_service.py:14), so patching only
+    app.redis.redis_client leaves session_service's own binding pointing
+    wherever it was imported from. Any caller that does not pass `redis=`
+    explicitly (store_pending_message, get_pending_messages, ack_message,
+    ...) would then hit whatever that binding holds — and in an
+    environment where a real Redis happens to be running
+    (`agentnet-test-redis`), a test COULD appear to pass while touching
+    the real server. session_service is therefore patched explicitly here
+    in addition to app.redis and rate_limit_service.
+
+    Tests that want to assert "no real Redis is touched" (the
+    store_pending_message binding-coverage test) patch
+    session_service.redis_client with their own mock and count calls.
+    """
     mock = AsyncMock()
     mock.eval = AsyncMock(return_value=0)
     mock.zremrangebyscore = AsyncMock()
@@ -53,7 +70,8 @@ def _mock_redis():
     mock.exists = AsyncMock(return_value=0)
 
     with patch("app.services.rate_limit_service.redis_client", mock), \
-         patch("app.redis.redis_client", mock):
+         patch("app.redis.redis_client", mock), \
+         patch("app.services.session_service.redis_client", mock):
         yield mock
 
 

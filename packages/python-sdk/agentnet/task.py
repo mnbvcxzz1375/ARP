@@ -11,7 +11,11 @@ from .types import MessageType, TaskStatus
 
 logger = logging.getLogger(__name__)
 
-SendFn = Callable[[str, dict[str, Any] | None], Coroutine[Any, Any, str]]
+SendFn = Callable[..., Coroutine[Any, Any, str]]
+
+#: Seals a reply body into a SealedMessage; returns None when the peer's
+#: key material is unavailable (the caller must then NOT send plaintext).
+SealFn = Callable[[dict[str, Any]], "Any"]
 
 
 class TaskContext:
@@ -23,6 +27,13 @@ class TaskContext:
         await ctx.result({"output": "done"})
         await ctx.fail("Something went wrong")
         await ctx.request_approval("shell", "rm -rf /", reason="Dangerous")
+
+    M2: when the task arrived as a sealed e2ee message, ``seal_fn`` is
+    set and ``result()`` seals the reply — the plaintext reply body
+    rides in ``encrypted_payload`` and the platform-visible payload
+    stays routing metadata only. If sealing is impossible the reply is
+    never sent as plaintext: the task fails with an explicit error
+    instead (fail closed).
     """
 
     def __init__(
@@ -31,11 +42,13 @@ class TaskContext:
         payload: dict[str, Any],
         session_store: SessionStore,
         send_fn: SendFn,
+        seal_fn: SealFn | None = None,
     ) -> None:
         self.task_id = task_id
         self.payload = payload
         self._session_store = session_store
         self._send = send_fn
+        self._seal = seal_fn
         self._status: str = TaskStatus.CREATED
 
     @property
@@ -72,7 +85,39 @@ class TaskContext:
         await self._send(MessageType.TASK_PROGRESS, payload)
 
     async def result(self, result: dict[str, Any]) -> None:
-        """Report successful completion."""
+        """Report successful completion.
+
+        For an e2ee task the reply is sealed: the platform-visible WS
+        payload carries only routing metadata (``task_id``) and the
+        plaintext body rides in ``encrypted_payload``. If the seal is
+        unavailable the reply is never downgraded to plaintext — the
+        task fails closed with an explicit error.
+        """
+        if self._seal is not None:
+            body = {"task_id": self.task_id, "result": result}
+            sealed = self._seal(body)
+            if sealed is None:
+                await self._send(
+                    MessageType.TASK_FAILED,
+                    {
+                        "task_id": self.task_id,
+                        "error_message": (
+                            "E2EE_REPLY_UNAVAILABLE: cannot seal the reply "
+                            "(peer key material missing)"
+                        ),
+                    },
+                )
+                self._status = TaskStatus.FAILED
+                self._session_store.remove_running_task(self.task_id)
+                logger.warning("Task %s reply could not be sealed", self.task_id)
+                return
+            await self._send(
+                MessageType.TASK_RESULT, {"task_id": self.task_id}, sealed=sealed
+            )
+            self._status = TaskStatus.COMPLETED
+            self._session_store.remove_running_task(self.task_id)
+            logger.info("Task %s completed (sealed reply)", self.task_id)
+            return
         await self._send(MessageType.TASK_RESULT, {"task_id": self.task_id, "result": result})
         self._status = TaskStatus.COMPLETED
         self._session_store.remove_running_task(self.task_id)

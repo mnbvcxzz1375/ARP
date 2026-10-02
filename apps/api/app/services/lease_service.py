@@ -9,6 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.route_lease import RouteLease
 from app.models.task import Task
 
+# P1 rate limiting: a single cleanup call processes at most
+# _MAX_BATCHES_PER_CYCLE batches of _EXPIRED_LEASE_BATCH_SIZE rows, capping
+# the per-cycle write spike (5000 row updates) so the worker never holds a
+# long transaction under load. Anything left over is picked up by the next
+# cycle (see app.workers.cleanup_worker).
+_EXPIRED_LEASE_BATCH_SIZE = 500
+_MAX_BATCHES_PER_CYCLE = 10
+
 
 async def issue_route_lease(
     session: AsyncSession,
@@ -172,29 +180,47 @@ async def revoke_route_lease(
 async def cleanup_expired_leases(session: AsyncSession) -> int:
     """Clean up expired route leases (soft delete by marking revoked).
 
+    P1 rate limiting: processes at most _MAX_BATCHES_PER_CYCLE batches of
+    _EXPIRED_LEASE_BATCH_SIZE rows per call (≤ 5000 row updates per cycle),
+    ordered by RouteLease.id for deterministic progress. Remaining rows are
+    left for the next call — callers (see app.workers.cleanup_worker) must
+    NOT assume one call empties the table.
+
+    The injected session is only flushed here; the caller owns the commit.
+
     Args:
         session: Database session
 
     Returns:
-        Number of leases cleaned up
+        Number of leases marked revoked by this call.
     """
     now = datetime.now(UTC)
 
-    result = await session.execute(
-        select(RouteLease).where(
-            RouteLease.expires_at <= now,
-            RouteLease.revoked_at.is_(None),
+    total = 0
+    for _batch_index in range(_MAX_BATCHES_PER_CYCLE):
+        result = await session.execute(
+            select(RouteLease)
+            .where(
+                RouteLease.expires_at <= now,
+                RouteLease.revoked_at.is_(None),
+            )
+            .order_by(RouteLease.id)
+            .limit(_EXPIRED_LEASE_BATCH_SIZE)
         )
-    )
-    expired_leases = result.scalars().all()
+        expired_leases = result.scalars().all()
 
-    count = 0
-    for lease in expired_leases:
-        lease.revoked_at = now
-        lease.revoke_reason = "expired"
-        count += 1
+        if not expired_leases:
+            break
 
-    if count > 0:
+        for lease in expired_leases:
+            lease.revoked_at = now
+            lease.revoke_reason = "expired"
+            total += 1
+
         await session.flush()
 
-    return count
+        # Last batch was a partial one: nothing left to process.
+        if len(expired_leases) < _EXPIRED_LEASE_BATCH_SIZE:
+            break
+
+    return total

@@ -42,6 +42,7 @@ const mockScope = {
   default_relay_type: 'central_relay',
   enable_edge_relay: false,
   enable_secure_channel: true,
+  routing_strategy: 'normal' as const,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-05-20T00:00:00Z',
 };
@@ -286,5 +287,86 @@ describe('PersonalRoutingPage', () => {
         enable_secure_channel: false,
       });
     });
+  });
+
+  // --- 7. Routing mode strip is interactive ---
+  it('renders all three routing mode buttons enabled', async () => {
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/v1/personal/scope') return Promise.resolve({ data: mockScope });
+      if (url === '/v1/personal/edge-relays') return Promise.resolve({ data: [] });
+      if (url.startsWith('/v1/routes/decisions')) return Promise.resolve({ data: { decisions: [] } });
+      return Promise.resolve({ data: {} });
+    });
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Fast' })).toBeInTheDocument();
+    });
+
+    for (const label of ['Fast', 'Normal', 'Reliable']) {
+      expect(screen.getByRole('button', { name: label })).toBeEnabled();
+    }
+  });
+
+  it('PATCHes routing_strategy when a mode button is clicked and moves the highlight', async () => {
+    // The scope state flips with the PATCH so the GET refetch (triggered by
+    // onSuccess invalidation) echoes the switched mode, like the real API.
+    let scope = { ...mockScope };
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/v1/personal/scope') return Promise.resolve({ data: scope });
+      if (url === '/v1/personal/edge-relays') return Promise.resolve({ data: [] });
+      if (url.startsWith('/v1/routes/decisions')) return Promise.resolve({ data: { decisions: [] } });
+      return Promise.resolve({ data: {} });
+    });
+    mockPatch.mockImplementation((_url: string, patch: Record<string, unknown>) => {
+      scope = { ...scope, ...patch };
+      return Promise.resolve({ data: scope });
+    });
+
+    renderPage();
+
+    // Baseline: Normal is the active mode.
+    await waitFor(() => {
+      expect(screen.getByText('Balanced latency and reliability')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fast' }));
+
+    await waitFor(() => {
+      expect(mockPatch).toHaveBeenCalledWith('/v1/personal/scope', { routing_strategy: 'fast' });
+    });
+
+    // The fast description (and the refetched scope) show the switch landed.
+    await waitFor(() => {
+      expect(screen.getByText('Lowest latency, may skip reliability checks')).toBeInTheDocument();
+    });
+    // Active highlight follows the new mode: Fast is accent, Normal is not.
+    expect(screen.getByRole('button', { name: 'Fast' })).toHaveClass('bg-pixel-accent');
+    expect(screen.getByRole('button', { name: 'Normal' })).not.toHaveClass('bg-pixel-accent');
+  });
+
+  it('disables the mode buttons while a switch is pending', async () => {
+    mockGet.mockImplementation((url: string) => {
+      if (url === '/v1/personal/scope') return Promise.resolve({ data: mockScope });
+      if (url === '/v1/personal/edge-relays') return Promise.resolve({ data: [] });
+      if (url.startsWith('/v1/routes/decisions')) return Promise.resolve({ data: { decisions: [] } });
+      return Promise.resolve({ data: {} });
+    });
+    // Never resolves: the mutation stays pending.
+    mockPatch.mockImplementation(() => new Promise(() => {}));
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Fast' })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fast' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Fast' })).toBeDisabled();
+    });
+    expect(screen.getByRole('button', { name: 'Normal' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Reliable' })).toBeDisabled();
   });
 });

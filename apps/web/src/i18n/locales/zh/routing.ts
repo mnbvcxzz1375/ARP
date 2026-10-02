@@ -17,7 +17,7 @@ const routing = {
   'section.scope': '路由范围',
   'field.defaultRelayType': '默认中继类型',
   'field.edgeRelay': '边缘中继',
-  'field.edgeRelayHint': '启用个人边缘中继节点',
+  'field.edgeRelayHint': '开启后，发送时将使用个人边缘中继节点。任意可用的个人边缘中继均可能被使用——中继不按用户隔离。',
   'field.secureChannel': '安全通道',
   'field.secureChannelHint': '启用端到端加密通道',
 
@@ -29,7 +29,7 @@ const routing = {
   'mode.normalDescription': '兼顾延迟与可靠性',
   'mode.reliable': '可靠',
   'mode.reliableDescription': '最高投递保障，延迟较高',
-  'mode.disabledHint': '路由模式由默认中继类型推导得出',
+  'mode.switchHint': '路由模式可随时切换，立即生效',
 
   // 边缘中继健康区
   'section.edgeHealth': '边缘中继健康',

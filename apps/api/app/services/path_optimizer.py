@@ -30,6 +30,13 @@ from app.services.route_policy_service import PolicyEvaluationResult
 logger = logging.getLogger(__name__)
 
 
+def _relay_heartbeat_timeout_s() -> int:
+    """Lazy import to avoid a circular import with continuity_service."""
+    from app.services.continuity_service import RELAY_HEARTBEAT_TIMEOUT_S
+
+    return RELAY_HEARTBEAT_TIMEOUT_S
+
+
 def _raise_if_approval_required(
     route_type: str,
     policy_result: "PolicyEvaluationResult",
@@ -82,10 +89,32 @@ class RouteCandidate:
         self.cost_score: float = 0.0
         self.security_score: float = 0.0
 
-    def compute_final_score(self, timeliness_mode: str) -> float:
+    def compute_final_score(
+        self, timeliness_mode: str, routing_strategy: str = "normal"
+    ) -> float:
         """Compute final score based on timeliness mode.
 
         Lower score is better. Timeliness mode adjusts weights.
+
+        routing_strategy (0033) is a scoring-layer override applied AFTER
+        the timeliness weights. It only changes how candidates are RANKED:
+        - 'normal': identity transform — the 8 weights and all 5 timeliness
+          modes are untouched, so score semantics, the
+          ROUTE_DECISIONS_TOTAL monitoring curves and Phase 15/17 scalar
+          expectations stay byte-for-byte identical.
+        - 'fast': after the timeliness weights, latency_weight is raised to
+          at least 3.0 and the other 7 weights (including security_score)
+          are zeroed, so candidates are ranked purely by latency.
+        - 'reliable': success_weight and failure_weight are scaled by 1.5
+          and latency_weight by 0.5, favoring delivery success.
+
+        D1 (fail-closed invariants, NOT affected by any strategy): the hard
+        filter chain in _get_healthy_relays (status, 60s heartbeat window,
+        circuit breaker) and the fail-closed security-mode negotiation in
+        connection_service.negotiate_security_mode are completely
+        unchanged — a 'fast' task is never routed through an unhealthy or
+        less-secure relay; it merely prefers low latency among the
+        survivors.
         """
         # Base weights
         latency_weight = 1.0
@@ -110,6 +139,21 @@ class RouteCandidate:
         elif timeliness_mode == "durable":
             success_weight = 3.0
             failure_weight = 3.0
+
+        # 0033: personal routing strategy override (scoring layer only).
+        if routing_strategy == "fast":
+            latency_weight = max(latency_weight, 3.0)
+            load_weight = 0.0
+            queue_weight = 0.0
+            success_weight = 0.0
+            failure_weight = 0.0
+            locality_weight = 0.0
+            cost_weight = 0.0
+            security_weight = 0.0
+        elif routing_strategy == "reliable":
+            success_weight *= 1.5
+            failure_weight *= 1.5
+            latency_weight *= 0.5
 
         score = (
             latency_weight * self.latency_ms / 100.0
@@ -152,6 +196,8 @@ async def select_route(
     scope_id: uuid.UUID | None = None,
     source_zone_id: uuid.UUID | None = None,
     target_zone_id: uuid.UUID | None = None,
+    routing_strategy: str = "normal",
+    enable_edge_relay: bool | None = None,
 ) -> RouteDecision:
     """Select the best route for a task in ENFORCED MODE (Phase 13+).
 
@@ -185,6 +231,19 @@ async def select_route(
         scope_id: Network scope ID (from agent or task)
         source_zone_id: Source zone ID (from from_agent)
         target_zone_id: Target zone ID (from to_agent)
+        enable_edge_relay: Sender's personal-edge opt-in toggle. Strict
+            opt-in: only an explicit True admits personal_edge candidates;
+            False excludes them. task_service normalizes a missing
+            PersonalScope row to False (missing row and enable_edge_relay=
+            False are synonymous for routing). None is reserved for legacy
+            callers that have not wired the personal routing strategy chain
+            and preserves the pre-toggle admission behavior.
+        routing_strategy: Personal routing strategy (0033), a scoring-layer
+            override ('fast' | 'normal' | 'reliable'); 'normal' (also the
+            fallback for any other value) leaves the 8 weights and the 5
+            timeliness modes untouched. 'reliable' additionally enforces a
+            strict health gate below. Hard filters and the fail-closed
+            security negotiation are never affected by this parameter.
 
     Returns:
         RouteDecision record (persisted to database)
@@ -235,6 +294,15 @@ async def select_route(
 
     # Hard filter 8: Get healthy relays
     healthy_relays = await _get_healthy_relays(session)
+
+    # 0033: 'reliable' strategy enforces a strict health gate on top of the
+    # hard filter chain — relays whose status is 'degraded' (still admissible
+    # by _get_healthy_relays) are excluded from candidacy. If this removes
+    # every candidate, the existing fail-closed path below ("no healthy
+    # relay available", or ROUTE_POLICY_DENIED when policies denied) still
+    # applies. No silent fallback to degraded relays is introduced.
+    if routing_strategy == "reliable":
+        healthy_relays = [r for r in healthy_relays if r.status != "degraded"]
 
     # Build candidate routes
     # Phase 14: Support personal_edge (local-first routing)
@@ -321,7 +389,42 @@ async def select_route(
             )
 
     # Try personal edge first if available (Phase 14 local-first routing)
-    personal_edge_relays = [r for r in healthy_relays if r.node_type == "personal_edge"]
+    # Phase 15: personal edge relays serve LOCAL traffic only — they sit on
+    # the agents' own local network, so a route between two different zones
+    # can never traverse one. Zone-less (legacy) routing also cannot prove
+    # locality, so it keeps the central relay default for backward
+    # compatibility. Only same-zone routes are eligible for personal_edge.
+    same_zone = (
+        source_zone_id is not None
+        and target_zone_id is not None
+        and source_zone_id == target_zone_id
+    )
+    # Strict opt-in for personal_edge (P3): only an explicit
+    # enable_edge_relay=True admits personal_edge candidates. False —
+    # which is also what task_service passes when the sender has no
+    # PersonalScope row (a missing row is synonymous with an explicit
+    # opt-out) — excludes them. None keeps the legacy admission behavior
+    # for callers that have not wired the personal routing strategy chain;
+    # task_service always passes a concrete bool, so the production path
+    # is strictly opt-in. Before this toggle, enforced routing admitted
+    # personal_edge candidates while ignoring the declared default
+    # (enable_edge_relay defaults to False, see models/personal_scope.py
+    # and its migration server_default=false); that mismatch was the bug
+    # being fixed here. The behavior change only affects deployments that
+    # registered personal_edge relays AND route within the same zone.
+    # NOTE (no per-user isolation): RelayNode has no owner/user_id column
+    # (verified in models/relay_node.py), so personal_edge candidates are
+    # drawn from ALL healthy edge relays without filtering by user. The
+    # toggle's semantics are therefore "the sender is willing to use ANY
+    # available personal edge relay", not "route through my own relay".
+    if enable_edge_relay is False:
+        personal_edge_relays = []
+    else:
+        personal_edge_relays = (
+            [r for r in healthy_relays if r.node_type == "personal_edge"]
+            if same_zone
+            else []
+        )
     for edge_relay in personal_edge_relays:
         # Phase 15: Evaluate route policy for this candidate
         policy_result = await _evaluate_route_policy_for_candidate(
@@ -368,8 +471,28 @@ async def select_route(
             applied_policy_id = policy_result.policy_id
 
     # Add regional relay for cross-zone routing (Phase 15)
+    # M3: a regional relay serves its REGION, so only relays linked to the
+    # source or target zone are eligible for the cross-zone hop. Linkage is
+    # either membership in the zone's relay_node_ids or the relay's own
+    # zone name. A zone-less regional relay cannot prove it serves either
+    # endpoint — the same locality argument used for personal_edge above —
+    # so cross-zone traffic falls back to the central relay instead of
+    # riding an arbitrary regional node (and a central relay that is
+    # genuinely outscored by a regionally-linked one still wins the score
+    # contest below).
     if source_zone_id and target_zone_id and source_zone_id != target_zone_id:
-        regional_relays = [r for r in healthy_relays if r.node_type == "regional"]
+        zone_relay_ids, zone_names = await _zone_relay_membership(
+            session, source_zone_id, target_zone_id
+        )
+        regional_relays = [
+            r
+            for r in healthy_relays
+            if r.node_type == "regional"
+            and (
+                str(r.id) in zone_relay_ids
+                or (r.zone is not None and r.zone in zone_names)
+            )
+        ]
         for regional_relay in regional_relays:
             # Evaluate route policy for regional relay
             policy_result = await _evaluate_route_policy_for_candidate(
@@ -472,8 +595,13 @@ async def select_route(
         )
 
     # Score candidates
+    # 0033: routing_strategy is a scoring-layer override only; the hard
+    # filters above (including the 'reliable' degraded health gate) are
+    # already applied to the candidate list.
     for candidate in candidates:
-        candidate.final_score = candidate.compute_final_score(timeliness_mode)
+        candidate.final_score = candidate.compute_final_score(
+            timeliness_mode, routing_strategy
+        )
 
     # Sort by score (lower is better)
     candidates.sort(key=lambda c: c.final_score)
@@ -604,6 +732,18 @@ async def select_route_shadow(
     # Phase 15+ regional_relay and egress types are handled in enforced mode)
 
     # Try personal edge first if available and on same network
+    #
+    # KNOWN DIVERGENCE (personal edge toggle, D3): enforced mode
+    # (select_route) now requires an explicit enable_edge_relay=True AND a
+    # same-zone route before personal_edge candidates are admitted. This
+    # shadow-mode block is deliberately left unchanged: it still builds
+    # personal_edge candidates from every healthy edge relay, with no
+    # same_zone constraint and without reading the toggle. Shadow and
+    # enforced decisions therefore diverge for personal_edge, which
+    # pollutes ROUTE_DECISIONS-based shadow/enforced comparison
+    # monitoring. This is accepted for now: keeping the Phase 12 shadow
+    # baseline comparable is valued higher than closing the divergence,
+    # and shadow mode never controls the actual delivery path.
     personal_edge_relays = [r for r in healthy_relays if r.node_type == "personal_edge"]
     for edge_relay in personal_edge_relays:
         # Check if on same local network
@@ -754,6 +894,35 @@ async def _check_connection_policy(
     return False, f"Unknown inbound policy: {policy}"
 
 
+async def _zone_relay_membership(
+    session: AsyncSession,
+    source_zone_id: uuid.UUID,
+    target_zone_id: uuid.UUID,
+) -> tuple[set[str], set[str]]:
+    """Relay ids and zone names linked to a route's two endpoint zones.
+
+    Used to scope regional relay candidacy: a regional relay is eligible
+    for a cross-zone route when it is registered in the source or target
+    zone (``NetworkZone.relay_node_ids``) or carries that zone's name
+    (``RelayNode.zone``). Both are normalized to strings to stay agnostic
+    of the ARRAY(UUID) / free-text storage of each side.
+    """
+    from app.models.network_zone import NetworkZone
+
+    result = await session.execute(
+        select(NetworkZone).where(
+            NetworkZone.id.in_([source_zone_id, target_zone_id])
+        )
+    )
+    relay_ids: set[str] = set()
+    zone_names: set[str] = set()
+    for zone in result.scalars().all():
+        zone_names.add(zone.zone_name)
+        for relay_id in zone.relay_node_ids or []:
+            relay_ids.add(str(relay_id))
+    return relay_ids, zone_names
+
+
 async def _get_healthy_relays(session: AsyncSession) -> list[RelayNode]:
     """Get all healthy relay nodes.
 
@@ -771,6 +940,23 @@ async def _get_healthy_relays(session: AsyncSession) -> list[RelayNode]:
         )
     )
     relays = list(result.scalars().all())
+
+    # M3: apply the same 60s heartbeat window as
+    # continuity_service.check_relay_health. Before this, a relay could be
+    # selected here (status healthy, heartbeat hours stale) while
+    # check_relay_health reported heartbeat_timeout for the same node.
+    from app.services.continuity_service import relay_heartbeat_is_fresh
+
+    now = datetime.now(UTC)
+    stale = [r for r in relays if not relay_heartbeat_is_fresh(r, now)]
+    for relay in stale:
+        logger.debug(
+            "Relay %s status=%s but heartbeat is stale (last=%s), skipping",
+            relay.id,
+            relay.status,
+            relay.last_heartbeat_at,
+        )
+    relays = [r for r in relays if r not in stale]
 
     # Get all circuit breakers
     breakers_by_relay = {}
@@ -900,5 +1086,18 @@ async def ensure_default_relay_node(session: AsyncSession) -> RelayNode:
         session.add(relay)
         await session.flush()
         logger.info("Created default central relay node: %s", relay.id)
+    elif not relay.last_heartbeat_at or (
+        datetime.now(UTC) - relay.last_heartbeat_at
+    ).total_seconds() > _relay_heartbeat_timeout_s():
+        # M3: the heartbeat window is now enforced by _get_healthy_relays
+        # (unified with continuity_service.check_relay_health). The default
+        # central relay IS this platform's own bus, so its liveness is the
+        # process liveness: refresh the heartbeat when it would otherwise
+        # be reported stale. External relay nodes keep refreshing their own
+        # heartbeats through the relay heartbeat endpoint.
+        relay.last_heartbeat_at = datetime.now(UTC)
+        if relay.status not in ("healthy", "degraded"):
+            relay.status = "healthy"
+        await session.flush()
 
     return relay

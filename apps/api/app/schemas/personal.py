@@ -14,6 +14,7 @@ class PersonalScopeResponse(BaseModel):
     default_relay_type: str
     enable_edge_relay: bool
     enable_secure_channel: bool
+    routing_strategy: str
     created_at: datetime
     updated_at: datetime
 
@@ -26,6 +27,9 @@ class PersonalScopeUpdate(BaseModel):
 
     enable_edge_relay: bool | None = None
     enable_secure_channel: bool | None = None
+    # 0033: personal routing strategy. None = leave unchanged.
+    # Invalid values are rejected by Pydantic with a 422.
+    routing_strategy: Literal["fast", "normal", "reliable"] | None = None
 
 
 class PersonalEdgeRelayRegister(BaseModel):
@@ -66,42 +70,3 @@ class PersonalEdgeRelayResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-class PersonalTaskCreate(BaseModel):
-    """Create task with personal mode simplified options."""
-
-    assigned_to: int  # Agent number
-    task_type: str
-    parameters: dict = Field(default_factory=dict)
-    idempotency_key: str | None = None
-
-    # Simplified timeliness options
-    speed: Literal["fast", "normal", "reliable"] = "normal"
-    # fast -> interactive, normal -> normal, reliable -> durable
-
-    # Optional advanced fields
-    ttl_seconds: int | None = None
-    priority: int = Field(default=5, ge=1, le=10)
-
-
-# Mapping from personal UI to internal timeliness mode
-SPEED_TO_TIMELINESS: dict[str, str] = {
-    "fast": "interactive",
-    "normal": "normal",
-    "reliable": "durable",
-}
-
-# Default TTL by speed
-SPEED_DEFAULT_TTL: dict[str, int | None] = {
-    "fast": 30,  # 30 seconds for fast tasks
-    "normal": None,  # No TTL for normal
-    "reliable": None,  # No TTL for reliable (will retry)
-}
-
-# Default retry count by speed
-SPEED_DEFAULT_RETRY: dict[str, int | None] = {
-    "fast": 1,  # Fail fast
-    "normal": 3,  # Standard retry
-    "reliable": 5,  # More retries
-}

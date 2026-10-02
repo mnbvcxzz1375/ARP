@@ -17,7 +17,7 @@ const routing = {
   'section.scope': 'Routing Scope',
   'field.defaultRelayType': 'Default Relay Type',
   'field.edgeRelay': 'Edge Relay',
-  'field.edgeRelayHint': 'Enable personal edge relay nodes',
+  'field.edgeRelayHint': 'Opt in to sending via personal edge relay nodes. Any available personal edge relay may be used — relays are not isolated per user.',
   'field.secureChannel': 'Secure Channel',
   'field.secureChannelHint': 'Enable end-to-end encrypted channels',
 
@@ -29,7 +29,7 @@ const routing = {
   'mode.normalDescription': 'Balanced latency and reliability',
   'mode.reliable': 'Reliable',
   'mode.reliableDescription': 'Maximum delivery guarantee, higher latency',
-  'mode.disabledHint': 'Routing mode is derived from default relay type',
+  'mode.switchHint': 'Routing mode can be switched anytime, takes effect immediately',
 
   // Edge relay health section
   'section.edgeHealth': 'Edge Relay Health',

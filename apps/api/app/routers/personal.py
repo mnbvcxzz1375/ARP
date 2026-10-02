@@ -56,6 +56,7 @@ async def get_personal_scope(
             default_relay_type="central_relay",
             enable_edge_relay=False,
             enable_secure_channel=False,
+            routing_strategy="normal",
         )
         session.add(scope)
         await session.commit()
@@ -68,6 +69,7 @@ async def get_personal_scope(
         default_relay_type=scope.default_relay_type,
         enable_edge_relay=scope.enable_edge_relay,
         enable_secure_channel=scope.enable_secure_channel,
+        routing_strategy=scope.routing_strategy,
         created_at=scope.created_at,
         updated_at=scope.updated_at,
     )
@@ -93,6 +95,7 @@ async def update_personal_scope(
             default_relay_type="central_relay",
             enable_edge_relay=False,
             enable_secure_channel=False,
+            routing_strategy="normal",
         )
         session.add(scope)
 
@@ -101,15 +104,18 @@ async def update_personal_scope(
         scope.enable_edge_relay = update.enable_edge_relay
     if update.enable_secure_channel is not None:
         scope.enable_secure_channel = update.enable_secure_channel
+    if update.routing_strategy is not None:
+        scope.routing_strategy = update.routing_strategy
 
     await session.commit()
     await session.refresh(scope)
 
     logger.info(
-        "Updated personal scope: user=%s edge=%s secure=%s",
+        "Updated personal scope: user=%s edge=%s secure=%s strategy=%s",
         current_user.id,
         scope.enable_edge_relay,
         scope.enable_secure_channel,
+        scope.routing_strategy,
     )
 
     return PersonalScopeResponse(
@@ -118,6 +124,7 @@ async def update_personal_scope(
         default_relay_type=scope.default_relay_type,
         enable_edge_relay=scope.enable_edge_relay,
         enable_secure_channel=scope.enable_secure_channel,
+        routing_strategy=scope.routing_strategy,
         created_at=scope.created_at,
         updated_at=scope.updated_at,
     )

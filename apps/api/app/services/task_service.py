@@ -18,7 +18,7 @@ from app.services.routing_service import (
     resolve_agent,
     RETRY_BACKOFF_BASE_S,
 )
-from app.protocol.constants import ErrorCode, TaskStatus, MessageType, DeliveryStatus
+from app.protocol.constants import ErrorCode, TaskStatus, MessageType, DeliveryStatus, SecurityMode
 from app import metrics
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,9 @@ async def create_task(
     max_retry_count: int | None = None,
     retry_policy: dict | None = None,
     route_policy_hint: str | None = None,
+    security: dict | None = None,
+    encrypted_payload: str | None = None,
+    aad: dict | None = None,
 ) -> Task:
     to_agent = await resolve_agent(session, to_agent_number)
 
@@ -54,9 +57,32 @@ async def create_task(
             logger.info("Idempotent task found: %s -> %s", idempotency_key, existing.id)
             return existing
 
-    # Phase 5: Enforce connection policy
+    # M2: build the content envelope. The sender's envelope marker fields
+    # (security/encrypted_payload/aad) are the single source of truth for
+    # the marker block; they are merged verbatim into the content that is
+    # stored and delivered. The platform never constructs or rewrites them.
+    content: dict = dict(payload) if isinstance(payload, dict) else {}
+    if security is not None:
+        content["security"] = security
+        content["encrypted_payload"] = encrypted_payload
+        content["aad"] = aad
+
+    # M2: validate BEFORE persisting (先校验后落库) — a malformed e2ee
+    # envelope is rejected here and never reaches storage or delivery.
+    from app.services.protocol_service import validate_task_content_envelope
+    validate_task_content_envelope(content)
+
+    # M2: the envelope marker governs the negotiated mode. An e2ee-marked
+    # envelope fails closed: it is never silently downgraded to
+    # relay_visible, so a receiver without public_keys gets a 400 instead
+    # of a plaintext fallback.
+    requested_modes = list(payload.get("requested_security_modes") or [])
+    if isinstance(security, dict) and security.get("mode") == SecurityMode.E2EE.value:
+        requested_modes = [SecurityMode.E2EE.value]
+
+    # Phase 5: Enforce connection policy (negotiation happens inside,
+    # before any Connection row is persisted)
     from app.services.connection_service import enforce_policy
-    requested_modes = payload.get("requested_security_modes", [])
     await enforce_policy(session, from_agent, to_agent, requested_security_modes=requested_modes if requested_modes else None)
 
     # Save IDs before flush — ORM objects expire after rollback
@@ -96,7 +122,7 @@ async def create_task(
         message_id=task.message_id,
         type=MessageType.TASK_REQUEST.value,
         delivery_status=DeliveryStatus.PENDING.value,
-        content=payload,
+        content=content,
         ttl_seconds=ttl_seconds,
         priority=priority,
         max_retries=max_retry_count if max_retry_count is not None else 3,
@@ -135,6 +161,32 @@ async def create_task(
         source_zone_id = from_agent.zone_id
         target_zone_id = to_agent.zone_id
 
+        # Personal edge relay opt-in (P3, strict) + personal routing
+        # strategy (0033): the sender's PersonalScope row is read EXACTLY
+        # ONCE per task here (D2: an indexed point lookup on
+        # personal_scopes.user_id — net hot-path cost: +1 point query per
+        # task). routing_strategy and enable_edge_relay are both derived
+        # from this single row and passed explicitly to select_route;
+        # path_optimizer must never re-query PersonalScope.
+        # A missing PersonalScope row is synonymous with
+        # enable_edge_relay=False — both exclude personal_edge candidates;
+        # only an explicit True admits them. The toggle does not change
+        # the GET auto-create default (False): an auto-created row and a
+        # missing row lead to identical routing behavior, so viewing the
+        # settings page can never change routing.
+        # NOTE: personal_edge relays are not isolated per user (RelayNode
+        # has no owner/user_id column), so this expresses the sender's
+        # willingness to use ANY available personal edge relay, not "my
+        # own relay".
+        from app.services.personal_scope_service import (
+            get_personal_scope,
+            get_routing_strategy,
+        )
+        personal_scope = await get_personal_scope(session, from_agent.owner_id)
+        enable_edge_relay = (
+            personal_scope.enable_edge_relay if personal_scope is not None else False
+        )
+
         # Select route - this decision controls actual delivery
         route_decision = await select_route(
             session,
@@ -143,6 +195,8 @@ async def create_task(
             to_agent=to_agent,
             message_id=msg.message_id,
             timeliness_mode=timeliness_mode,
+            routing_strategy=get_routing_strategy(personal_scope),
+            enable_edge_relay=enable_edge_relay,
             scope_id=scope_id,
             source_zone_id=source_zone_id,
             target_zone_id=target_zone_id,

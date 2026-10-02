@@ -19,6 +19,7 @@ interface PersonalScope {
   default_relay_type: string;
   enable_edge_relay: boolean;
   enable_secure_channel: boolean;
+  routing_strategy: 'fast' | 'normal' | 'reliable';
   created_at: string;
   updated_at: string;
 }
@@ -52,8 +53,19 @@ interface RouteDecision {
 // Routing mode config
 // ---------------------------------------------------------------------------
 
-// Labels/descriptions resolve via t() at render time so they follow the
-// active locale; `key` stays the semantic mode id used by RELAY_TYPE_TO_MODE.
+/**
+ * Routing strategies the user can switch between at will. The active one is
+ * stored on the PersonalScope (`routing_strategy`) and PATCHed by clicking
+ * the mode strip below; the default_relay_type chip stays read-only.
+ *
+ * NOTE: any "local-first" / "edge preference" flavor in the copy below is
+ * demonstrative presentation only. The backend scoring field
+ * (`locality_score`) is a constant 0.5 this round, so local-first routing is
+ * not actually activated by switching modes — see the project unknowns doc.
+ * The fast/normal/reliable switch changes scoring weights only (fast zero
+ * the 7 non-latency weights incl. security_score; the hard filter chain and
+ * fail-closed negotiation are untouched).
+ */
 const ROUTING_MODES = [
   {
     key: 'fast',
@@ -71,12 +83,6 @@ const ROUTING_MODES = [
     descriptionKey: 'routing.mode.reliableDescription',
   },
 ] as const;
-
-const RELAY_TYPE_TO_MODE: Record<string, string> = {
-  edge: 'fast',
-  central_relay: 'normal',
-  dedicated: 'reliable',
-};
 
 // ---------------------------------------------------------------------------
 // Pixel switch
@@ -153,8 +159,13 @@ export default function PersonalRoutingPage() {
   // --- Mutations ---
 
   const scopeMutation = useMutation({
-    mutationFn: (patch: { enable_edge_relay?: boolean; enable_secure_channel?: boolean }) =>
-      api.patch('/v1/personal/scope', patch).then((r) => r.data),
+    mutationFn: (
+      patch: {
+        enable_edge_relay?: boolean;
+        enable_secure_channel?: boolean;
+        routing_strategy?: 'fast' | 'normal' | 'reliable';
+      },
+    ) => api.patch('/v1/personal/scope', patch).then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['personal-scope'] });
     },
@@ -169,7 +180,7 @@ export default function PersonalRoutingPage() {
   // --- Derived state ---
 
   const scope = scopeQuery.data;
-  const activeMode = scope ? (RELAY_TYPE_TO_MODE[scope.default_relay_type] ?? 'normal') : 'normal';
+  const activeMode = scope ? scope.routing_strategy ?? 'normal' : 'normal';
   const edgeRelays = edgeRelaysQuery.data ?? [];
 
   return (
@@ -186,7 +197,9 @@ export default function PersonalRoutingPage() {
             <LoadingState className="p-4" />
           ) : scope ? (
             <div className="space-y-4 px-4 pb-4">
-              {/* Default relay type display: neutral chip, fixed contrast in both themes. */}
+              {/* Default relay type display: neutral chip, fixed contrast in both themes.
+                  Read-only: the mode strip drives routing_strategy now; the edge/dedicated
+                  default_relay_type branches are not reachable with real data. */}
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <span className="text-lg text-pixel-fg">{t('routing.field.defaultRelayType')}</span>
                 <span
@@ -260,13 +273,14 @@ export default function PersonalRoutingPage() {
                     key={mode.key}
                     type="button"
                     className={cn(
-                      'flex-1 cursor-not-allowed border-r-2 border-pixel-line px-4 py-2 font-pixel text-pixel-sm last:border-r-0',
+                      'flex-1 cursor-pointer border-r-2 border-pixel-line px-4 py-2 font-pixel text-pixel-sm last:border-r-0',
                       activeMode === mode.key
                         ? 'bg-pixel-accent text-[#191a26]'
                         : 'bg-pixel-surface text-pixel-fg',
                     )}
-                    disabled
-                    title={t('routing.mode.disabledHint')}
+                    disabled={scopeMutation.isPending}
+                    title={t('routing.mode.switchHint')}
+                    onClick={() => scopeMutation.mutate({ routing_strategy: mode.key })}
                   >
                     {t(mode.labelKey)}
                   </button>

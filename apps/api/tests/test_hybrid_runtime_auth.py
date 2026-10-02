@@ -67,6 +67,8 @@ class TestRuntimeEndpointSessionAuth:
         await _login(client, user.username, raw_key)
         resp = await client.get("/v1/personal/scope")
         assert resp.status_code == 200, resp.text
+        # 0033: the personal scope response carries routing_strategy
+        assert resp.json()["routing_strategy"] == "normal"
 
     async def test_tasks_list_with_session_cookie(self, client):
         user, raw_key = await _make_user_with_key()
@@ -102,6 +104,8 @@ class TestRuntimeEndpointApiKeyAuth:
             "/v1/personal/scope", headers={"X-API-Key": raw_key}
         )
         assert resp.status_code == 200, resp.text
+        # 0033: the personal scope response carries routing_strategy
+        assert resp.json()["routing_strategy"] == "normal"
 
 
 class TestRuntimeEndpointAuthFailure:

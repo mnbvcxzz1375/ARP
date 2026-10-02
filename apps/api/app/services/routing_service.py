@@ -5,7 +5,7 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import SessionLocal
@@ -15,13 +15,34 @@ from app.models.agent import Agent
 from app.models.message import Message
 from app.models.route_decision import RouteDecision
 from app.models.task import Task
-from app.protocol.constants import ErrorCode, DeliveryStatus, MessageType
+from app.protocol.constants import ErrorCode, DeliveryStatus, MessageType, TaskStatus
 from app import metrics
 
 logger = logging.getLogger(__name__)
 
 DELIVERY_TIMEOUT_S = 30
 RETRY_BACKOFF_BASE_S = 5
+
+
+def _copy_security_marker(ws_payload: dict, content: object) -> None:
+    """Copy the envelope security block from stored content into a WS payload.
+
+    M2 invariants:
+
+    - copy only — the values are the sender's verbatim marker block;
+    - never construct a block the sender did not send (no marker in the
+      content means no marker in the delivered payload);
+    - never rewrite it (no mode upgrade/downgrade, no nonce regeneration).
+
+    The ``encrypted_payload`` / ``aad`` fields already ride inside
+    ``ws_payload["payload"]`` (the full sender envelope), so only the
+    ``security`` marker needs a top-level copy for cheap dispatch.
+    """
+    if not isinstance(content, dict):
+        return
+    security = content.get("security")
+    if isinstance(security, dict):
+        ws_payload["security"] = dict(security)
 
 
 async def resolve_agent(session: AsyncSession, agent_number: str) -> Agent:
@@ -59,14 +80,24 @@ async def deliver_task_request(
     Phase 13: When route_decision is provided, delivery follows the selected route.
     For central_relay routes, the message is delivered through the relay infrastructure.
     Phase 13: Verifies and consumes route lease if present.
+    M3: Delivery is dispatched on selected_route_type to the transport layer
+    (app.transports). The transport reports what actually happened — sent
+    locally, sent cross-node, queued offline, or queued-after-pub/sub-failure —
+    and this function maps that truth onto delivery events and status. It no
+    longer pre-guesses "online" from presence before sending: an online guess
+    whose send fails used to fall through to the same "queued" code path as a
+    genuinely offline agent, conflating the two; the transport result keeps
+    them apart.
     """
-    from app.websocket.manager import get_connection_manager
     from app.models.message_delivery_event import MessageDeliveryEvent
     from app.services.lease_service import verify_route_lease, consume_route_lease
+    from app.transports import select_transport
 
-    mgr = get_connection_manager()
-    is_online = await mgr.is_agent_online(assigned_to.id)
+    route_type = route_decision.selected_route_type if route_decision else None
 
+    # ws_payload["payload"] is the sender envelope verbatim: the M2 security
+    # block (security / encrypted_payload / aad) is copied, never parsed or
+    # rebuilt, by the platform.
     ws_payload = {
         "type": MessageType.TASK_REQUEST.value,
         "message_id": message.message_id,
@@ -74,6 +105,10 @@ async def deliver_task_request(
         "payload": message.content,
         "timestamp": datetime.now(UTC).isoformat(),
     }
+    # M2: copy the marker block from the sender's envelope verbatim — the
+    # platform only relays it, it never constructs, infers, or rewrites
+    # security material (never downgrades or upgrades a mode).
+    _copy_security_marker(ws_payload, message.content)
 
     # Estimate message size for lease consumption
     message_size_bytes = len(json.dumps(ws_payload).encode("utf-8"))
@@ -124,87 +159,91 @@ async def deliver_task_request(
 
     delivery_start = datetime.now(UTC)
 
-    if is_online:
-        # Record delivering event
+    # Record delivering event (the attempt starts now, whatever the outcome)
+    async with SessionLocal() as session:
+        event = MessageDeliveryEvent(
+            message_id=message.message_id,
+            task_id=task.id,
+            event_type="delivering",
+            route_type=route_type,
+            relay_node_id=route_decision.selected_relay_node_id if route_decision else None,
+        )
+        session.add(event)
+        await session.commit()
+
+    # M3: dispatch on route_type to the transport layer.
+    transport = select_transport(route_type)
+    result = await transport.deliver(
+        agent_id=assigned_to.id,
+        message=json.dumps(ws_payload),
+        message_id=message.message_id,
+        task_id=task.id,
+        source_agent_id=task.created_by,
+        relay_node_id=route_decision.selected_relay_node_id if route_decision else None,
+        track_pending=True,
+    )
+    latency_ms = int((datetime.now(UTC) - delivery_start).total_seconds() * 1000)
+
+    if result.is_sent:
+        logger.info(
+            "Delivered task %s to agent %s via %s transport (outcome=%s node=%s)",
+            task.id,
+            assigned_to.agent_number,
+            route_type or "central",
+            result.outcome,
+            result.node_id,
+        )
+        metrics.MESSAGES_DELIVERED_TOTAL.inc()
+
+        # Consume route lease after successful delivery
+        if lease:
+            from app.models.route_lease import RouteLease
+
+            async with SessionLocal() as session:
+                lease_result = await session.execute(
+                    select(RouteLease).where(RouteLease.id == lease.id)
+                )
+                lease_obj = lease_result.scalar_one_or_none()
+                if lease_obj:
+                    await consume_route_lease(
+                        session,
+                        lease=lease_obj,
+                        message_size_bytes=message_size_bytes,
+                    )
+                    await session.commit()
+                    logger.debug(
+                        "Consumed lease %s: messages=%d bytes=%d",
+                        lease.id,
+                        lease_obj.messages_sent,
+                        lease_obj.bytes_sent,
+                    )
+
+        # Record delivered event
         async with SessionLocal() as session:
             event = MessageDeliveryEvent(
                 message_id=message.message_id,
                 task_id=task.id,
-                event_type="delivering",
-                route_type=route_decision.selected_route_type if route_decision else None,
+                event_type="delivered",
+                route_type=route_type,
                 relay_node_id=route_decision.selected_relay_node_id if route_decision else None,
+                latency_ms=result.latency_ms if result.latency_ms is not None else latency_ms,
+                extra_metadata={"outcome": result.outcome, "node_id": result.node_id},
             )
             session.add(event)
             await session.commit()
 
-        success = await mgr.send_to_agent(
-            assigned_to.id,
-            json.dumps(ws_payload),
-            track_pending=True,
-        )
-        if success:
-            latency_ms = int((datetime.now(UTC) - delivery_start).total_seconds() * 1000)
-            logger.info("Delivered task %s to online agent %s", task.id, assigned_to.agent_number)
-            metrics.MESSAGES_DELIVERED_TOTAL.inc()
+        # Phase 18: Record route metric for SLA monitoring
+        if route_decision:
+            await _record_route_metric(
+                route_decision_id=route_decision.id,
+                latency_ms=latency_ms,
+                success=True,
+                relay_node_id=route_decision.selected_relay_node_id,
+            )
 
-            # Consume route lease after successful delivery
-            if lease:
-                from app.models.route_lease import RouteLease
+        return DeliveryStatus.DELIVERED.value
 
-                async with SessionLocal() as session:
-                    result = await session.execute(
-                        select(RouteLease).where(RouteLease.id == lease.id)
-                    )
-                    lease_obj = result.scalar_one_or_none()
-                    if lease_obj:
-                        await consume_route_lease(
-                            session,
-                            lease=lease_obj,
-                            message_size_bytes=message_size_bytes,
-                        )
-                        await session.commit()
-                        logger.debug(
-                            "Consumed lease %s: messages=%d bytes=%d",
-                            lease.id,
-                            lease_obj.messages_sent,
-                            lease_obj.bytes_sent,
-                        )
-
-            # Record delivered event
-            async with SessionLocal() as session:
-                event = MessageDeliveryEvent(
-                    message_id=message.message_id,
-                    task_id=task.id,
-                    event_type="delivered",
-                    route_type=route_decision.selected_route_type if route_decision else None,
-                    relay_node_id=route_decision.selected_relay_node_id if route_decision else None,
-                    latency_ms=latency_ms,
-                )
-                session.add(event)
-                await session.commit()
-
-            # Phase 18: Record route metric for SLA monitoring
-            if route_decision:
-                await _record_route_metric(
-                    route_decision_id=route_decision.id,
-                    latency_ms=latency_ms,
-                    success=True,
-                    relay_node_id=route_decision.selected_relay_node_id,
-                )
-
-            return DeliveryStatus.DELIVERED.value
-        else:
-            # Phase 18: Record failed delivery metric
-            if route_decision:
-                await _record_route_metric(
-                    route_decision_id=route_decision.id,
-                    latency_ms=0,
-                    success=False,
-                    error_code="DELIVERY_FAILED",
-                    relay_node_id=route_decision.selected_relay_node_id,
-                )
-
-    # Offline: queue under agent_id. When the agent reconnects,
+    # Not sent: queue under agent_id. When the agent reconnects,
     # deliver_pending_on_connect() picks up messages from both the
     # agent_id queue (offline) and the session_id queue (resume).
     from app.services.session_service import store_pending_message
@@ -214,19 +253,45 @@ async def deliver_task_request(
         json.dumps(ws_payload),
     )
     metrics.PENDING_MESSAGES.inc()
-    logger.info("Queued task %s for offline agent %s", task.id, assigned_to.agent_number)
+    logger.info(
+        "Queued task %s for agent %s (outcome=%s%s)",
+        task.id,
+        assigned_to.agent_number,
+        result.outcome,
+        f" error={result.error_code}" if result.error_code else "",
+    )
 
-    # Record queued event
+    # Record queued event. A degraded outcome (pub/sub broke mid-dispatch)
+    # is recorded with its error code so the timeline stays truthful —
+    # "queued" alone would read as "agent was offline".
     async with SessionLocal() as session:
         event = MessageDeliveryEvent(
             message_id=message.message_id,
             task_id=task.id,
             event_type="queued",
-            route_type=route_decision.selected_route_type if route_decision else None,
+            route_type=route_type,
             relay_node_id=route_decision.selected_relay_node_id if route_decision else None,
+            error_code=result.error_code,
+            error_message=result.error_message,
+            extra_metadata={"outcome": result.outcome, "node_id": result.node_id},
         )
         session.add(event)
         await session.commit()
+
+    # M3: a queued message is NOT a relay delivery failure — the transport
+    # never failed, the agent is simply not reachable right now. Feeding
+    # queued outcomes into the route metric would trip the relay's circuit
+    # breaker on ordinary offline traffic (and a pub/sub degradation is a
+    # bus problem, not the relay node's). Only a transport-level FAILED
+    # outcome counts as a delivery failure for SLA/circuit-breaker purposes.
+    if route_decision and result.outcome == "failed":
+        await _record_route_metric(
+            route_decision_id=route_decision.id,
+            latency_ms=latency_ms,
+            success=False,
+            error_code=result.error_code or "DELIVERY_FAILED",
+            relay_node_id=route_decision.selected_relay_node_id,
+        )
 
     return DeliveryStatus.QUEUED.value
 
@@ -279,18 +344,60 @@ async def deliver_pending_on_connect(
     for raw in pending:
         success = await mgr.send_to_agent(agent.id, raw)
         if success:
+            mid = ""
             try:
                 msg_data = json.loads(raw)
-                delivered.append(msg_data.get("message_id", ""))
+                mid = msg_data.get("message_id", "")
+                delivered.append(mid)
             except json.JSONDecodeError:
                 pass
+            # M2: the bytes just reached a live connection, so a queued
+            # message must flip to delivered — otherwise an offline-created
+            # task stays "created" forever and the receiver's
+            # accept/complete state machine can never fire. This mirrors
+            # exactly what the online delivery path does.
+            await _mark_delivered_after_reconnect(mid)
 
     logger.info("Delivered %d pending messages to agent %s", len(delivered), agent.agent_number)
     return delivered
 
 
+async def _mark_delivered_after_reconnect(message_id: str) -> None:
+    """Flip a queued message (and its task) to delivered on reconnect.
+
+    Idempotent-ish: only touches rows still in queued status; already
+    delivered/acked rows are left alone. Also arms the retry worker for
+    the un-acked case, like the online path.
+    """
+    if not message_id:
+        return
+    async with SessionLocal() as session:
+        result = await session.execute(
+            select(Message).where(Message.message_id == message_id)
+        )
+        msg = result.scalar_one_or_none()
+        if msg is None or msg.delivery_status != DeliveryStatus.QUEUED.value:
+            return
+        msg.delivery_status = DeliveryStatus.DELIVERED.value
+        msg.next_retry_at = datetime.now(UTC) + timedelta(seconds=RETRY_BACKOFF_BASE_S)
+        if msg.task_id is not None:
+            task_result = await session.execute(
+                select(Task).where(Task.id == msg.task_id)
+            )
+            task = task_result.scalar_one_or_none()
+            if task is not None and task.status in (
+                TaskStatus.CREATED.value,
+                TaskStatus.QUEUED.value,
+            ):
+                task.status = TaskStatus.DELIVERED.value
+        await session.commit()
+
+
 async def ack_message(message_id: str) -> None:
-    """Mark a message as acked. Idempotent ? re-acking is a no-op."""
+    """Mark a message as acked. Idempotent — re-acking is a no-op for
+    bookkeeping, but a duplicate ack still removes any pending copy that
+    landed after the first ack (redelivery/queue race), so an ack is
+    always convergent."""
     from app.models.message_delivery_event import MessageDeliveryEvent
 
     async with SessionLocal() as session:
@@ -302,29 +409,32 @@ async def ack_message(message_id: str) -> None:
             logger.debug("Ack for unknown message %s, ignoring", message_id)
             return
 
-        if msg.delivery_status == DeliveryStatus.ACKNOWLEDGED.value:
-            logger.debug("Message %s already acked, ignoring duplicate ack", message_id)
-            return
+        already_acked = msg.delivery_status == DeliveryStatus.ACKNOWLEDGED.value
+        if already_acked:
+            logger.debug("Message %s already acked, processing duplicate ack", message_id)
 
         # Capture task_id before clearing fields for Redis cleanup
         task_id = msg.task_id
 
-        msg.delivery_status = DeliveryStatus.ACKNOWLEDGED.value
-        msg.next_retry_at = None
-        await session.commit()
-        metrics.MESSAGES_ACKED_TOTAL.inc()
-        logger.info("Message %s acked", message_id)
+        if not already_acked:
+            msg.delivery_status = DeliveryStatus.ACKNOWLEDGED.value
+            msg.next_retry_at = None
+            await session.commit()
+            metrics.MESSAGES_ACKED_TOTAL.inc()
+            logger.info("Message %s acked", message_id)
 
-        # Record acknowledged event
-        event = MessageDeliveryEvent(
-            message_id=message_id,
-            task_id=task_id,
-            event_type="acknowledged",
-        )
-        session.add(event)
-        await session.commit()
+            # Record acknowledged event
+            event = MessageDeliveryEvent(
+                message_id=message_id,
+                task_id=task_id,
+                event_type="acknowledged",
+            )
+            session.add(event)
+            await session.commit()
 
-        # Clean up Redis pending queue for this agent
+        # Clean up Redis pending queue for this agent. Runs on every ack
+        # (including duplicates): a redelivered copy that landed after the
+        # first ack must not linger in the queue forever.
         try:
             from app.services.session_service import ack_message_for_agent
             task_result = await session.execute(
@@ -337,34 +447,105 @@ async def ack_message(message_id: str) -> None:
             logger.debug("Redis ack cleanup failed for %s, ignoring", message_id)
 
 
+RETRY_CLAIM_WINDOW_S = 30
+"""How long a retry claim hides a row from other instances of this worker.
+
+Must comfortably exceed a send round-trip, so two concurrent instances of
+retry_unacked_messages never re-send the same message.
+"""
+
+_RETRY_CLAIM_SELECT_SQL = text(
+    """
+    SELECT id FROM messages
+    WHERE delivery_status = :delivered_status
+      AND next_retry_at <= :now
+      AND retry_count < max_retries
+    ORDER BY next_retry_at
+    FOR UPDATE SKIP LOCKED
+    """
+)
+
+_RETRY_CLAIM_UPDATE_SQL = text(
+    """
+    UPDATE messages
+    SET delivery_status = :delivering_status,
+        next_retry_at = :claim_until
+    WHERE id = :row_id
+    """
+)
+
+
 async def retry_unacked_messages() -> int:
     """Retry worker: find delivered-but-unacked messages past their retry window,
     re-deliver them, and apply backoff.
 
+    M3 claim protocol (claim first, send after, never hold row locks across
+    the send round-trip):
+
+        claim:  SELECT ... FOR UPDATE SKIP LOCKED  (single statement)
+                UPDATE delivery_status = 'delivering', next_retry_at = now + window
+        COMMIT  <- row locks released here
+        send:   transport round-trip
+        finish: final status in a separate transaction
+
+    SKIP LOCKED only matters for concurrent instances of this SAME statement
+    (two event-loop instances / replicas). The offline delivery worker scans
+    a strictly disjoint row set ('queued'/'delivering'), so by construction
+    the two workers can never claim the same row; there is no cross-worker
+    concurrency to guard here.
+
+    The claim intentionally has NO LIMIT: a bounded batch ordered by
+    next_retry_at (most overdue first) lets an accumulated backlog of
+    overdue rows crowd a freshly-armed message out of the batch, so a
+    message whose retry window just opened would wait an arbitrary number
+    of cycles before being claimed — its retry bookkeeping (retry_count,
+    backoff) would depend on how much unrelated backlog exists. Claiming
+    the full due set every cycle guarantees forward progress for every
+    due message; SKIP LOCKED still splits the set across concurrent
+    instances/replicas.
+
     Returns number of messages retried.
     """
     from app.models.message_delivery_event import MessageDeliveryEvent
+    from app.transports import select_transport
 
     now = datetime.now(UTC)
+    claim_until = now + timedelta(seconds=RETRY_CLAIM_WINDOW_S)
 
     async with SessionLocal() as session:
-        result = await session.execute(
-            select(Message).where(
-                Message.delivery_status == DeliveryStatus.DELIVERED.value,
-                Message.next_retry_at <= now,
-                Message.retry_count < Message.max_retries,
-            ).limit(50)
+        claim_result = await session.execute(
+            _RETRY_CLAIM_SELECT_SQL,
+            {
+                "delivered_status": DeliveryStatus.DELIVERED.value,
+                "now": now,
+            },
         )
-        messages = result.scalars().all()
+        claimed_ids = [uuid.UUID(str(row.id)) for row in claim_result]
 
-        if not messages:
-            return 0
+        for row_id in claimed_ids:
+            await session.execute(
+                _RETRY_CLAIM_UPDATE_SQL,
+                {
+                    "delivering_status": DeliveryStatus.DELIVERING.value,
+                    "claim_until": claim_until,
+                    "row_id": row_id,
+                },
+            )
+        await session.commit()
+        # Row locks released: the send round-trip below holds none.
 
-        from app.websocket.manager import get_connection_manager
-        mgr = get_connection_manager()
+    if not claimed_ids:
+        return 0
 
-        retried = 0
-        for msg in messages:
+    transport = select_transport(None)
+    retried = 0
+
+    for mid in claimed_ids:
+        async with SessionLocal() as session:
+            msg = await session.get(Message, mid)
+            if msg is None:
+                continue
+
             # Get the task to find assigned_to
             task_result = await session.execute(
                 select(Task).where(Task.id == msg.task_id)
@@ -372,6 +553,7 @@ async def retry_unacked_messages() -> int:
             task = task_result.scalar_one_or_none()
             if task is None or task.assigned_to is None:
                 msg.delivery_status = DeliveryStatus.DELIVERY_FAILED.value
+                msg.next_retry_at = None
                 # Record delivery_failed event
                 event = MessageDeliveryEvent(
                     message_id=msg.message_id,
@@ -381,29 +563,33 @@ async def retry_unacked_messages() -> int:
                     error_message="Task or assigned agent not found during retry",
                 )
                 session.add(event)
+                await session.commit()
                 continue
 
             agent_id = task.assigned_to
-            is_online = await mgr.is_agent_online(agent_id)
-
-            if not is_online:
-                # Still offline, update next_retry_at but don't count as retry
-                msg.next_retry_at = now + timedelta(seconds=RETRY_BACKOFF_BASE_S * (2 ** msg.retry_count))
-                continue
-
             ws_payload = {
                 "type": msg.type,
                 "message_id": msg.message_id,
                 "task_id": str(task.id),
                 "payload": msg.content,
-                "timestamp": now.isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
+            # M2: same copy-only marker semantics as the first delivery.
+            _copy_security_marker(ws_payload, msg.content)
 
-            success = await mgr.send_to_agent(agent_id, json.dumps(ws_payload))
-            if success:
-                backoff = RETRY_BACKOFF_BASE_S * (2 ** msg.retry_count)
+            send_result = await transport.deliver(
+                agent_id=agent_id,
+                message=json.dumps(ws_payload),
+                message_id=msg.message_id,
+                task_id=task.id,
+                source_agent_id=task.created_by,
+                track_pending=True,
+            )
+
+            if send_result.is_sent:
                 msg.retry_count += 1
-                msg.next_retry_at = now + timedelta(seconds=backoff)
+                backoff = RETRY_BACKOFF_BASE_S * (2 ** msg.retry_count)
+                msg.next_retry_at = datetime.now(UTC) + timedelta(seconds=backoff)
                 msg.delivery_status = DeliveryStatus.DELIVERED.value
                 metrics.MESSAGES_RETRIED_TOTAL.inc()
                 retried += 1
@@ -412,13 +598,25 @@ async def retry_unacked_messages() -> int:
                     message_id=msg.message_id,
                     task_id=msg.task_id,
                     event_type="delivered",
-                    extra_metadata={"retry_count": msg.retry_count},
+                    extra_metadata={
+                        "retry_count": msg.retry_count,
+                        "outcome": send_result.outcome,
+                        "node_id": send_result.node_id,
+                    },
                 )
                 session.add(event)
+            elif send_result.is_queued:
+                # Agent unreachable (or pub/sub degraded): re-arm the retry
+                # window WITHOUT consuming an attempt — the transport never
+                # failed, the agent is simply not there right now.
+                msg.delivery_status = DeliveryStatus.DELIVERED.value
+                backoff = RETRY_BACKOFF_BASE_S * (2 ** msg.retry_count)
+                msg.next_retry_at = datetime.now(UTC) + timedelta(seconds=backoff)
             else:
-                # Delivery failed again: count this attempt so a permanently
-                # unreachable agent eventually exhausts max_retries instead
-                # of being retried forever.
+                # Delivery genuinely failed: count this attempt so a
+                # permanently unreachable agent eventually exhausts
+                # max_retries instead of being retried forever.
+                msg.delivery_status = DeliveryStatus.DELIVERED.value
                 msg.retry_count += 1
                 if msg.retry_count >= msg.max_retries:
                     msg.delivery_status = DeliveryStatus.DELIVERY_FAILED.value
@@ -435,13 +633,13 @@ async def retry_unacked_messages() -> int:
                     session.add(event)
                 else:
                     backoff = RETRY_BACKOFF_BASE_S * (2 ** msg.retry_count)
-                    msg.next_retry_at = now + timedelta(seconds=backoff)
+                    msg.next_retry_at = datetime.now(UTC) + timedelta(seconds=backoff)
 
-        await session.commit()
+            await session.commit()
 
-        if retried:
-            logger.info("Retried %d messages", retried)
-        return retried
+    if retried:
+        logger.info("Retried %d messages", retried)
+    return retried
 
 
 async def _record_route_metric(

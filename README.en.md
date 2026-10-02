@@ -72,7 +72,7 @@ npm ci
 npm run dev:demo -- --host 127.0.0.1 --port 5173
 ```
 
-Open **http://127.0.0.1:5173/login** and choose a demo identity: personal user, organization manager or super administrator. Super administrators can switch between personal and enterprise consoles.
+Open **[the local login page](http://127.0.0.1:5173/login)** and choose a demo identity: personal user, organization manager or super administrator. Super administrators can switch between personal and enterprise consoles.
 
 Suggested tour: **archipelago → agent details → task progress → connections / approvals → enterprise policies → egress → audit / health.**
 

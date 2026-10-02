@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useNavigate, Link } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { BookOpen, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Sun, X } from 'lucide-react';
 import { useAuth, useLogout } from '../hooks/useAuth';
 import { useTheme } from '../hooks/useTheme';
@@ -10,6 +10,7 @@ import { canSeeNavItem, type NavGroup, type NavItem } from './navigation';
 import { rememberDocsOrigin } from '../features/docs/docsEntryMemory';
 import DemoBanner from '../demo/DemoBanner';
 import { isDemoMode } from '../demo';
+import StationMaster from '../components/pixel/StationMaster';
 
 type Scope = 'personal' | 'enterprise';
 
@@ -38,6 +39,8 @@ export default function DashboardShell({ navGroups, scope }: DashboardShellProps
   const { data: user } = useAuth();
   const logoutMutation = useLogout();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const isArchipelago = scope === 'personal' && /^\/app\/?(?:overview\/?)?$/.test(pathname);
   const { theme, toggleTheme } = useTheme();
   const t = useT();
 
@@ -115,11 +118,11 @@ export default function DashboardShell({ navGroups, scope }: DashboardShellProps
 
   return (
     <div
-      className={
+      className={'agentnet-shell ' + (isArchipelago ? 'agentnet-shell--archipelago ' : '') + (collapsed ? 'is-collapsed ' : '') + (
         collapsed
           ? 'grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-pixel-bg [height:var(--app-vh,100dvh)] md:grid-cols-[4rem_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]'
           : 'grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-pixel-bg [height:var(--app-vh,100dvh)] md:grid-cols-[16rem_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]'
-      }
+      )}
     >
       {/* CRT overlay layers: fixed, pointer-events:none; auto-disabled on
           mobile (<768px) and under prefers-reduced-motion (index.css). */}
@@ -214,9 +217,14 @@ export default function DashboardShell({ navGroups, scope }: DashboardShellProps
                   the controls row below (the previous single-row layout
                   let 5 x 44px buttons crowd the username into the
                   switcher at 16rem sidebar width). */}
-              <div className="min-w-0">
-                {/* title shows the full user_id: usernames are non-unique
-                    display labels, the UUID is the canonical identity. */}
+              <div className="flex items-center gap-3">
+                {/* StationMaster mascot (32px) sits at the left of the
+                    identity row. Collapsed sidebar does not render it:
+                    the 4rem column cannot fit 32px + 2px outline. */}
+                <StationMaster size={32} />
+                <div className="min-w-0">
+                  {/* title shows the full user_id: usernames are non-unique
+                      display labels, the UUID is the canonical identity. */}
                 <div
                   className="truncate text-lg text-pixel-fg"
                   title={user ? `${t('shell.user.userIdTitle')} ${user.user_id}` : undefined}
@@ -234,6 +242,7 @@ export default function DashboardShell({ navGroups, scope }: DashboardShellProps
                     {primaryOrg.name} -- {orgRoleLabel(primaryOrg.role)}
                   </div>
                 )}
+                </div>
               </div>
               {/* Controls row: 44px touch targets wrap instead of
                   overlapping the identity. */}
@@ -401,14 +410,15 @@ export default function DashboardShell({ navGroups, scope }: DashboardShellProps
             ))}
           </nav>
           <div className="shrink-0 border-t-2 border-pixel-line p-3">
+            {/* StationMaster mascot above the controls row (32px). */}
+            <div className="mb-2 flex">
+              <StationMaster size={32} />
+            </div>
             <div className="flex flex-wrap items-center gap-1">
               <LanguageSwitcher />
               <Link
                 to="/docs/quickstart"
-                onClick={() => {
-                  rememberDocsOrigin();
-                  setMobileNavOpen(false);
-                }}
+                onClick={() => rememberDocsOrigin()}
                 className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-pixel-muted hover:text-pixel-fg hover:bg-pixel-raised"
                 aria-label={t('shell.docs.entry')}
                 title={t('shell.docs.label')}
@@ -439,7 +449,7 @@ export default function DashboardShell({ navGroups, scope }: DashboardShellProps
       )}
 
       {/* Main content */}
-      <main className="min-w-0 overflow-y-auto bg-pixel-bg pt-[52px] md:pt-0">
+      <main className={'min-w-0 overflow-y-auto bg-pixel-bg pt-[52px] md:pt-0 ' + (isArchipelago ? 'archipelago-main' : '')}>
         {isDemoMode() && <DemoBanner />}
         {isEnterprise && (
           <div
@@ -459,7 +469,7 @@ export default function DashboardShell({ navGroups, scope }: DashboardShellProps
             )}
           </div>
         )}
-        <div className="p-4 md:p-6">
+        <div className={isArchipelago ? 'archipelago-content' : 'p-4 md:p-6'}>
           <Outlet />
         </div>
       </main>

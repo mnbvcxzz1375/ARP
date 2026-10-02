@@ -43,6 +43,9 @@ interface GatewayRow {
   cache_config: Record<string, unknown> | null;
   cost_tracking: boolean;
   enabled: boolean;
+  // M4 egress policy point: default-deny baseline opt-in
+  // (EgressGatewayResponse.allow_internal_egress, NOT NULL, default false).
+  allow_internal_egress: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -67,6 +70,9 @@ interface GatewayForm {
   secret_store_ref: string;
   cost_tracking: boolean;
   enabled: boolean;
+  // Default false: the backend's default-deny baseline
+  // (EgressGatewayCreate.allow_internal_egress).
+  allow_internal_egress: boolean;
 }
 
 const emptyForm: GatewayForm = {
@@ -77,6 +83,7 @@ const emptyForm: GatewayForm = {
   secret_store_ref: '',
   cost_tracking: true,
   enabled: true,
+  allow_internal_egress: false,
 };
 
 /** Split the comma-separated domains input into a clean allowlist. */
@@ -225,6 +232,7 @@ export default function EgressGatewaysPage() {
       secret_store_ref: row.secret_store_ref ?? '',
       cost_tracking: row.cost_tracking,
       enabled: row.enabled,
+      allow_internal_egress: row.allow_internal_egress ?? false,
     });
     setFormError(null);
     setFormOpen(true);
@@ -264,6 +272,7 @@ export default function EgressGatewaysPage() {
       domain_allowlist: parseDomains(form.domain_allowlist),
       secret_store_ref: form.secret_store_ref.trim() || null,
       cost_tracking: form.cost_tracking,
+      allow_internal_egress: form.allow_internal_egress,
     };
     if (editingId) {
       body.enabled = form.enabled;
@@ -386,6 +395,23 @@ export default function EgressGatewaysPage() {
                     )}
                   >
                     {r.cost_tracking ? t('enterprise.value.yes') : t('enterprise.value.no')}
+                  </span>
+                ),
+              },
+              {
+                // M4: amber when opted in — internal egress is a
+                // security-relevant privilege on top of the default-deny
+                // baseline, so it merits attention rather than a pass.
+                key: 'allow_internal_egress',
+                label: t('enterprise.egress.table.internalEgress'),
+                render: (r: GatewayRow) => (
+                  <span
+                    className={cn(
+                      'inline-flex items-center px-2 py-0.5 font-pixel text-sm leading-none border-2 border-[#191a26]',
+                      r.allow_internal_egress ? PIXEL_CHIP.warn : PIXEL_CHIP.neutral,
+                    )}
+                  >
+                    {r.allow_internal_egress ? t('enterprise.value.yes') : t('enterprise.value.no')}
                   </span>
                 ),
               },
@@ -522,6 +548,18 @@ export default function EgressGatewaysPage() {
                 onChange={(e) => setForm({ ...form, cost_tracking: e.target.checked })}
               />
               {t('enterprise.egress.form.costTrackingHint')}
+            </label>
+          </PixelField>
+          <PixelField label={t('enterprise.egress.form.internalEgress')} htmlFor="gateway-internal">
+            <label className="flex items-center gap-2 font-pixel text-sm text-pixel-fg">
+              <input
+                id="gateway-internal"
+                type="checkbox"
+                className="h-4 w-4 accent-pixel-accent"
+                checked={form.allow_internal_egress}
+                onChange={(e) => setForm({ ...form, allow_internal_egress: e.target.checked })}
+              />
+              {t('enterprise.egress.form.internalEgressHint')}
             </label>
           </PixelField>
           {editingId && (

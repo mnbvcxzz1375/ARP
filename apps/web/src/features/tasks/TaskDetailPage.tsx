@@ -5,9 +5,11 @@ import api from '../../api/client';
 import StatusBadge from '../../components/StatusBadge';
 import RiskBadge from '../../components/RiskBadge';
 import DataTable from '../../components/DataTable';
+import ContentPreview from '../../components/ContentPreview';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
 import EmptyState from '../../components/EmptyState';
+import JourneyMap from '../../components/pixel/JourneyMap';
 import { PIXEL_CHIP, TOUCH_TARGET } from '../../lib/tokens';
 import { useFormat, useT } from '../../i18n';
 
@@ -22,15 +24,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function CodeBlock({ content }: { content: string | null | undefined }) {
-  if (!content) return <span className="font-mono text-lg text-pixel-muted">-</span>;
-  // Terminal well: bg base + 2px pixel step, fg text (12.39:1 both themes).
-  return (
-    <pre className="mt-1 whitespace-pre-wrap break-all bg-pixel-bg border-2 border-pixel-line p-3 font-mono text-base text-pixel-fg max-h-48 overflow-auto">
-      {content}
-    </pre>
-  );
-}
+// M2: payload / result previews go through the backend read-side
+// degradation view before reaching the console, so they may carry an
+// encrypted / encrypted_parse_error flag. ContentPreview classifies and
+// badges them; error_message below is plain operator text.
 
 export default function TaskDetailPage() {
   const t = useT();
@@ -87,12 +84,24 @@ export default function TaskDetailPage() {
 
       <div className="space-y-6">
         <section className="border-2 border-pixel-line bg-pixel-surface p-4 md:p-6 shadow-pixel-sm">
+          <h3 className="font-display text-pixel-base uppercase tracking-pixel text-pixel-muted mb-4">{t('tasks.section.journey')}</h3>
+          <JourneyMap
+            status={task.status}
+            deliveryStatus={task.delivery_status}
+            errorMessage={task.error_message}
+            progress={progressQuery.data?.progress}
+          />
+        </section>
+
+        <section className="border-2 border-pixel-line bg-pixel-surface p-4 md:p-6 shadow-pixel-sm">
           <h3 className="font-display text-pixel-base uppercase tracking-pixel text-pixel-muted mb-4">{t('tasks.section.status')}</h3>
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label={t('tasks.table.status')}>
               <StatusBadge status={task.status} />
             </Field>
-            <Field label={t('tasks.field.deliveryStatus')}>{task.delivery_status}</Field>
+            <Field label={t('tasks.field.deliveryStatus')}>
+              {task.delivery_status ? <StatusBadge status={task.delivery_status} /> : '—'}
+            </Field>
             <Field label={t('tasks.field.retryCount')}>{task.retry_count}</Field>
             <Field label={t('tasks.field.created')}>{formatDateTime(task.created_at)}</Field>
             <Field label={t('tasks.field.updated')}>{formatDateTime(task.updated_at)}</Field>
@@ -100,19 +109,22 @@ export default function TaskDetailPage() {
         </section>
 
         {(task.payload_preview || task.result_preview || task.error_message) && (
-          <section className="border-2 border-pixel-line bg-pixel-surface p-4 md:p-6 shadow-pixel-sm">
+          // id anchors the journey map's failed terminal (#task-error). The
+          // section itself stays conditional: a failed task without an
+          // error message renders no dead link.
+          <section id="task-error" className="border-2 border-pixel-line bg-pixel-surface p-4 md:p-6 shadow-pixel-sm">
             <h3 className="font-display text-pixel-base uppercase tracking-pixel text-pixel-muted mb-4">{t('tasks.section.content')}</h3>
             <div className="space-y-4">
               {task.payload_preview && (
                 <div>
                   <dt className="font-mono text-sm uppercase tracking-pixel text-pixel-muted">{t('tasks.field.payload')}</dt>
-                  <CodeBlock content={task.payload_preview} />
+                  <ContentPreview preview={task.payload_preview} />
                 </div>
               )}
               {task.result_preview && (
                 <div>
                   <dt className="font-mono text-sm uppercase tracking-pixel text-pixel-muted mt-3">{t('tasks.field.result')}</dt>
-                  <CodeBlock content={task.result_preview} />
+                  <ContentPreview preview={task.result_preview} />
                 </div>
               )}
               {task.error_message && (

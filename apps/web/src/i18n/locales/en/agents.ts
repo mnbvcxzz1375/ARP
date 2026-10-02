@@ -12,6 +12,13 @@ const agents = {
   'error.loadDetail': 'Failed to load agent detail',
   'action.backToList': 'Back to Agents',
 
+  // Story empty state (AgentsPage, empty list)
+  'empty.title': 'No agent on duty yet',
+  'empty.subtitle': 'Connect your first agent and the station opens.',
+  // Points at the docs quickstart; /app/agents/new does not exist in the
+  // route table yet, so the entry deliberately routes to the guide first.
+  'empty.action.quickstart': 'Read the quickstart',
+
   // List table (AgentsPage)
   'table.name': 'Name',
   'table.agentNumber': 'Agent Number',

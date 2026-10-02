@@ -12,6 +12,12 @@ const agents = {
   'error.loadDetail': '加载智能体详情失败',
   'action.backToList': '返回智能体',
 
+  // 故事化空状态（AgentsPage，列表为空时）
+  'empty.title': '第一个伙伴还没上岗',
+  'empty.subtitle': '接入第一个智能体，中继站就开始营业了',
+  // 指向接入指南；/app/agents/new 路由尚不存在，入口先指接入指南。
+  'empty.action.quickstart': '查看接入指南',
+
   // 列表表格（AgentsPage）
   'table.name': '名称',
   'table.agentNumber': '智能体编号',

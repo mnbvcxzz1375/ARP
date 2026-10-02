@@ -166,6 +166,12 @@ const enterprise = {
   'egress.table.scope': '网络范围',
   'egress.table.allowedDomains': '允许域名',
   'egress.table.costTracking': '成本追踪',
+  // M4 出站策略点：allow_internal_egress 为默认拒绝基线下的显式放行
+  // （EgressGatewayResponse.allow_internal_egress）。
+  'egress.table.internalEgress': '内网出站',
+  'egress.form.internalEgress': '允许内网出站',
+  'egress.form.internalEgressHint':
+    '放行至内网目标的出站（环回/私网/保留地址或范围 CIDR）。默认拒绝；放行将记录 egress.internal_allowed 审计。',
   'egress.form.editTitle': '编辑出口网关',
   'egress.form.createTitle': '新增出口网关',
   'egress.form.name': '名称',

@@ -19,6 +19,16 @@ const common = {
   'action.save': 'Save',
   'action.delete': 'Delete',
   'action.retry': 'Retry',
+  // PixelCopyButton (shared component; `common` is an eager namespace so the
+  // key resolves inside every lazy page chunk)
+  'action.copy': 'Copy',
+  'action.copied': 'Copied',
+  'action.copyFailed': 'Copy failed',
+
+  // AgentAvatar (shared pixel component; `common` is an eager namespace so
+  // the label resolves inside every lazy page chunk, including the admin
+  // console which never loads the `agents` namespace)
+  'agentAvatar.alt': 'Pixel avatar of agent {{name}}',
 
   // Generic states (LoadingState / EmptyState / ErrorState)
   'status.loading': 'Loading...',
@@ -59,6 +69,9 @@ const common = {
   'statusLabel.expired': 'Expired',
   'statusLabel.cancelled': 'Cancelled',
   'statusLabel.rejected': 'Rejected',
+  // TaskStatus approval step (constants.py); feeds the journey map's
+  // approval station badge (`common` is eager, every chunk resolves it).
+  'statusLabel.awaitingApproval': 'Awaiting Approval',
   'statusLabel.online': 'Online',
   'statusLabel.offline': 'Offline',
   'statusLabel.healthy': 'Healthy',
@@ -73,6 +86,10 @@ const common = {
   'statusLabel.deliveryFailed': 'Delivery Failed',
   'statusLabel.unacked': 'Unacked',
   'statusLabel.approved': 'Approved',
+  // M3 relay dataplane hop events (transports/relay_forwarder.py and the
+  // dedicated-channel transport): same timeline as the delivery lifecycle.
+  'statusLabel.relayForwarded': 'Relay Forwarded',
+  'statusLabel.channelForwarded': 'Channel Forwarded',
 
   // RiskBadge levels (enum values rendered through the shared badge)
   'riskLevel.low': 'low',

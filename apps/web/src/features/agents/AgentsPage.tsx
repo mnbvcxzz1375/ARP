@@ -7,6 +7,10 @@ import Pagination from '../../components/Pagination';
 import StatusBadge from '../../components/StatusBadge';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
+import EmptyState from '../../components/EmptyState';
+// Read-only consumption of the pixel avatar generator (avatar item):
+// seed follows the same stable business identifiers as the table columns.
+import AgentAvatar from '../../components/pixel/AgentAvatar';
 import { useT } from '../../i18n';
 
 export default function AgentsPage() {
@@ -22,6 +26,23 @@ export default function AgentsPage() {
   if (isLoading) return <LoadingState />;
   if (isError) return <ErrorState message={t('agents.error.load')} />;
 
+  const agents = data?.agents ?? [];
+
+  // Empty list: story-driven agents-empty scene instead of the bare
+  // "No data" table cell. The action points at the docs quickstart; there
+  // is no /app/agents/new route yet.
+  if (agents.length === 0) {
+    return (
+      <div>
+        <h2 className="font-display text-pixel-xl text-pixel-fg mb-6">{t('agents.page.title')}</h2>
+        <EmptyState
+          scene="agents"
+          action={{ to: '/docs/quickstart', label: t('agents.empty.action.quickstart') }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <h2 className="font-display text-pixel-xl text-pixel-fg mb-6">{t('agents.page.title')}</h2>
@@ -30,7 +51,21 @@ export default function AgentsPage() {
       <div className="bg-pixel-surface shadow-pixel-sm">
         <DataTable
           columns={[
-            { key: 'name', label: t('agents.table.name') },
+            {
+              key: 'name',
+              label: t('agents.table.name'),
+              render: (r: any) => (
+                <div className="flex items-center gap-2">
+                  {/* Agent avatar keeps the list distinguishable; deterministic
+                      per agent_number / agent_id (never a random face). */}
+                  <AgentAvatar
+                    seed={String(r.agent_number ?? r.agent_id ?? 'unknown-agent')}
+                    size={28}
+                  />
+                  <span>{r.name}</span>
+                </div>
+              ),
+            },
             { key: 'agent_number', label: t('agents.table.agentNumber'), render: (r: any) => <span className="font-mono">{r.agent_number}</span> },
             {
               key: 'details',
@@ -50,7 +85,7 @@ export default function AgentsPage() {
             { key: 'inbound_policy', label: t('agents.table.policy') },
             { key: 'created_at', label: t('agents.table.created'), render: (r: any) => <span className="font-mono">{r.created_at}</span> },
           ]}
-          data={data?.agents ?? []}
+          data={agents}
         />
         <Pagination
           offset={(page - 1) * limit}

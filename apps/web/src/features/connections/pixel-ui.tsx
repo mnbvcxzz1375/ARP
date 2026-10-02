@@ -20,9 +20,11 @@
  * role (info-state chip + focus ring + link affordance), the same exception
  * family as the LED status colors, never as a second decorative accent.
  */
-import { ButtonHTMLAttributes, ReactNode } from 'react';
+import { ButtonHTMLAttributes, ReactNode, useEffect, useRef, useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { PIXEL_CHIP, TOUCH_TARGET } from '../../lib/tokens';
+import { usePreferences } from '../../hooks/usePreferences';
 import { useT } from '../../i18n';
 
 export type PixButtonVariant = 'primary' | 'info' | 'ok' | 'danger' | 'ghost';
@@ -48,6 +50,27 @@ interface PixButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   compact?: boolean;
 }
 
+/**
+ * Press feedback: buttons sink 2px while pressed. An active-pseudo-class
+ * hard switch (no transition), so it survives the reduced-motion rule that
+ * zeroes transition-duration. Shared by PixButton, FilterPill and
+ * PIX_LINK_PRIMARY links.
+ */
+export const PRESS_FEEDBACK = 'active:translate-y-[2px]';
+
+/**
+ * Primary link-as-button classes for router <Link> action entries.
+ * PixButton renders a fixed <button>, so link-shaped actions use this
+ * constant on an <a>/<Link> instead - never wrap a button in a link
+ * (a > button is invalid nesting).
+ */
+export const PIX_LINK_PRIMARY = cn(
+  'inline-flex items-center justify-center',
+  TOUCH_TARGET,
+  'px-4 py-2 font-pixel text-pixel-base bg-pixel-accent text-[#191a26] border-2 border-[#191a26]',
+  PRESS_FEEDBACK,
+);
+
 export function PixButton({
   variant = 'primary',
   compact = false,
@@ -58,12 +81,96 @@ export function PixButton({
     <button
       className={cn(
         'inline-flex items-center justify-center font-pixel disabled:opacity-50 disabled:cursor-not-allowed',
+        PRESS_FEEDBACK,
         compact ? 'py-1 px-3 text-pixel-sm' : cn(TOUCH_TARGET, 'px-4 py-2 text-pixel-base'),
         BUTTON_VARIANTS[variant],
         className,
       )}
       {...props}
     />
+  );
+}
+
+/**
+ * Copy-to-clipboard button with a pixel check-mark success state.
+ *
+ * Copy -> Check (16px, strokeWidth 2) + `common.action.copied` for 1200ms,
+ * then rolls back. The rollback is the only JS timer here, so it is guarded
+ * like every other timer: under `prefers-reduced-motion: reduce` or a
+ * manual reduced-motion preference the success check never appears (terminal
+ * state) and no timer is armed. On failure (permission denied / no clipboard
+ * API) nothing is faked: no check is shown and an aria-live="polite" region
+ * announces `common.action.copyFailed`. Keys live in the eager `common`
+ * namespace because pixel-ui is consumed by 16+ pages whose lazy chunks do
+ * not load a page-local namespace.
+ */
+export function PixelCopyButton({ text, className }: { text: string; className?: string }) {
+  const t = useT();
+  const { data: preferences } = usePreferences();
+  const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const rollbackTimer = useRef<number | null>(null);
+
+  const reducedMotion =
+    preferences?.reducedMotion === true ||
+    (typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  const clearRollback = () => {
+    if (rollbackTimer.current !== null) {
+      window.clearTimeout(rollbackTimer.current);
+      rollbackTimer.current = null;
+    }
+  };
+
+  // Clear the rollback timer if the button unmounts mid-success state.
+  useEffect(() => () => clearRollback(), []);
+
+  const handleCopy = async () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      setCopied(false);
+      setFailed(true);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setFailed(false);
+      if (reducedMotion) return; // terminal state: no check, no timer
+      setCopied(true);
+      clearRollback();
+      rollbackTimer.current = window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+      setFailed(true); // never fake a success state
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={t('common.action.copy')}
+      className={cn(
+        'inline-flex items-center justify-center gap-2',
+        TOUCH_TARGET,
+        'px-4 py-2 font-pixel text-pixel-base',
+        'bg-pixel-accent-2 text-[#191a26] border-2 border-[#191a26]',
+        PRESS_FEEDBACK,
+        className,
+      )}
+    >
+      {copied ? (
+        <Check size={16} strokeWidth={2} aria-hidden="true" />
+      ) : (
+        <Copy size={16} strokeWidth={2} aria-hidden="true" />
+      )}
+      <span aria-hidden="true">{copied ? t('common.action.copied') : t('common.action.copy')}</span>
+      {/* Failure announcement only; success is conveyed by the visual check. */}
+      <span aria-live="polite" className="sr-only">
+        {failed ? t('common.action.copyFailed') : ''}
+      </span>
+    </button>
   );
 }
 
@@ -174,6 +281,7 @@ export function FilterPill({
     <button
       className={cn(
         'min-h-[44px] px-4 py-1 font-pixel text-pixel-sm border-2',
+        PRESS_FEEDBACK,
         active
           ? 'bg-pixel-accent text-[#191a26] border-[#191a26]'
           : 'bg-pixel-surface text-pixel-fg border-pixel-line hover:bg-pixel-raised',

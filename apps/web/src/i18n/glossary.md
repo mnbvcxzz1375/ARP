@@ -55,6 +55,16 @@
 | System Health | 系统健康 | |
 | Sign In / Sign out | 登录 / 退出登录 | |
 | Username | 用户名 | |
+| Scanline | 扫描线 | CRT 显像管水平扫描线纹理；全屏层 `.pixel-scanlines`，alpha 已降为 0.05 |
+| RGB stripe | RGB 条纹 | 全屏色条层 `.pixel-rgb-stripes`，alpha 0.03；3px 节距与扫描线 2px 节距互质，避免静态摩尔纹 |
+| Chromatic aberration | 色差 | `.chromatic` 像素屏色散效果；每屏最多一处，仅显示字体 |
+| Local scan texture | 局部扫描纹理 | `.pixel-texture-scan`，2px 节距、alpha 0.12，**只能**用于插画场景容器（空状态、中继场景）；不得用于 DataTable / StatCard / 表单正文 |
+| Local title texture | 局部标题条纹理 | `.pixel-texture-title`，横向 2px 节距、alpha 0.12，标题条复用储备（本轮无强制消费点） |
+| Relay station | 中继站 | 产品主题隐喻，概览页与空状态文案复用；「中继站运行正常」等说法均指平台整体状态 |
+| Station Master | 小站长 | 吉祥物角色名（`shell.mascot.alt`）；不译为「站长」以外的说法 |
+| On duty / off duty | 上岗 / 未上岗 | Agent 在线状态的主题化说法；「还没有伙伴上岗」即 online_agents===0 |
+| Parcel | 包裹 | 任务的主题化说法；「包裹遇阻」即 failed_tasks>0 |
+| Conveyor | 传送带 | 任务队列的主题化说法，TasksPage 空状态复用 |
 
 新增术语时**必须先加入本表**，再在 locale 文件中使用。
 
@@ -93,3 +103,28 @@
 | 页面级 namespace | `locales/<locale>/<page>.ts` | 各并行翻译分片自建（如 `overview.ts`、`agents.ts`） |
 
 页面级 namespace 由分片自建文件即可生效，**无需登记**。
+
+## 五、纹理与扫描线口径（主题：扫描线减弱）
+
+全屏 CRT 纹理已从铺底撤出，集中到插画区；规则如下，新增视觉一律遵守：
+
+1. **全屏层只做微量氛围**：`.pixel-scanlines` alpha 0.05、
+   `.pixel-rgb-stripes` alpha 0.03，二者 fixed + pointer-events:none +
+   z-index 90/91 不变。表格正文（DataTable / StatCard / 表单 / dl 字段）
+   之上不再有任何可感知纹理。
+2. **局部纹理上限 alpha 0.12**，且只用于插画与场景容器。消费方式：
+   `.pixel-texture-scan`（竖纹）或 `.pixel-texture-title`（横纹标题条
+   储备）工具类，或等效的自含 Tailwind 任意值类
+   `bg-[repeating-linear-gradient(0deg,rgba(0,0,0,0.12)_0_1px,rgba(0,0,0,0)_1px_2px)]`
+   （后者不随媒体查询关闭，作为降级可接受）。
+3. **禁止使用位置**：DataTable 行/列、StatCard 数值区、表单输入组、
+   任何正文承载面。纹理叠层下 `text-pixel-fg` 文本相对合成背景的
+   对比度重算必须 >=4.5:1（WCAG 1.4.3）。
+4. **关闭规则**：`.pixel-scanlines` / `.pixel-rgb-stripes` 在
+   `prefers-reduced-motion: reduce` 与 `<768px` 两段均为 display:none；
+   `.pixel-texture-scan` / `.pixel-texture-title` 在同样两段中
+   background-image:none（纹理消失，场景内容保留）。SettingsPage 的
+   受管开关镜像前两条规则，手感与此一致。
+5. **主题词汇复用**：中继站隐喻（中继站 / 小站长 / 上岗 / 包裹 /
+   传送带）只在概览页与故事化空状态等**主题化场景**使用；企业台
+   表格、状态文案等工具属性界面保持克制，不复用隐喻词汇。

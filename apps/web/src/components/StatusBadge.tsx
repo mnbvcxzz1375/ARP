@@ -17,6 +17,8 @@ const STATUS_STYLE: Record<string, string> = {
   expired: PIXEL_CHIP.neutral,
   cancelled: PIXEL_CHIP.neutral,
   rejected: PIXEL_CHIP.bad,
+  // TaskStatus approval step (constants.py); was missing -> raw fallback.
+  awaiting_approval: PIXEL_CHIP.warn,
   // Agent statuses
   online: PIXEL_CHIP.ok,
   offline: PIXEL_CHIP.neutral,
@@ -32,6 +34,10 @@ const STATUS_STYLE: Record<string, string> = {
   acknowledged: PIXEL_CHIP.ok,
   delivery_failed: PIXEL_CHIP.bad,
   unacked: PIXEL_CHIP.warn,
+  // M3 relay dataplane hop events (transports layer): a forwarded hop is
+  // informational, same tier as delivering.
+  relay_forwarded: PIXEL_CHIP.info,
+  channel_forwarded: PIXEL_CHIP.info,
   // Access request statuses
   approved: PIXEL_CHIP.ok,
 };
@@ -50,6 +56,7 @@ const STATUS_LABEL_KEY: Record<string, string> = {
   expired: 'common.statusLabel.expired',
   cancelled: 'common.statusLabel.cancelled',
   rejected: 'common.statusLabel.rejected',
+  awaiting_approval: 'common.statusLabel.awaitingApproval',
   online: 'common.statusLabel.online',
   offline: 'common.statusLabel.offline',
   healthy: 'common.statusLabel.healthy',
@@ -64,6 +71,8 @@ const STATUS_LABEL_KEY: Record<string, string> = {
   delivery_failed: 'common.statusLabel.deliveryFailed',
   unacked: 'common.statusLabel.unacked',
   approved: 'common.statusLabel.approved',
+  relay_forwarded: 'common.statusLabel.relayForwarded',
+  channel_forwarded: 'common.statusLabel.channelForwarded',
 };
 
 export default function StatusBadge({ status }: { status: string }) {

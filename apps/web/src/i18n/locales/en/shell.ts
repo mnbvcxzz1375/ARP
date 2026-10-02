@@ -31,6 +31,9 @@ const shell = {
   'docs.entry': 'Open the documentation site',
   'docs.label': 'Docs',
 
+  // StationMaster mascot (sidebar footer identity row, mobile drawer)
+  'mascot.alt': 'Station Master',
+
   // User footer
   'user.defaultName': 'User',
   'user.unknownRole': 'unknown',

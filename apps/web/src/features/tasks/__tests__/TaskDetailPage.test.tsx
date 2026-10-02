@@ -72,7 +72,9 @@ describe('TaskDetailPage', () => {
       expect(screen.getByText(/Task task-000/)).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Completed')).toBeInTheDocument();
+    // 'Completed' appears twice now: the status badge and the journey map's
+    // completed station label; resolve the ambiguity by scoping to the badge.
+    expect(screen.getAllByText('Completed').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('delivered').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('{"action": "test"}')).toBeInTheDocument();
@@ -150,5 +152,59 @@ describe('TaskDetailPage', () => {
     // Verify content is rendered as text in a <pre> tag, not via dangerouslySetInnerHTML
     const preElements = screen.getAllByText('{"action": "test"}');
     expect(preElements[0].tagName).toBe('PRE');
+  });
+
+  // M2: the dashboard serializes previews through the read-side
+  // degradation view, so ciphertext rows arrive with an encrypted flag
+  // and malformed rows with an encrypted_parse_error flag.
+  it('badges an E2EE ciphertext payload preview with its key id', async () => {
+    const encryptedPreview = JSON.stringify({
+      encrypted: true,
+      security: {
+        mode: 'e2ee',
+        encryption: 'X25519+HKDF-SHA256+AES-256-GCM',
+        key_id: 'key-abc123',
+        nonce: 'bm9uY2U=',
+      },
+      encrypted_payload: 'Y2lwaGVydGV4dA==',
+      aad: { alg: 'Ed25519' },
+    });
+    (api.get as any).mockImplementation((url: string) => {
+      if (url.includes('/messages')) return Promise.resolve({ data: mockMessages });
+      if (url.includes('/progress')) return Promise.resolve({ data: mockProgress });
+      return Promise.resolve({ data: { ...mockTask, payload_preview: encryptedPreview } });
+    });
+
+    renderDetail('task-0001-abcd-efgh-ijklmnopqrst');
+
+    await waitFor(() => {
+      expect(screen.getByText('E2EE Ciphertext')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Key ID: key-abc123/)).toBeInTheDocument();
+    // The raw ciphertext view stays visible as text; nothing is decrypted.
+    expect(screen.getByText(encryptedPreview)).toBeInTheDocument();
+  });
+
+  it('badges a malformed ciphertext result preview with its parse-error reason', async () => {
+    const parseErrorPreview = JSON.stringify({
+      encrypted: false,
+      encrypted_parse_error: true,
+      security: { mode: 'e2ee' },
+      reason: 'security.nonce is missing or not valid base64',
+    });
+    (api.get as any).mockImplementation((url: string) => {
+      if (url.includes('/messages')) return Promise.resolve({ data: mockMessages });
+      if (url.includes('/progress')) return Promise.resolve({ data: mockProgress });
+      return Promise.resolve({ data: { ...mockTask, result_preview: parseErrorPreview } });
+    });
+
+    renderDetail('task-0001-abcd-efgh-ijklmnopqrst');
+
+    await waitFor(() => {
+      expect(screen.getByText('Ciphertext Parse Error')).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText('security.nonce is missing or not valid base64'),
+    ).toBeInTheDocument();
   });
 });

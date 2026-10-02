@@ -1,0 +1,53 @@
+/*
+ * CompletionStar animation (component-level import; main.tsx stays untouched).
+ *
+ * Motion rules: the animation is state-change triggered only (a task status
+ * migrating to `completed`), runs exactly once, and is never a decorative
+ * loop. The reduced-motion block below is the second layer of defense - the
+ * primary one is useCompletionBurst, which never arms the burst under
+ * reduced motion, so this node is normally not mounted at all.
+ */
+
+.completion-star {
+  display: block;
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  /* star-pop: scale staircase steps(2) 200ms -> hold 1600ms -> fade 200ms;
+   * fill-mode both so the pre-pop scale(0) / post-fade opacity(0) states
+   * are held outside the animation window. Total 2000ms, one iteration. */
+  animation: star-pop 2000ms 1 both;
+}
+
+@keyframes star-pop {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+    animation-timing-function: steps(2, end);
+  }
+  10% {
+    transform: scale(1);
+    opacity: 1;
+    animation-timing-function: step-end;
+  }
+  90% {
+    transform: scale(1);
+    opacity: 1;
+    animation-timing-function: linear;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/*
+ * Self-built reduced-motion fallback. The universal selector in index.css
+ * sets animation-duration to 0ms, which WITHOUT this rule would leave the
+ * star at its natural state (visible) - the exact residue this avoids.
+ * display:none is chosen over animation:none for that reason.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .completion-star {
+    display: none;
+  }
+}

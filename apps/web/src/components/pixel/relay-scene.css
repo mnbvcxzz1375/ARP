@@ -1,0 +1,52 @@
+/* Relay scene (overview hero).
+ *
+ * Component-level import (main.tsx untouched; vitest runs with css:true).
+ * The parcel run is the scene's ONLY animation and it is triggered by a real
+ * state change - the overview query returning a changed data reference -
+ * never an auto-loop, per the accessibility rules. Pure CSS keyframes here,
+ * no WAAPI.
+ *
+ * The end keyframe equals the parcel's natural rest position ("parcel sits
+ * beside the tower"), so before the run, after it, and whenever the run is
+ * disabled the scene shows that static terminal state with no jump.
+ */
+.relay-scene.is-live .relay-scene__package {
+  /* 1200ms, 8 hard steps = pixel displacement along the
+   * agent A -> relay tower -> right-side polyline. Single iteration. */
+  animation: package-run 1200ms steps(8, end) 1;
+}
+
+/*
+ * Offsets are relative to the natural rest slot (x 140 / bottom 8 in the
+ * 224px-wide scene): start over agent A, mid-point at the relay tower.
+ */
+@keyframes package-run {
+  0% {
+    transform: translate(-132px, -28px);
+  }
+  50% {
+    transform: translate(-28px, -24px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Mobile (<768px): no pointer-sustained layout assumptions here - the
+ * scene shows its static terminal state (parcel beside the tower) even if
+ * the host has just added .is-live. index.css's mobile block only hides
+ * overlays/chromatic; it does not close animations, so this block is the
+ * scene's own mobile guard. */
+@media (max-width: 767px) {
+  .relay-scene.is-live .relay-scene__package {
+    animation: none;
+  }
+}
+
+/* Reduced motion: terminal frame only - no parcel movement at all (belt to
+ * the JS side, which also only toggles .is-live on a real data change). */
+@media (prefers-reduced-motion: reduce) {
+  .relay-scene.is-live .relay-scene__package {
+    animation: none;
+  }
+}

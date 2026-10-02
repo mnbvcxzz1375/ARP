@@ -150,16 +150,19 @@ body {
   inset: 0;
   z-index: 90;
   pointer-events: none;
-  /* 2px pitch scanline; 3px is used by the rgb stripe pitch elsewhere so
-     the two pitches stay coprime (3px / 4px) and avoid static moire. */
+  /* Alpha lowered 0.12 -> 0.05: texture withdraws from the full-screen
+   * backdrop so table bodies (DataTable / StatCard / forms) read clean.
+   * 2px pitch scanline; 3px is used by the rgb stripe pitch elsewhere so
+   * the two pitches stay coprime (3px / 4px) and avoid static moire. */
   background-image: repeating-linear-gradient(
     0deg,
-    rgba(0, 0, 0, 0.12) 0 1px,
+    rgba(0, 0, 0, 0.05) 0 1px,
     rgba(0, 0, 0, 0) 1px 2px
   );
 }
 
-/* RGB stripe layer, 3px pitch (coprime with the 2px scanline pitch). */
+/* RGB stripe layer, 3px pitch (coprime with the 2px scanline pitch).
+ * Alpha lowered 0.05 -> 0.03 with the scanline pullback above. */
 .pixel-rgb-stripes {
   position: fixed;
   inset: 0;
@@ -167,10 +170,67 @@ body {
   pointer-events: none;
   background-image: repeating-linear-gradient(
     90deg,
-    rgba(255, 0, 0, 0.05) 0 1px,
-    rgba(0, 255, 255, 0.05) 1px 2px,
-    rgba(0, 0, 255, 0.05) 2px 3px
+    rgba(255, 0, 0, 0.03) 0 1px,
+    rgba(0, 255, 255, 0.03) 1px 2px,
+    rgba(0, 0, 255, 0.03) 2px 3px
   );
+}
+
+/* ===== Local static texture utilities (illustration areas only) ======== *
+ * With the full-screen layers pulled back to 0.05 / 0.03, the CRT texture
+ * lives on in scene containers (EmptyState / RelayScene illustrations) via
+ * these two utilities -- or, equivalently, a self-contained Tailwind
+ * arbitrary-value class on the same container.
+ *
+ * USAGE RULES:
+ * - DO NOT use on DataTable, StatCard, forms, <dl> field lists or any
+ *   text-bearing data surface. Illustration containers only.
+ * - Static by design: zero animation, so the universal reduced-motion /
+ *   mobile blocks below (animation-duration 0ms etc.) have nothing to
+ *   break on them, and the shutdown rule removes the background-image
+ *   instead of the content.
+ * - Alpha 0.12 max, matching the local-texture ceiling (a11y rule 4).
+ *   Under that overlay, text-pixel-fg recomputes >=4.5:1 on both themes.
+ */
+.pixel-texture-scan {
+  /* 2px pitch, vertical scanline -- same pitch as the full-screen layer,
+   * kept coprime with the 3px stripe pitch. */
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.12) 0 1px,
+    rgba(0, 0, 0, 0) 1px 2px
+  );
+}
+
+.pixel-texture-title {
+  /* 2px pitch, horizontal stripes for title bars (reuse reserve; no
+   * forced consumer this pass). */
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.12) 0 1px,
+    rgba(0, 0, 0, 0) 1px 2px
+  );
+}
+
+/* Short horizontal wavelet texture for the archipelago stage container
+ * ONLY (the sea surface under the island map). Two stacked static layers
+ * keep the alpha <= 0.12 local-texture ceiling, so text-pixel-fg on top
+ * still recomputes >= 4.5:1 in both themes; nothing here animates.
+ */
+.pixel-texture-wave {
+  /* 1px-tall horizontal wavelet rows every 6px (short lateral ripples,
+   * 3px-long dashes formed by the crossed second layer). */
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.06) 0 1px,
+      rgba(0, 0, 0, 0) 1px 6px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.06) 0 3px,
+      rgba(0, 0, 0, 0) 3px 9px
+    );
 }
 
 /* ===== Chromatic aberration (converge error) ========================== *
@@ -210,13 +270,19 @@ body {
   background-color: var(--pixel-led-red);
 }
 
-/* ===== Removed legacy utilities ======================================== *
- * The .pixelated / .responsive-table / .btn-action / .enterprise-sidebar /
- * .personal-sidebar classes were deleted: grep found zero consumers in src/,
- * e2e/ and index.html. When a bitmap is introduced later, re-add
- * image-rendering: pixelated at that point; the sidebar shells are styled
- * directly with pixel-* utilities in src/app/*.tsx.
+/* ===== Bitmap sprite rendering ========================================= *
+ * Re-added for the archipelago stage's phase-two bitmap sprites (sea
+ * texture, islands, lighthouse, parcels): PNG/WebP sprites must render
+ * with hard pixel scaling, never with smooth interpolation that fakes
+ * pixel art out of an ordinary image. Only meaningful on raster images;
+ * inline SVG (crispEdges + integer coordinates) ignores it.
  */
+.pixelated {
+  image-rendering: pixelated;
+  /* Fallbacks for engines without the standard keyword. */
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
 
 /* ===== Reduced motion: kill every effect ============================= *
  * Zero-transition system by default; this belt removes the CRT / chromatic
@@ -226,6 +292,15 @@ body {
   .pixel-scanlines,
   .pixel-rgb-stripes {
     display: none;
+  }
+  /* Local textures shut off with the overlays. These classes sit on
+   * content-bearing scene containers, so the rule removes the texture
+   * (background-image), never the content (display:none would hide the
+   * whole scene; the static terminal state must stay visible). */
+  .pixel-texture-scan,
+  .pixel-texture-title,
+  .pixel-texture-wave {
+    background-image: none;
   }
   .chromatic {
     text-shadow: none;
@@ -249,7 +324,24 @@ body {
   .pixel-rgb-stripes {
     display: none;
   }
+  /* Local scene textures off on mobile, same mechanism as above. */
+  .pixel-texture-scan,
+  .pixel-texture-title,
+  .pixel-texture-wave {
+    background-image: none;
+  }
   .chromatic {
     text-shadow: none;
   }
 }
+
+.task-filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin-bottom:16px;}
+.task-filters label{display:flex;flex-direction:column;gap:6px;min-width:140px;font-family:var(--font-pixel);font-size:13px;}
+.task-filters__search{flex:1;min-width:220px;}
+.task-filters select,.task-filters input{width:100%;}
+
+.task-filters label {max-width:100%;}
+.task-filters select {min-width:0;max-width:100%;text-overflow:ellipsis;}
+
+.task-table-panel table {min-width:900px;}
+.task-table-panel td {white-space:nowrap;}

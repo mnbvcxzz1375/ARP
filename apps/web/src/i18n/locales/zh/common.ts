@@ -17,6 +17,15 @@ const common = {
   'action.save': '保存',
   'action.delete': '删除',
   'action.retry': '重试',
+  // PixelCopyButton 共享组件（common 为 eager 命名空间，任意懒加载页面
+  // chunk 内均可解析）
+  'action.copy': '复制',
+  'action.copied': '已复制',
+  'action.copyFailed': '复制失败',
+
+  // AgentAvatar 共享像素组件（common 为 eager 命名空间，任意懒加载页面
+  // chunk 内均可解析；企业管理台不会载入 agents 命名空间）
+  'agentAvatar.alt': '{{name}} 的像素头像',
 
   // 通用状态（LoadingState / EmptyState / ErrorState）
   'status.loading': '加载中...',
@@ -57,6 +66,9 @@ const common = {
   'statusLabel.expired': '已过期',
   'statusLabel.cancelled': '已取消',
   'statusLabel.rejected': '已拒绝',
+  // TaskStatus 审批步骤（constants.py）；旅程图审批站徽章使用
+  // （common 为 eager 层，任意 chunk 可解析）。
+  'statusLabel.awaitingApproval': '待审批',
   'statusLabel.online': '在线',
   'statusLabel.offline': '离线',
   'statusLabel.healthy': '健康',
@@ -71,6 +83,10 @@ const common = {
   'statusLabel.deliveryFailed': '投递失败',
   'statusLabel.unacked': '未确认',
   'statusLabel.approved': '已批准',
+  // M3 中继数据面跳转事件（transports/relay_forwarder.py 与专属通道传输），
+  // 与投递生命周期同属一条时间线。
+  'statusLabel.relayForwarded': '中继转发',
+  'statusLabel.channelForwarded': '专属通道转发',
 
   // RiskBadge 风险等级（经共享徽章渲染的枚举值）
   'riskLevel.low': '低',

@@ -6,6 +6,7 @@ import StatusBadge from '../../components/StatusBadge';
 import LoadingState from '../../components/LoadingState';
 import ErrorState from '../../components/ErrorState';
 import { PIXEL_CHIP, TOUCH_TARGET } from '../../lib/tokens';
+import AgentAvatar from '../../components/pixel/AgentAvatar';
 import { useFormat, useT } from '../../i18n';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -44,7 +45,16 @@ export default function AgentDetailPage() {
         <ArrowLeft className="h-4 w-4" />
         {t('agents.action.backToList')}
       </Link>
-      <h2 className="font-display text-pixel-xl text-pixel-fg mb-6">{agent.name || agent.agent_number}</h2>
+      {/* Title row with the agent's deterministic pixel avatar (64px,
+          read-only; seed follows the same identifiers as the list). */}
+      <div className="flex items-center gap-4 mb-6">
+        <AgentAvatar
+          seed={String(agent.agent_number ?? agent.agent_id ?? 'unknown-agent')}
+          name={agent.name || agent.agent_number}
+          size={64}
+        />
+        <h2 className="font-display text-pixel-xl text-pixel-fg">{agent.name || agent.agent_number}</h2>
+      </div>
 
       <div className="space-y-6">
         <section className="border-2 border-pixel-line bg-pixel-surface p-4 md:p-6 shadow-pixel-sm">

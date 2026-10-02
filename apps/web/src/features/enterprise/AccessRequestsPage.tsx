@@ -14,6 +14,7 @@ import {
   FilterPill,
   NeutralChip,
   PageTitle,
+  PixelCopyButton,
   PixelField,
   PixButton,
   PIXEL_INPUT,
@@ -45,7 +46,6 @@ export default function AccessRequestsPage() {
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [provisionedResult, setProvisionedResult] = useState<ProvisionedResult | null>(null);
-  const [copied, setCopied] = useState(false);
   const limit = 20;
 
   const { data, isLoading, isError } = useQuery({
@@ -65,7 +65,6 @@ export default function AccessRequestsPage() {
       setDialogState(null);
       setError(null);
       setProvisionedResult(response.data);
-      setCopied(false);
       queryClient.invalidateQueries({ queryKey: ['admin/access-requests'] });
     },
     onError: (err: unknown) => {
@@ -168,19 +167,7 @@ export default function AccessRequestsPage() {
               <code className="select-all break-all border-2 border-[#191a26] bg-pixel-bg px-2 py-0.5 font-mono text-lg text-pixel-fg">
                 {provisionedResult.api_key}
               </code>
-              <PixButton
-                variant="info"
-                compact
-                onClick={() => {
-                  navigator.clipboard.writeText(provisionedResult.api_key);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                }}
-              >
-                {copied
-                  ? t('enterprise.action.copied')
-                  : t('enterprise.action.copy')}
-              </PixButton>
+              <PixelCopyButton text={provisionedResult.api_key} />
             </div>
             <p className="font-mono text-base text-[#191a26]">
               {t('enterprise.accessRequests.result.apiKeyHint')}

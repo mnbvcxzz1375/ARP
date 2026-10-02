@@ -51,6 +51,7 @@ const mockGateways = [
     cache_config: null,
     cost_tracking: true,
     enabled: true,
+    allow_internal_egress: false,
     created_at: '2026-05-24T12:00:00Z',
     updated_at: '2026-05-24T12:00:00Z',
   },
@@ -65,6 +66,7 @@ const mockGateways = [
     cache_config: null,
     cost_tracking: false,
     enabled: false,
+    allow_internal_egress: true,
     created_at: '2026-05-24T11:00:00Z',
     updated_at: '2026-05-24T11:00:00Z',
   },
@@ -130,6 +132,66 @@ describe('EgressGatewaysPage (full CRUD against /v1/egress/gateways)', () => {
     expect(screen.getByText('api.example.com, cdn.example.com')).toBeTruthy();
   });
 
+  // M4 egress policy point: allow_internal_egress is the default-deny
+  // opt-in (EgressGatewayResponse / EgressGatewayCreate).
+  it('renders the internal-egress column with default-deny chips', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Primary Gateway')).toBeTruthy();
+    });
+    expect(screen.getByText('Internal Egress')).toBeTruthy();
+    // eg-1 keeps the default-deny baseline (No, neutral chip).
+    expect(screen.getAllByText('No').length).toBeGreaterThanOrEqual(1);
+    // eg-2 opted in (Yes, amber chip).
+    const yesChips = screen.getAllByText('Yes');
+    expect(yesChips.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('opts into internal egress in the create form and posts the flag', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
+    (api.post as any).mockResolvedValue({ data: mockGateways[0] });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Primary Gateway')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText('Add Gateway'));
+    const nameInput = await screen.findByLabelText(/name/i);
+    fireEvent.change(nameInput, { target: { value: 'Internal Gateway' } });
+    // Checkbox is unchecked by default (default deny).
+    const internalCheckbox = screen.getByLabelText(/allow internal egress/i);
+    expect((internalCheckbox as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(internalCheckbox);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/v1/egress/gateways', {
+        gateway_name: 'Internal Gateway',
+        gateway_type: 'api',
+        domain_allowlist: [],
+        secret_store_ref: null,
+        cost_tracking: true,
+        allow_internal_egress: true,
+        scope_id: 'sc-1',
+      });
+    });
+  });
+
+  it('prefills the internal-egress checkbox from the edited row', async () => {
+    mockGets({ gateways: mockGateways, total: 2 });
+    (api.patch as any).mockResolvedValue({ data: mockGateways[1] });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText('Model Proxy')).toBeTruthy();
+    });
+
+    // Edit eg-2, which is opted into internal egress.
+    fireEvent.click(screen.getAllByText('Edit')[1]);
+    const internalCheckbox = await screen.findByLabelText(/allow internal egress/i);
+    expect((internalCheckbox as HTMLInputElement).checked).toBe(true);
+  });
+
   it('filters rows client-side by name and clears the filter', async () => {
     mockGets({ gateways: mockGateways, total: 2 });
     renderPage();
@@ -169,6 +231,7 @@ describe('EgressGatewaysPage (full CRUD against /v1/egress/gateways)', () => {
         domain_allowlist: ['a.example.com', 'b.example.com'],
         secret_store_ref: null,
         cost_tracking: true,
+        allow_internal_egress: false,
         scope_id: 'sc-1',
       });
     });
@@ -215,8 +278,9 @@ describe('EgressGatewaysPage (full CRUD against /v1/egress/gateways)', () => {
     fireEvent.click(screen.getAllByText('Edit')[0]);
     const nameInput = await screen.findByLabelText(/name/i);
     expect((nameInput as HTMLInputElement).value).toBe('Primary Gateway');
-    // Scope is locked while editing.
-    expect((screen.getByLabelText(/scope/i) as HTMLSelectElement).disabled).toBe(true);
+    // Scope is locked while editing. (Exact match: the internal-egress
+    // checkbox hint also mentions "scope CIDR".)
+    expect((screen.getByLabelText('Scope') as HTMLSelectElement).disabled).toBe(true);
 
     fireEvent.change(nameInput, { target: { value: 'Renamed Gateway' } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
@@ -228,6 +292,7 @@ describe('EgressGatewaysPage (full CRUD against /v1/egress/gateways)', () => {
         secret_store_ref: 'env:EGRESS_PRIMARY_KEY',
         cost_tracking: true,
         enabled: true,
+        allow_internal_egress: false,
       });
     });
   });

@@ -31,6 +31,9 @@ const shell = {
   'docs.entry': '打开文档站',
   'docs.label': '文档',
 
+  // 小站长吉祥物（侧栏页脚身份行、移动抽屉）
+  'mascot.alt': '小站长',
+
   // 用户页脚
   'user.defaultName': '用户',
   'user.unknownRole': '未知',
@@ -47,7 +50,7 @@ const shell = {
 
   // 演示模式横幅（仅 VITE_DEMO_MODE 构建）
   'demo.badge': '演示',
-  'demo.banner': '演示模式 — 数据均为虚构，仅存于内存',
+  'demo.banner': '演示模式 -- 数据均为虚构，仅存于内存',
   'demo.persona.label': '身份',
   'demo.persona.super_admin': '超级管理员',
   'demo.persona.org_manager': '组织管理员',

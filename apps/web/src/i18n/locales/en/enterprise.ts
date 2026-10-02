@@ -166,6 +166,12 @@ const enterprise = {
   'egress.table.scope': 'Scope',
   'egress.table.allowedDomains': 'Allowed Domains',
   'egress.table.costTracking': 'Cost Tracking',
+  // M4 egress policy point: allow_internal_egress is the default-deny
+  // opt-in (EgressGatewayResponse.allow_internal_egress).
+  'egress.table.internalEgress': 'Internal Egress',
+  'egress.form.internalEgress': 'Allow Internal Egress',
+  'egress.form.internalEgressHint':
+    'Opt in to egress toward internal hosts (loopback/private/reserved or the scope CIDR). Default is deny; allowed egress is audited as egress.internal_allowed.',
   'egress.form.editTitle': 'Edit Egress Gateway',
   'egress.form.createTitle': 'Add Egress Gateway',
   'egress.form.name': 'Name',

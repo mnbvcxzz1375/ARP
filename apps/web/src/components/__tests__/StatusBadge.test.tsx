@@ -36,4 +36,30 @@ describe('StatusBadge', () => {
     render(<StatusBadge status="unknown_status" />);
     expect(screen.getByText('unknown_status')).toBeInTheDocument();
   });
+
+  // M3 relay dataplane hop events (delivery-event timeline).
+  it('renders the relay_forwarded hop event', () => {
+    render(<StatusBadge status="relay_forwarded" />);
+    const badge = screen.getByText('Relay Forwarded');
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain('bg-pixel-accent-2');
+  });
+
+  it('renders the channel_forwarded hop event', () => {
+    render(<StatusBadge status="channel_forwarded" />);
+    const badge = screen.getByText('Channel Forwarded');
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain('bg-pixel-accent-2');
+  });
+
+  // TaskStatus approval step (constants.py): the journey map feeds the
+  // delivery/execution/appoval statuses through this badge, and
+  // awaiting_approval was missing from both maps (raw fallback + warn).
+  it('renders the awaiting_approval status with the warn chip', () => {
+    render(<StatusBadge status="awaiting_approval" />);
+    const badge = screen.getByText('Awaiting Approval');
+    expect(badge).toBeInTheDocument();
+    expect(badge.className).toContain('bg-pixel-led-amber');
+    expect(badge.className).toContain('border-[#191a26]');
+  });
 });

@@ -1,0 +1,10 @@
+.station-master { image-rendering: pixelated; flex-shrink: 0; }
+.station-master.is-waving { animation: station-master-greeting 600ms steps(4, end) 1; }
+@keyframes station-master-greeting {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(-3px); }
+  65% { transform: translateY(-1px); }
+}
+@media (max-width: 767px), (prefers-reduced-motion: reduce) {
+  .station-master.is-waving { animation: none; }
+}

@@ -82,13 +82,6 @@ AgentNet 不是：
 | Real browser admin system smoke | passed |
 | Admin task expire E2E | passed，数据库状态已变更，audit log 已写入 |
 
-相关截图：
-
-- [reports/e2e-dashboard-overview.png](reports/e2e-dashboard-overview.png)
-- [reports/e2e-admin-system.png](reports/e2e-admin-system.png)
-- [reports/e2e-admin-tasks-after-expire.png](reports/e2e-admin-tasks-after-expire.png)
-- [reports/e2e-dashboard-after-warning-cleanup.png](reports/e2e-dashboard-after-warning-cleanup.png)
-
 ## 核心能力
 
 ### Agent Number
@@ -316,7 +309,6 @@ Agent SDK / OpenClaw Adapter / Future Adapters
 ├── docs/                            Architecture, security, deploy, API docs
 ├── scripts/                         Backup, restore, cleanup scripts
 ├── tests/real_openclaw/             Real OpenClaw test reports
-└── reports/                         Phase reports and E2E screenshots
 ```
 
 ## 快速开始
@@ -832,12 +824,6 @@ python -m pytest adapters/openclaw -q
 - 数据库 task 状态复查。
 - audit log 复查。
 
-证据：
-
-- [reports/e2e-dashboard-after-warning-cleanup.png](reports/e2e-dashboard-after-warning-cleanup.png)
-- [reports/e2e-admin-tasks-after-expire.png](reports/e2e-admin-tasks-after-expire.png)
-- [reports/web_final_report.md](reports/web_final_report.md)
-
 ### OpenClaw 真实测试
 
 真实 OpenClaw 测试报告：
@@ -971,9 +957,6 @@ nginx 配置和说明：
 | [docs/secrets-rotation.md](docs/secrets-rotation.md) | 密钥轮换。 |
 | [docs/observability.md](docs/observability.md) | 观测性和告警。 |
 | [DEVELOPER_README.md](DEVELOPER_README.md) | 开发者维护手册。 |
-| [plan.md](plan.md) | 原始实施计划。 |
-| [planv2.md](planv2.md) | 强化和生产化计划。 |
-| [web.md](web.md) | Dashboard 建设计划和验收约束。 |
 
 ## 开发规范
 
@@ -986,22 +969,7 @@ nginx 配置和说明：
 - 失败路径验证。
 - 权限和安全验证。
 - 文档更新。
-- `reports/` 下的执行报告。
 - 真实代码审查，而不只是看测试是否通过。
-
-Dashboard 阶段报告：
-
-- [reports/web_phase_1_report.md](reports/web_phase_1_report.md)
-- [reports/web_phase_2_report.md](reports/web_phase_2_report.md)
-- [reports/web_phase_3_report.md](reports/web_phase_3_report.md)
-- [reports/web_phase_4_report.md](reports/web_phase_4_report.md)
-- [reports/web_phase_5_report.md](reports/web_phase_5_report.md)
-- [reports/web_phase_6_report.md](reports/web_phase_6_report.md)
-- [reports/web_phase_7_report.md](reports/web_phase_7_report.md)
-- [reports/web_phase_8_report.md](reports/web_phase_8_report.md)
-- [reports/web_phase_11_report.md](reports/web_phase_11_report.md)
-- [reports/web_phase_12_report.md](reports/web_phase_12_report.md)
-- [reports/web_final_report.md](reports/web_final_report.md)
 
 ## 路线图
 
@@ -1121,14 +1089,7 @@ Latest local verification:
 | Real API health check | passed |
 | Real browser Dashboard smoke | passed |
 | Real browser admin system smoke | passed |
-| Admin task expire E2E | passed, database status changed, audit log written |
-
-Evidence screenshots:
-
-- [reports/e2e-dashboard-overview.png](reports/e2e-dashboard-overview.png)
-- [reports/e2e-admin-system.png](reports/e2e-admin-system.png)
-- [reports/e2e-admin-tasks-after-expire.png](reports/e2e-admin-tasks-after-expire.png)
-- [reports/e2e-dashboard-after-warning-cleanup.png](reports/e2e-dashboard-after-warning-cleanup.png)
+| Admin task expire E2E | passed, database status changed, audit log written
 
 ## Core Capabilities
 
@@ -1356,8 +1317,7 @@ Architecture diagram sources:
 ├── infra/                           Docker Compose and nginx templates
 ├── docs/                            Architecture, security, deploy, API docs
 ├── scripts/                         Backup, restore, cleanup scripts
-├── tests/real_openclaw/             Real OpenClaw test reports
-└── reports/                         Phase reports and E2E screenshots
+└── tests/real_openclaw/             Real OpenClaw test reports
 ```
 
 ## Quick Start EN
@@ -1873,12 +1833,6 @@ The latest real browser check used:
 - Database task status verification.
 - Audit log verification.
 
-Evidence:
-
-- [reports/e2e-dashboard-after-warning-cleanup.png](reports/e2e-dashboard-after-warning-cleanup.png)
-- [reports/e2e-admin-tasks-after-expire.png](reports/e2e-admin-tasks-after-expire.png)
-- [reports/web_final_report.md](reports/web_final_report.md)
-
 ### Real OpenClaw Tests
 
 Real OpenClaw test report:
@@ -2011,9 +1965,6 @@ Production nginx should:
 | [docs/secrets-rotation.md](docs/secrets-rotation.md) | Secret rotation. |
 | [docs/observability.md](docs/observability.md) | Observability and alerts. |
 | [DEVELOPER_README.md](DEVELOPER_README.md) | Developer maintenance guide. |
-| [plan.md](plan.md) | Original implementation plan. |
-| [planv2.md](planv2.md) | Hardening and productionization plan. |
-| [web.md](web.md) | Dashboard construction plan and acceptance constraints. |
 
 ## Development Standards
 
@@ -2026,22 +1977,7 @@ Every important phase must include:
 - Failure-path validation.
 - Permission and security validation.
 - Documentation updates.
-- Execution report under `reports/`.
 - Real code review, not only test result review.
-
-Dashboard phase reports:
-
-- [reports/web_phase_1_report.md](reports/web_phase_1_report.md)
-- [reports/web_phase_2_report.md](reports/web_phase_2_report.md)
-- [reports/web_phase_3_report.md](reports/web_phase_3_report.md)
-- [reports/web_phase_4_report.md](reports/web_phase_4_report.md)
-- [reports/web_phase_5_report.md](reports/web_phase_5_report.md)
-- [reports/web_phase_6_report.md](reports/web_phase_6_report.md)
-- [reports/web_phase_7_report.md](reports/web_phase_7_report.md)
-- [reports/web_phase_8_report.md](reports/web_phase_8_report.md)
-- [reports/web_phase_11_report.md](reports/web_phase_11_report.md)
-- [reports/web_phase_12_report.md](reports/web_phase_12_report.md)
-- [reports/web_final_report.md](reports/web_final_report.md)
 
 ## Roadmap EN
 

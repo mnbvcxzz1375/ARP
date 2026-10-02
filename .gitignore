@@ -58,6 +58,14 @@ agentnet_session.json
 # Test artifacts (reports, result dumps, debug output)
 test_model_results.json
 reports/
+
+# Historical planning artifacts (removed from the repo, kept locally)
+/plan.md
+/planv2.md
+/phase2_review_prompt.txt
+/web.md
+/infra/_debug_import.py
+/docs/superpowers/
 *.test.log
 *.tmp.log
 *.out.log

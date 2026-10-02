@@ -17,11 +17,11 @@ export type PersonaId = 'super_admin' | 'org_manager' | 'personal';
 
 export interface DemoPersona {
   id: PersonaId;
-  /** Login form values offered by the one-click demo entry on /login. */
+  /** Login form values for the seeded demo accounts. */
   username: string;
   /**
-   * Any value logs in during demo mode; this is only the login-form
-   * pre-fill. Built from two halves below so credential scanners do not
+   * Any value logs in during demo mode; this is only a sample login value.
+   * Built from two halves below so credential scanners do not
    * flag it as a hardcoded secret — it is never a real credential.
    */
   apiKey: string;

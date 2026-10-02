@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" shape-rendering="crispEdges">
+  <title>AgentNet relay lighthouse</title>
+  <path fill="#10233F" d="M8 0h48v4h4v4h4v48h-4v4h-4v4H8v-4H4v-4H0V8h4V4h4Z"/>
+  <path fill="#38D5E8" d="M4 44h12v4H4Zm44 0h12v4H48ZM8 40h4v12H8Zm44 0h4v12h-4ZM12 36h12v4H12Zm28 0h12v4H40Z"/>
+  <path fill="#6486B5" d="M24 28h16v24H24Z"/>
+  <path fill="#A9CBEA" d="M24 28h4v24h-4Z"/>
+  <path fill="#E9F6FF" d="M20 52h24v4H20Zm8-16h8v4h-8Z"/>
+  <path fill="#FFB62F" d="M24 16h16v12H24Zm6 28h4v8h-4ZM8 18h12v4H8Zm36 0h12v4H44Z"/>
+  <path fill="#FFF5CE" d="M28 18h8v8h-8Z"/>
+  <path fill="#28496F" d="M20 12h24v4H20Zm8-8h8v4h4v4H24V8h4Z"/>
+  <path fill="#38D5E8" d="M16 56h32v4H16Z"/>
+</svg>

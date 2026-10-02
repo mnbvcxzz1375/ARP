@@ -19,6 +19,8 @@
 
 <p align="center"><img src="agentnet-symbol.png" width="240" alt="AgentNet 独立灯塔标识" /></p>
 
+网站标签页使用单独的 [像素灯塔 SVG](../../../apps/web/public/agentnet-icon.svg)，在 16–32 像素下保留灯光、塔身与中继信号，文件约 0.7 KB。
+
 ## 生成记录
 
 2026-10-02 使用 Codex 内置 imagegen 生成（透明背景模式），原图直接复制入仓库，未后期重绘。最终使用提示词如下：

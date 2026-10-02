@@ -145,10 +145,17 @@ async def _handle_task_result(ws, msg, conn_state):
     from uuid import UUID
     from app.database import SessionLocal
     from app.services.task_service import get_task, complete_task
+    # M2: when the agent writes back a sealed result, the whole ciphertext
+    # envelope is stored verbatim in task.result — no content-level
+    # parsing, no keying material handling, no plaintext extraction.
+    if msg.is_e2ee_sealed():
+        result = msg.sealed_envelope()
+    else:
+        result = msg.payload.get("result")
     async with SessionLocal() as session:
         task = await get_task(session, UUID(task_id))
         _ensure_task_owner(task, conn_state)
-        task = await complete_task(session, task, result=msg.payload.get("result"))
+        task = await complete_task(session, task, result=result)
     await ws.send_text(build_ack(msg.message_id))
 
 

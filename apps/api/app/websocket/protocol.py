@@ -9,16 +9,49 @@ from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
 from app.exceptions import DomainException
-from app.protocol.constants import ErrorCode, MessageType
+from app.protocol.constants import ErrorCode, MessageType, SecurityMode
 
 
 class WSMessage(BaseModel):
-    """Standard WebSocket message envelope."""
+    """Standard WebSocket message envelope.
+
+    M2: the optional ``security`` / ``encrypted_payload`` / ``aad`` fields
+    carry the sender's envelope marker fields when an agent writes back a
+    sealed result (task.result). They are absent for plaintext control
+    messages, which keeps the marker block per-message and independently
+    decidable. The platform stores such a message verbatim as the task
+    result — it never parses or rewrites the ciphertext block.
+    """
 
     type: str
     message_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     payload: dict[str, Any] = Field(default_factory=dict)
+    security: dict[str, Any] | None = None
+    encrypted_payload: str | None = None
+    aad: dict[str, Any] | None = None
+
+    def is_e2ee_sealed(self) -> bool:
+        """True when this WS message itself carries a ciphertext envelope."""
+        return (
+            isinstance(self.security, dict)
+            and self.security.get("mode") != SecurityMode.RELAY_VISIBLE.value
+            and self.security.get("mode") is not None
+            and isinstance(self.encrypted_payload, str)
+            and bool(self.encrypted_payload)
+        )
+
+    def sealed_envelope(self) -> dict[str, Any]:
+        """The full ciphertext envelope of this message, verbatim."""
+        return {
+            "type": self.type,
+            "message_id": self.message_id,
+            "timestamp": self.timestamp,
+            "payload": self.payload,
+            "security": self.security,
+            "encrypted_payload": self.encrypted_payload,
+            "aad": self.aad,
+        }
 
 
 class HeartbeatPayload(BaseModel):

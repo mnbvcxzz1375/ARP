@@ -1,0 +1,363 @@
+/* Archipelago map canvas (overview page).
+ *
+ * Component-level import (ArchipelagoStage.tsx imports this file; vitest
+ * runs with css:true). The sea has subtle ambient motion; task packets
+ * animate independently, only in response to actual delivery changes:
+ *
+ *   the host raises `isLive` ONLY on a real change inside the tasks first
+ *   page (offset=0, limit=50 - a new task_id or a delivery-status change);
+ *   the 15s poll tick and the initial load never raise it, and the host
+ *   drops the flag again on the animationend event that bubbles up from
+ *   the packet through this stage. One iteration, hard steps() displacement,
+ *   no timers, no loop - the same contract as relay-scene.css, tightened
+ *   (the initial load no longer fires).
+ *
+ * The end keyframe is the packet's natural rest position (sitting at the
+ * target node), so before the run, after it, and whenever the run is
+ * disabled the stage shows that static terminal frame with no jump.
+ *
+ * z-index ladder, per the map spec: connection lines live UNDER the
+ * buildings (lighthouse, islands - both self-positioning sibling
+ * components in DOM order after this layer) while the labels and the
+ * islands' own action layer sit above; the flying parcel travels above
+ * everything. IslandNode and RelayLighthouse own their own positioning
+ * classes; this file only styles the stage, the connection layer and the
+ * packet.
+ *
+ * Theme: the sea artwork and map labels follow the app's light/dark theme.
+ */
+
+/* 960x720 absolutely positioned design space, centered and scaled by an
+ * inline transform computed from a ResizeObserver (see ArchipelagoStage).
+ * The transform scales the click hit areas with the art, so the islands'
+ * 44px touch targets grow/shrink together with the canvas. */
+.archipelago-stage {
+  position: absolute;
+  isolation: isolate;
+}
+
+/* The overview consumes the remaining shell height, rather than relying
+ * on percentage heights inside an auto-sized padded Outlet wrapper. */
+.agentnet-shell.agentnet-shell--archipelago .archipelago-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 0;
+}
+.archipelago-content { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.archipelago-page, .archipelago-page * { scrollbar-width: thin; scrollbar-color: var(--pixel-line) transparent; }
+.agentnet-shell--archipelago > .pixel-scanlines,
+.agentnet-shell--archipelago > .pixel-rgb-stripes { display: none; }
+.archipelago-page {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 72px 88px minmax(0, 1fr) 132px;
+  overflow: hidden;
+  color: var(--pixel-fg);
+  background: var(--pixel-bg);
+}
+.archipelago-header-cell { grid-row: 1; grid-column: 1 / -1; min-width: 0; }
+.archipelago-summary-cell { grid-row: 2; min-width: 0; }
+.archipelago-map-cell {
+  grid-row: 3; min-height: 0; min-width: 0; overflow: hidden;
+  display: flex; flex-direction: column; position: relative;
+}
+.archipelago-inspector { display: none; min-height: 0; overflow: hidden; border-left: 1px solid var(--pixel-line); }
+.archipelago-activity-cell { grid-row: 4; grid-column: 1 / -1; min-height: 0; overflow: hidden; }
+.archipelago-topbar {
+  height: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 0 20px; border-bottom: 1px solid var(--pixel-line);
+  background: var(--pixel-bg);
+}
+.archipelago-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.archipelago-brand__name { font-family: var(--font-display); font-size: 19px; white-space: nowrap; }
+.archipelago-brand__divider { width: 1px; height: 28px; background: var(--pixel-line); }
+.archipelago-brand__sub { font-family: var(--font-pixel); font-size: 18px; font-weight: 600; white-space: nowrap; }
+.archipelago-topbar__actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.archipelago-view-toggle { display: flex; border: 1px solid var(--pixel-line); }
+.archipelago-view-toggle button,
+.archipelago-guide,
+.archipelago-account {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 14px; font-family: var(--font-pixel); font-size: 15px;
+}
+.archipelago-view-toggle button { color: var(--pixel-muted); }
+.archipelago-view-toggle button[aria-pressed="true"] { color: var(--pixel-accent); background: var(--pixel-raised); box-shadow: inset 0 -2px var(--pixel-accent); }
+.archipelago-guide { background: var(--pixel-accent); color: #191a26; font-weight: 600; }
+.archipelago-guide:hover { filter: brightness(1.1); }
+.archipelago-guide:active { transform: translateY(2px); }
+.archipelago-account { padding: 0 10px; border-left: 1px solid var(--pixel-line); }
+.archipelago-summary {
+  height: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--pixel-line);
+  background: var(--pixel-bg);
+}
+.archipelago-summary__metrics { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 22px; }
+.archipelago-summary__count { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+.archipelago-summary__value { font-family: var(--font-display); font-size: 24px; line-height: 1.2; }
+.archipelago-summary__label { font-family: var(--font-pixel); font-size: 13px; color: var(--pixel-muted); }
+.archipelago-summary__error { display: inline-flex; align-items: center; padding: 2px 6px; font-family: var(--font-display); font-size: 15px; line-height: 1.2; }
+.archipelago-summary__lag { max-width: 150px; font-size: 11px; line-height: 1.5; color: var(--pixel-muted); }
+.archipelago-stage__viewport {
+  position: relative; flex: 1; min-height: 0; min-width: 0; width: 100%; overflow: hidden;
+  isolation: isolate;
+  --sea-art: url('/art/archipelago/night-sea.png');
+  --sea-base: #081b2b;
+  --sea-tint: #081b2b40;
+  --sea-label-bg: #0a192aea;
+  --sea-label-fg: #d8e6fc;
+  --sea-label-line: #5b7890;
+  --sea-selected-fg: #ffd8ac;
+  --sea-caption-fg: #adc4d6;
+  background: var(--sea-base);
+  image-rendering: pixelated;
+  --pixel-bg: #081b2b; --pixel-fg: #cbdbfc; --pixel-muted: #9badb7;
+  --pixel-surface: #102133; --pixel-raised: #1b3349; --pixel-line: #47647e;
+}
+.archipelago-stage__viewport::before {
+  content: ''; position: absolute; inset: -12px; z-index: -1; pointer-events: none;
+  background: linear-gradient(var(--sea-tint), var(--sea-tint)), var(--sea-base) var(--sea-art) center / cover;
+  image-rendering: pixelated; will-change: transform;
+  animation: archipelago-sea-drift 16s steps(8, end) infinite alternate;
+}
+@keyframes archipelago-sea-drift {
+  from { transform: translate3d(-4px, -4px, 0); }
+  to { transform: translate3d(4px, 4px, 0); }
+}
+.archipelago-stage__viewport[data-reduced-motion="true"]::before {
+  animation: none; transform: none; will-change: auto;
+}
+:root.theme-light .archipelago-stage__viewport {
+  --sea-art: url('/art/archipelago/day-sea.png');
+  --sea-base: #62b9cd; --sea-tint: #bce7ed12;
+  --sea-label-bg: #edf7faee; --sea-label-fg: #1d3d50; --sea-label-line: #527d93;
+  --sea-selected-fg: #66320e; --sea-caption-fg: #284e63;
+  --pixel-bg: #edf7fa; --pixel-fg: #1d3d50; --pixel-muted: #34566a;
+  --pixel-surface: #e1f1f5; --pixel-raised: #c9e6ee; --pixel-line: #527d93;
+  --pixel-accent: #a04b14; --pixel-accent-2: #255c79;
+}
+@media (prefers-color-scheme: light) {
+  :root:not(.theme-dark):not(.theme-light) .archipelago-stage__viewport {
+    --sea-art: url('/art/archipelago/day-sea.png');
+    --sea-base: #62b9cd; --sea-tint: #bce7ed12;
+    --sea-label-bg: #edf7faee; --sea-label-fg: #1d3d50; --sea-label-line: #527d93;
+    --sea-selected-fg: #66320e; --sea-caption-fg: #284e63;
+    --pixel-bg: #edf7fa; --pixel-fg: #1d3d50; --pixel-muted: #34566a;
+    --pixel-surface: #e1f1f5; --pixel-raised: #c9e6ee; --pixel-line: #527d93;
+    --pixel-accent: #a04b14; --pixel-accent-2: #255c79;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .archipelago-stage__viewport::before { animation: none; transform: none; will-change: auto; }
+}
+.archipelago-map-caption {
+  position: absolute; top: 14px; left: 18px; right: 18px; z-index: 25;
+  display: flex; justify-content: space-between; pointer-events: none;
+  font-family: var(--font-body); font-size: 12px; letter-spacing: 2px; color: var(--sea-caption-fg);
+}
+.archipelago-map-caption span { padding: 2px 6px; background: var(--sea-label-bg); }
+.island-node {
+  width: 232px; z-index: 5; padding: 0; border: 0; background: none;
+  box-shadow: none !important; cursor: pointer; overflow: visible;
+}
+.island-node:focus-visible { outline: 2px dashed var(--pixel-accent); outline-offset: 5px; }
+.island-node__nameplate {
+  display: block; padding: 4px 8px; line-height: 22px; font-size: 18px; font-weight: 600;
+  letter-spacing: 0; background: var(--sea-label-bg); border: 1px solid var(--sea-label-line);
+  color: var(--sea-label-fg); max-width: 218px;
+}
+.island-node__presence {
+  padding: 3px 8px; font-size: 11px; background: var(--sea-label-bg); color: var(--pixel-muted);
+}
+.island-node__presence .text-pixel-sm { font-size: 11px; }
+.island-node__figure { position: relative; display: block; width: 232px; height: 176px; }
+.island-node__terrain { display: block; width: 232px; height: 176px; object-fit: contain; image-rendering: pixelated; pointer-events: none; }
+.island-node__avatar { position: absolute; left: 40%; top: 45%; transform: translate(-50%, -50%); pointer-events: none; }
+.island-node--selected { z-index: 10; }
+.island-node--selected .island-node__nameplate { border: 2px solid var(--pixel-accent); color: var(--sea-selected-fg); }
+.island-node--selected .island-node__terrain {
+  filter: drop-shadow(2px 0 0 var(--pixel-accent)) drop-shadow(-2px 0 0 var(--pixel-accent)) drop-shadow(0 2px 0 var(--pixel-accent));
+}
+.island-node:hover .island-node__nameplate { border-color: var(--pixel-accent); }
+.relay-lighthouse { position: absolute; z-index: 4; width: 360px; height: 360px; pointer-events: none; }
+.relay-lighthouse__art { width: 360px; height: 360px; object-fit: contain; image-rendering: pixelated; }
+.relay-lighthouse__label {
+  position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
+  padding: 4px 10px; white-space: nowrap; font-family: var(--font-body); font-size: 12px;
+  color: var(--sea-label-fg); background: var(--sea-label-bg); border: 1px solid var(--sea-label-line); letter-spacing: 2px;
+}
+.archipelago-connections__label { display: none; }
+.archipelago-map-note {
+  position: absolute; bottom: 12px; right: 12px; z-index: 25; pointer-events: none;
+  padding: 4px 8px; background: var(--sea-label-bg); color: var(--pixel-muted); font-size: 11px;
+}
+.archipelago-detail-identity { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 20px 16px 12px; }
+.archipelago-detail-identity h3 { font-family: var(--font-pixel); font-size: 20px !important; line-height: 1.3; }
+.archipelago-page [role="dialog"] .font-display { font-family: var(--font-pixel); font-size: 15px; font-weight: 600; letter-spacing: 0; }
+.archipelago-detail-identity .font-mono { font-size: 11px; }
+.archipelago-detail-identity .flex.min-w-0 { align-items: flex-start; }
+.archipelago-detail-open { grid-column: 1 / -1; min-height: 40px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--pixel-line); background: var(--pixel-raised); }
+.archipelago-detail-open:hover { border-color: var(--pixel-accent); color: var(--pixel-accent); }
+.archipelago-detail-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; padding: 0 16px 12px; }
+.archipelago-detail-fields > div { min-width: 0; border-bottom-width: 1px; }
+.archipelago-detail-fields > div:last-child { grid-column: 1 / -1; }
+.archipelago-pending { flex-shrink: 0; }
+.archipelago-pending summary { display: flex; justify-content: space-between; align-items: center; min-height: 24px; gap: 12px; cursor: pointer; }
+.archipelago-pending[open] summary { margin-bottom: 12px; }
+.archipelago-inspector > div { background: var(--pixel-bg); }
+.archipelago-inspector .font-display { font-family: var(--font-pixel); font-size: 15px; font-weight: 600; letter-spacing: 0; }
+.archipelago-inspector .text-pixel-sm { font-size: 13px; line-height: 1.6; }
+.archipelago-inspector dd { font-size: 15px; }
+.archipelago-activity-cell > div { height: 100%; min-height: 0; background: var(--pixel-bg); border-top-width: 1px; }
+.archipelago-activity-cell > div > div { height: 42px; border-bottom: 0; }
+.archipelago-activity-cell ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 4px 4px; }
+.archipelago-activity-cell li { display: grid; grid-template-columns: 1fr; align-content: center; padding: 4px 16px; gap: 4px; border-bottom: 0; border-right: 1px solid var(--pixel-line); }
+.archipelago-activity-cell li:last-child { border-right: 0; }
+.archipelago-activity-cell h2 { font-family: var(--font-pixel); font-size: 15px; letter-spacing: 0; }
+.archipelago-activity-cell > div > div a { font-size: 15px; }
+.archipelago-activity-cell li time { font-size: 18px; line-height: 1.2; }
+.archipelago-activity-cell li span { font-size: 18px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.archipelago-activity-cell li span:last-child { font-size: 20px; }
+
+@media (min-width: 768px) {
+  .agentnet-shell.agentnet-shell--archipelago { grid-template-columns: 168px minmax(0, 1fr); }
+  .agentnet-shell.agentnet-shell--archipelago.is-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
+  .agentnet-shell--archipelago > aside nav .font-display { font-family: var(--font-pixel); font-size: 14px; letter-spacing: 0; }
+  .agentnet-shell--archipelago > aside nav a { margin-left: 6px; margin-right: 6px; gap: 10px; }
+  .agentnet-shell--archipelago > aside > div:first-child .font-display { font-size: 13px; letter-spacing: 0; white-space: nowrap; }
+}
+@media (min-width: 1280px) and (min-height: 700px) {
+  .archipelago-page { grid-template-columns: minmax(0, 1fr) 320px; }
+  .archipelago-inspector { display: block; grid-column: 2; grid-row: 2 / 4; }
+}
+@media (max-width: 767px) {
+  .archipelago-list button[aria-pressed] > span { text-align: left; }
+  .archipelago-list button[aria-pressed] .font-display {
+    font-family: var(--font-pixel); font-size: 17px; font-weight: 600; letter-spacing: 0;
+  }
+  .archipelago-list button[aria-pressed] .font-mono {
+    font-family: var(--font-body); font-size: 13px; letter-spacing: .5px;
+  }
+  .archipelago-page { grid-template-rows: 64px auto minmax(0, 1fr) 132px; }
+  .archipelago-topbar { padding: 0 12px; gap: 8px; }
+  .archipelago-brand { gap: 8px; }
+  .archipelago-brand__name { font-size: 13px; }
+  .archipelago-brand__divider, .archipelago-brand__sub, .archipelago-guide, .archipelago-account { display: none; }
+  .archipelago-view-toggle button { padding: 0 10px; font-size: 13px; }
+  .archipelago-summary { align-items: flex-start; padding: 12px; }
+  .archipelago-summary__metrics { gap: 10px 14px; }
+  .archipelago-summary__count { gap: 6px; }
+  .archipelago-summary__value { font-size: 17px; }
+  .archipelago-summary__label { font-size: 11px; }
+  .archipelago-summary__lag { display: none; }
+  .archipelago-activity-cell ul { grid-template-columns: minmax(0, 1fr); }
+  .archipelago-activity-cell li { grid-template-columns: auto 1fr; gap: 8px; padding: 7px 12px; border-right: 0; }
+  .archipelago-activity-cell li span { font-size: 16px; }
+  .archipelago-activity-cell li span:last-child { display: none; }
+}
+
+/* Connection layer: SVG lines + HTML text labels, under the islands.
+ * aria-hidden / role=presentation in the markup - the semantics travel in
+ * the endpoint node labels and the hover tooltips, never in the lines. */
+.archipelago-connections {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.archipelago-connections__label {
+  position: absolute;
+  /* Center the label on the edge midpoint (left/top are inline). */
+  transform: translate(-50%, -50%);
+  /* Labels never steal pointer events from the wider hover hit line. */
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* Transparent 12px-wide stroke over each line: a realistic hover target
+ * for a 2px pixel line (keeps the tooltip usable without a fat visible
+ * line). pointer-events: stroke so the gaps between dashes still hover. */
+.archipelago-connections__hit {
+  pointer-events: stroke;
+}
+
+/* Message packet: a 16x16 parcel (SVG rect art, see MessagePacket.tsx).
+ * Resting frame = at the target node (left/top are inline). */
+.archipelago-packet {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  z-index: 20;
+}
+
+.archipelago-packet.is-running {
+  /* 1200ms, 8 hard steps - the RelayScene parcel cadence. The offsets come
+   * from the --packet-dx / --packet-dy custom properties the component sets
+   * per edge, so one shared keyframes block serves every run. Single
+   * iteration; animationend bubbles up through the stage to the host
+   * wrapper, which clears is-live. */
+  animation: archipelago-packet-run 1200ms steps(8, end) 1;
+}
+
+@keyframes archipelago-packet-run {
+  from {
+    transform: translate(var(--packet-dx, 0px), var(--packet-dy, 0px));
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+
+/* Mobile (<768px): the page renders list mode, not the scaled stage (the
+ * spec deliberately does not shrink the whole map to unreadable); this belt
+ * still guarantees the static terminal frame if the host mounts it. */
+@media (max-width: 767px) {
+  .archipelago-packet.is-running {
+    animation: none;
+  }
+}
+
+/* Reduced motion: terminal frame only - no parcel movement at all. This is
+ * the CSS belt; the JS side (MessagePacket's own reduced-motion gate,
+ * media query OR stored preference) never adds .is-running either, and
+ * index.css's universal block kills any animation that slips through. */
+@media (prefers-reduced-motion: reduce) {
+  .archipelago-packet.is-running {
+    animation: none;
+  }
+}
+
+.archipelago-group-nav, .archipelago-focus-bar {
+ display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+ padding:6px 12px;background:var(--pixel-bg);border-bottom:1px solid var(--pixel-line);
+ font-family:var(--font-pixel);font-size:13px;flex-shrink:0;
+}
+.archipelago-group-nav button, .archipelago-focus-bar button {
+ min-height:36px;padding:4px 10px;border:1px solid var(--pixel-line);margin-left:6px;
+}
+.archipelago-group-nav button:disabled {opacity:.4;cursor:default;}
+.archipelago-focus-bar {color:var(--pixel-accent);}
+.archipelago-traffic-note {font-size:11px;line-height:1.4;padding:5px 12px;flex-shrink:0;background:var(--pixel-bg);color:var(--pixel-muted);}
+.island-node__workload {font-size:11px;line-height:17px;padding:1px 6px;background:var(--sea-label-bg);color:var(--sea-label-fg);font-family:var(--font-pixel);}
+.island-node--muted .island-node__figure {opacity:.45;}
+.archipelago-connections [data-focused="false"] {opacity:.12;pointer-events:none;}
+.archipelago-route-badge {position:absolute;transform:translate(-50%,-50%);padding:2px 6px;background:var(--sea-label-bg);color:var(--sea-label-fg);border:1px solid var(--sea-label-line);font:11px var(--font-pixel);white-space:nowrap;z-index:12;}
+.archipelago-agent-workload {padding:8px 16px 14px;font:14px var(--font-pixel);line-height:1.8;}
+.archipelago-agent-workload a {display:block;color:var(--pixel-accent-2);text-decoration:underline;}
+@media(max-width:767px){.archipelago-group-nav button,.archipelago-focus-bar button{min-height:44px;}.archipelago-traffic-note{font-size:10px;}}
+
+.archipelago-focus-bar {min-height:48px;flex-wrap:nowrap;}
+.archipelago-focus-bar span {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.archipelago-focus-bar button {flex-shrink:0;}
+.archipelago-focus-bar button:disabled {opacity:.45;}
+
+.archipelago-route-counts {position:absolute;inset:0;z-index:12;pointer-events:none;}
+
+.archipelago-traffic-note summary {cursor:pointer;font-family:var(--font-pixel);}
+@media(max-width:767px){
+ .archipelago-page {grid-template-rows:64px 80px minmax(0,1fr) 128px;}
+ .archipelago-pending {padding:8px 12px;}
+}

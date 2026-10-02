@@ -308,6 +308,85 @@ async def select_dedicated_channel(
     return best_channel
 
 
+async def deliver_via_dedicated_channel(
+    channel: DedicatedChannel,
+    *,
+    agent_id: uuid.UUID,
+    message: str,
+    message_id: str,
+    task_id: uuid.UUID | None = None,
+    source_agent_id: uuid.UUID | None = None,
+    manager=None,
+):
+    """Execute delivery over an already-selected dedicated channel.
+
+    M3: this is the bridge between selection and execution.
+    path_optimizer.select_dedicated_channel() (via select_route) decides
+    WHICH channel carries the task; the result is handed to the channel
+    transport here for actual delivery. The transport consumes
+    connection_config["endpoint"] / ["protocol"] as the carrier metadata,
+    records a channel_forwarded delivery event, and performs the final hop
+    to the target agent's connection.
+
+    Returns the transport-level DeliveryResult.
+    """
+    from app.transports.base import DeliveryResult, FAILED
+    from app.transports.central import CentralTransport
+
+    connection_config = channel.connection_config or {}
+    endpoint = connection_config.get("endpoint")
+    protocol = connection_config.get("protocol")
+
+    if not endpoint or not protocol:
+        return DeliveryResult(
+            outcome=FAILED,
+            error_code="CHANNEL_CONFIG_INCOMPLETE",
+            error_message=(
+                "Dedicated channel connection_config is missing endpoint/protocol"
+            ),
+        )
+
+    # Record the channel hop: which channel carried the message and the
+    # endpoint/protocol it was configured with.
+    if task_id is not None:
+        try:
+            from app.database import SessionLocal
+            from app.models.message_delivery_event import MessageDeliveryEvent
+
+            async with SessionLocal() as session:
+                session.add(
+                    MessageDeliveryEvent(
+                        message_id=message_id,
+                        task_id=task_id,
+                        event_type="channel_forwarded",
+                        extra_metadata={
+                            "channel_id": str(channel.id),
+                            "channel_name": channel.channel_name,
+                            "channel_type": channel.channel_type,
+                            "endpoint": endpoint,
+                            "protocol": protocol,
+                        },
+                    )
+                )
+                await session.commit()
+        except Exception:
+            logger.warning(
+                "Failed to record channel_forwarded event for message %s",
+                message_id,
+                exc_info=True,
+            )
+
+    central = CentralTransport(manager=manager)
+    return await central.deliver(
+        agent_id=agent_id,
+        message=message,
+        message_id=message_id,
+        task_id=task_id,
+        source_agent_id=source_agent_id,
+        track_pending=True,
+    )
+
+
 async def fallback_to_relay(
     session: AsyncSession,
     channel_id: uuid.UUID,

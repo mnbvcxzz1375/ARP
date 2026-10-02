@@ -1,9 +1,10 @@
 """User Dashboard API endpoints."""
 import json
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status as http_status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, case, cast, String, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -27,6 +28,7 @@ from app.services.dashboard_service import (
     get_task_delivery_info, get_tasks_delivery_info_batch,
 )
 from app.services.audit_service import write_audit
+from app.services.task_traffic_service import get_task_traffic, ACTIVE, FAILURE
 from app.services.agent_service import (
     create_agent as _create_agent_service,
     list_agents as _list_agents_service,
@@ -75,11 +77,12 @@ async def list_agents(
     page_size: int = Query(50, ge=1, le=200),
     status_filter: str | None = None,
     search: str | None = None,
+    order: Literal["oldest", "newest"] = "newest",
     _: None = Depends(require_permission(PERM_READ_OWN_AGENTS)),
 ):
     agents, total = await _list_agents_service(
         session, ds.user, page=page, page_size=page_size,
-        status_filter=status_filter, search=search,
+        status_filter=status_filter, search=search, order=order,
     )
     agent_ids = [str(a.id) for a in agents]
     online_status = await get_agent_online_status(session, agent_ids)
@@ -263,6 +266,27 @@ async def rotate_agent_token(
 # Tasks
 # ──────────────────────────────────────────────────────────────────
 
+@router.get("/task-traffic")
+async def task_traffic(
+    ds: CurrentSession,
+    agent_ids: str = Query(..., min_length=1, max_length=256),
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_permission(PERM_READ_OWN_TASKS)),
+):
+    try:
+        ids = list(dict.fromkeys(uuid.UUID(v.strip()) for v in agent_ids.split(",")))
+    except ValueError:
+        raise HTTPException(422, "Invalid agent IDs")
+    if not 1 <= len(ids) <= 6:
+        raise HTTPException(422, "Select between one and six agents")
+    owned = set((await session.execute(select(Agent.id).where(
+        Agent.owner_id == ds.user_id, Agent.id.in_(ids),
+    ))).scalars().all())
+    if not set(ids).issubset(owned):
+        raise HTTPException(404, "Agent not found")
+    return await get_task_traffic(session, ids)
+
+
 @router.get("/tasks")
 async def list_tasks(
     ds: CurrentSession,
@@ -271,6 +295,9 @@ async def list_tasks(
     limit: int = Query(50, ge=1, le=200),
     status_filter: str | None = None,
     error_code: str | None = None,
+    view: Literal["all", "active", "attention", "history"] = "all",
+    agent_id: uuid.UUID | None = None,
+    search: str | None = Query(None, max_length=100),
     _: None = Depends(require_permission(PERM_READ_OWN_TASKS)),
 ):
     agent_ids = [str(a.id) for a in ds.user.agents]
@@ -280,11 +307,29 @@ async def list_tasks(
     )
     if status_filter:
         stmt = stmt.where(Task.status == status_filter)
+    if agent_id:
+        if str(agent_id) not in agent_ids:
+            raise HTTPException(404, "Agent not found")
+        stmt = stmt.where((Task.created_by == agent_id) | (Task.assigned_to == agent_id))
+    if view == "active":
+        stmt = stmt.where(Task.status.in_(ACTIVE))
+    elif view == "history":
+        stmt = stmt.where(~Task.status.in_(ACTIVE))
+    if search and search.strip():
+        term = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{term}%"
+        matching = select(Agent.id).where(Agent.owner_id == ds.user_id, or_(
+            Agent.name.ilike(pattern, escape="\\"), Agent.agent_number.ilike(pattern, escape="\\")))
+        stmt = stmt.where(or_(cast(Task.id, String).ilike(pattern, escape="\\"),
+                              Task.created_by.in_(matching), Task.assigned_to.in_(matching)))
 
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar_one()
 
-    stmt = stmt.order_by(Task.created_at.desc()).offset(offset).limit(limit)
+    if view == "attention":
+        stmt = stmt.order_by(case((Task.status.in_(ACTIVE), 0),
+                                 (Task.status.in_(FAILURE), 1), else_=2))
+    stmt = stmt.order_by(Task.created_at.desc(), Task.id).offset(offset).limit(limit)
     result = await session.execute(stmt)
     tasks = list(result.scalars().all())
 
@@ -317,6 +362,7 @@ async def get_task_detail(
     _: None = Depends(require_permission(PERM_READ_OWN_TASK_DETAIL)),
 ):
     from app.services.dashboard_service import mask_secrets_obj
+    from app.services.message_content_view import build_content_view
 
     agent_ids = [str(a.id) for a in ds.user.agents]
 
@@ -330,17 +376,20 @@ async def get_task_detail(
     if task is None:
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Task not found")
 
+    # M2: preview through the read-side degradation view so a ciphertext
+    # message previews as an encrypted flag, never as decrypted content,
+    # and a malformed ciphertext previews as encrypted_parse_error.
     payload_preview = None
     msg_result = await session.execute(
         select(Message).where(Message.task_id == task.id).order_by(Message.created_at.asc()).limit(1)
     )
     first_msg = msg_result.scalar_one_or_none()
     if first_msg and first_msg.content:
-        payload_preview = mask_secrets_obj(first_msg.content)[:500]
+        payload_preview = mask_secrets_obj(build_content_view(first_msg.content))[:500]
 
     result_preview = None
     if task.result:
-        result_preview = mask_secrets_obj(task.result)[:500]
+        result_preview = mask_secrets_obj(build_content_view(task.result))[:500]
 
     ds, rc = await get_task_delivery_info(session, task.id)
 
@@ -567,6 +616,12 @@ async def get_connections(
             "connection_id": str(conn.id),
             "agent_number": requester_number,
             "requester_agent": str(conn.from_agent_id),
+            # The query already selects the whole Connection row, so exposing
+            # the target agent is surfacing an existing field (not a new
+            # source of truth). Lets the list/detail panel show
+            # requester -> target; the map only draws the edge when BOTH
+            # endpoints are in the caller's own agent set.
+            "to_agent_id": str(conn.to_agent_id),
             "requested_policy": "unknown",
             "created_at": conn.created_at,
         })

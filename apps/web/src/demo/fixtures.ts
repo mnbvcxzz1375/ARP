@@ -59,10 +59,20 @@ export interface DemoApproval {
   created_at: string;
 }
 
+/**
+ * Mirrors the backend pending-request payload
+ * (apps/api/app/routers/dashboard_user.py get_connections):
+ * - `agent_number` is the REQUESTER's number;
+ * - `requester_agent` is the requester's agent_id (UUID, production
+ *   contract — the demo used to store the requester's NAME here, which
+ *   broke agent_id joins; aligned with the to_agent_id revision);
+ * - `to_agent_id` is the target agent (the request's recipient).
+ */
 export interface DemoConnection {
   connection_id: string;
   agent_number: string;
   requester_agent: string;
+  to_agent_id: string;
   requested_policy: string;
   created_at: string;
 }
@@ -153,6 +163,9 @@ export interface DemoGateway {
   cache_config: Record<string, unknown> | null;
   cost_tracking: boolean;
   enabled: boolean;
+  /** M4 egress policy point: default-deny opt-in (mirrors
+   * EgressGatewayResponse.allow_internal_egress). */
+  allow_internal_egress: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -298,7 +311,8 @@ export interface DemoOrganization {
 
 export interface DemoAuditLog {
   audit_id: string;
-  actor_type: 'user' | 'admin' | 'system';
+  /** Production writes 'agent' too (ws.py write_audit with actor_type='agent'). */
+  actor_type: 'user' | 'admin' | 'system' | 'agent';
   actor_id: string;
   action: string;
   resource_type: string | null;
@@ -339,6 +353,7 @@ export interface DemoWorld {
     default_relay_type: string;
     enable_edge_relay: boolean;
     enable_secure_channel: boolean;
+    routing_strategy: 'fast' | 'normal' | 'reliable';
     created_at: string;
     updated_at: string;
   };
@@ -407,8 +422,19 @@ export function createDemoWorld(): DemoWorld {
   ];
 
   const pendingConnections: DemoConnection[] = [
-    { connection_id: 'c1000001-0000-4000-8000-000000000001', agent_number: agents[2].agent_number, requester_agent: agents[0].name, requested_policy: 'unknown', created_at: iso(-40) },
-    { connection_id: 'c1000001-0000-4000-8000-000000000002', agent_number: agents[5].agent_number, requester_agent: agents[7].name, requested_policy: 'unknown', created_at: iso(-180) },
+    // RARE SELF-CONNECT EXCEPTION: both endpoints belong to the same owner
+    // (demo_user), so this is the ONE pending edge the personal-persona map
+    // can ever draw. In production the requester of a pending request is
+    // almost always ANOTHER user's agent (dashboard/agents only returns the
+    // caller's own agents), so pending edges land in list/detail panels
+    // instead of on the map. Treat this row as the exercise of that rare
+    // path, never as the norm.
+    { connection_id: 'c1000001-0000-4000-8000-000000000001', agent_number: agents[7].agent_number, requester_agent: agents[7].agent_id, to_agent_id: agents[5].agent_id, requested_policy: 'unknown', created_at: iso(-40) },
+    // Typical case: the requester is an agent owned by ANOTHER user
+    // (demo_manager), targeting one of demo_user's agents. The requester is
+    // invisible to the personal persona, so the request renders in the
+    // list/detail as requester number -> target name, not as a map edge.
+    { connection_id: 'c1000001-0000-4000-8000-000000000002', agent_number: agents[6].agent_number, requester_agent: agents[6].agent_id, to_agent_id: agents[2].agent_id, requested_policy: 'unknown', created_at: iso(-180) },
   ];
 
   const apiKeys: DemoApiKey[] = [
@@ -451,9 +477,9 @@ export function createDemoWorld(): DemoWorld {
   ];
 
   const gateways: DemoGateway[] = [
-    { id: 'g1000001-0000-4000-8000-000000000001', scope_id: entScope, gateway_name: 'OpenAI Direct', gateway_type: 'model', domain_allowlist: ['api.openai.com'], secret_store_ref: 'env:EGRESS_OPENAI_KEY', rate_limit_config: { requests_per_minute: 60 }, cache_config: { ttl_seconds: 300 }, cost_tracking: true, enabled: true, created_at: iso(-6000), updated_at: iso(-300) },
-    { id: 'g1000001-0000-4000-8000-000000000002', scope_id: entScope, gateway_name: 'GitHub Packages', gateway_type: 'github', domain_allowlist: ['github.com', 'pkg.github.com'], secret_store_ref: 'env:EGRESS_GITHUB_KEY', rate_limit_config: null, cache_config: null, cost_tracking: true, enabled: true, created_at: iso(-5500), updated_at: iso(-250) },
-    { id: 'g1000001-0000-4000-8000-000000000003', scope_id: perScope, gateway_name: 'Generic API', gateway_type: 'api', domain_allowlist: [], secret_store_ref: null, rate_limit_config: null, cache_config: null, cost_tracking: false, enabled: false, created_at: iso(-4000), updated_at: iso(-3500) },
+    { id: 'g1000001-0000-4000-8000-000000000001', scope_id: entScope, gateway_name: 'OpenAI Direct', gateway_type: 'model', domain_allowlist: ['api.openai.com'], secret_store_ref: 'env:EGRESS_OPENAI_KEY', rate_limit_config: { requests_per_minute: 60 }, cache_config: { ttl_seconds: 300 }, cost_tracking: true, enabled: true, allow_internal_egress: false, created_at: iso(-6000), updated_at: iso(-300) },
+    { id: 'g1000001-0000-4000-8000-000000000002', scope_id: entScope, gateway_name: 'GitHub Packages', gateway_type: 'github', domain_allowlist: ['github.com', 'pkg.github.com'], secret_store_ref: 'env:EGRESS_GITHUB_KEY', rate_limit_config: null, cache_config: null, cost_tracking: true, enabled: true, allow_internal_egress: false, created_at: iso(-5500), updated_at: iso(-250) },
+    { id: 'g1000001-0000-4000-8000-000000000003', scope_id: perScope, gateway_name: 'Generic API', gateway_type: 'api', domain_allowlist: [], secret_store_ref: null, rate_limit_config: null, cache_config: null, cost_tracking: false, enabled: false, allow_internal_egress: true, created_at: iso(-4000), updated_at: iso(-3500) },
   ];
 
   const channels: DemoChannel[] = [
@@ -524,6 +550,14 @@ export function createDemoWorld(): DemoWorld {
     mkAudit('u-0006', 'admin', manager, 'org.member.add', 'organization', orgId, 'Added demo_user as member'),
     mkAudit('u-0007', 'admin', '00000000-0000-4000-8000-000000000001', 'access_request.approve', 'access_request', accessRequests[1].request_id, 'Approved personal access'),
     mkAudit('u-0008', 'user', me, 'agent.rotate-token', 'agent', agents[2].agent_id, 'Rotated token'),
+    // Agent-initiated audits: the ONLY rows production's narrow overview
+    // filter (resource_type='agent' AND actor_id IN the user's own agent
+    // ids — see dashboard_service.py / ws.py write_audit with
+    // actor_type='agent') ever returns, so recent_agent_status_changes is
+    // populated by ws.connected / ws.disconnected events, not by the
+    // user-initiated rows above.
+    mkAudit('u-0009', 'agent', agents[0].agent_id, 'ws.connected', 'agent', agents[0].agent_id, 'Atlas Worker connected'),
+    mkAudit('u-0010', 'agent', agents[1].agent_id, 'ws.disconnected', 'agent', agents[1].agent_id, 'Beacon Relay Bot disconnected'),
   ];
 
   return {
@@ -559,6 +593,7 @@ export function createDemoWorld(): DemoWorld {
       default_relay_type: 'central_relay',
       enable_edge_relay: true,
       enable_secure_channel: false,
+      routing_strategy: 'normal',
       created_at: iso(-26000),
       updated_at: iso(-1000),
     },
@@ -616,7 +651,7 @@ let auditSeq = 0;
 
 function mkAudit(
   audit_id: string,
-  actor_type: 'user' | 'admin' | 'system',
+  actor_type: 'user' | 'admin' | 'system' | 'agent',
   actor_id: string,
   action: string,
   resource_type: string | null,

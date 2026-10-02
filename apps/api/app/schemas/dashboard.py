@@ -150,6 +150,11 @@ class PendingConnection(BaseModel):
     connection_id: str
     agent_number: str
     requester_agent: str
+    """Target agent of the request. The /connections router has no
+    response_model (it returns bare dicts), so this schema mirrors the
+    serialized payload for OpenAPI/contract consistency; the router adds
+    the field for real on every pending row."""
+    to_agent_id: str
     requested_policy: str
     created_at: datetime
 

@@ -13,6 +13,7 @@ from app.schemas.message import MessageResponse, MessageListResponse
 from app.dependencies.auth import authenticate_session_or_key
 from app.services.task_service import create_task, get_task, list_tasks
 from app.services.message_service import list_task_messages
+from app.services.message_content_view import build_content_view
 from app.models.user import User
 from app.models.agent import Agent
 
@@ -69,6 +70,9 @@ async def create_task_endpoint(
         max_retry_count=body.max_retry_count,
         retry_policy=body.retry_policy,
         route_policy_hint=body.route_policy_hint,
+        security=body.security,
+        encrypted_payload=body.encrypted_payload,
+        aad=body.aad,
     )
     return _task_to_response(task)
 
@@ -141,7 +145,10 @@ async def get_task_messages_endpoint(
                 task_id=str(m.task_id),
                 type=m.type,
                 delivery_status=m.delivery_status,
-                content=m.content,
+                # M2: read-side degradation — ciphertext rows return an
+                # encrypted flag + raw ciphertext, malformed ciphertext an
+                # encrypted_parse_error flag; plaintext is unchanged.
+                content=build_content_view(m.content),
                 created_at=m.created_at,
                 updated_at=m.updated_at,
             )
@@ -165,7 +172,9 @@ def _task_to_response(t) -> TaskResponse:
         lease_expires_at=t.lease_expires_at,
         last_progress_at=t.last_progress_at,
         last_heartbeat_at=t.last_heartbeat_at,
-        result=t.result,
+        # M2: a sealed write-back result is exposed as the encrypted-flag
+        # view, never parsed into plaintext by the platform.
+        result=build_content_view(t.result) if t.result is not None else None,
         error_message=t.error_message,
         created_at=t.created_at,
         updated_at=t.updated_at,

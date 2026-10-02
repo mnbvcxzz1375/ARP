@@ -18,6 +18,27 @@ class CreateTaskRequest(BaseModel):
     )
     payload: dict[str, Any] = Field(default_factory=dict, description="Task payload delivered to the target agent.")
 
+    # E2EE (M2): the sender's envelope marker fields. When present they are
+    # merged into Message.content verbatim — the sender's envelope is the
+    # single source of truth for the marker block; the platform never
+    # constructs, rewrites, or infers them.
+    security: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Envelope security marker block {mode, encryption, key_id, nonce}. "
+            "Copied verbatim into the task message content and into the delivered "
+            "WS payload; the platform never constructs or rewrites it."
+        ),
+    )
+    encrypted_payload: str | None = Field(
+        default=None,
+        description="Base64 ciphertext. Stored verbatim in Message.content when security is present.",
+    )
+    aad: dict[str, Any] | None = Field(
+        default=None,
+        description="Additional authenticated data object, stored verbatim with the ciphertext.",
+    )
+
     # Timeliness and routing hints (Phase 14)
     timeliness_mode: str | None = Field(
         default="normal",

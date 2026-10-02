@@ -14,6 +14,7 @@
  */
 import { getDemoStore, resetDemoStore, setDemoSession } from './demoStore';
 import { personaById, type PersonaId } from './personas';
+import type { TaskCounters, TaskTrafficRoute } from '../lib/traffic';
 import type {
   DemoAgent,
   DemoChannel,
@@ -61,6 +62,9 @@ function match(url: string, pattern: string): RegExpMatchArray | null {
 
 const NOW = Date.now;
 const dayMs = 24 * 60 * 60 * 1000;
+const activeStates = new Set(['created','queued','delivered','accepted','running','awaiting_approval']);
+const failedStates = new Set(['failed','expired','rejected']);
+const emptyCounters = (): TaskCounters => ({running:0,queued:0,awaiting_approval:0,failed_24h:0});
 
 /** Agents visible to the current persona (ownership scoping, like prod). */
 function visibleAgents(): DemoAgent[] {
@@ -108,12 +112,26 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
       .sort((a, b) => NOW() - new Date(b.created_at).getTime() - (NOW() - new Date(a.created_at).getTime()))
       .slice(0, 5);
     const recentApprovals = world.approvals.slice(0, 5);
+    // Mirror the production narrow audit filter (dashboard_service.py:
+    // resource_type == 'agent' AND actor_id IN the caller's agent ids).
+    // Audit rows written BY the user's own agents (ws.connected /
+    // ws.disconnected, see apps/api/app/routers/ws.py write_audit) are the
+    // real population of this list; user/admin-initiated audits are NOT
+    // part of it, so the list can legitimately be empty.
+    const agentIds = new Set(agents.map((a) => a.agent_id));
+    const agentAudits = [...world.auditLogs]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .filter((l) => l.resource_type === 'agent' && agentIds.has(l.actor_id))
+      .slice(0, 4);
+    // pending_messages counts requests targeting the caller's own agents,
+    // mirroring the /connections endpoint's scoping.
+    const pendingCount = world.pendingConnections.filter((c) => agentIds.has(c.to_agent_id)).length;
     return {
       online_agents: agents.filter((a) => a.status === 'online').length,
       tasks_today: tasks.filter((t) => new Date(t.created_at).getTime() > NOW() - dayMs).length,
       failed_tasks: tasks.filter((t) => t.status === 'failed').length,
       pending_approvals: world.approvals.filter((a) => a.status === 'pending').length,
-      pending_messages: world.pendingConnections.length,
+      pending_messages: pendingCount,
       recent_tasks: recentTasks.map((t) => ({ task_id: t.task_id, status: t.status, created_at: t.created_at })),
       recent_approvals: recentApprovals.map((a) => ({
         approval_id: a.approval_id,
@@ -121,7 +139,7 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
         risk_level: a.risk_level,
         created_at: a.created_at,
       })),
-      recent_agent_status_changes: world.auditLogs.slice(0, 4).map((l) => ({
+      recent_agent_status_changes: agentAudits.map((l) => ({
         action: l.action,
         resource_id: l.resource_id ?? '',
         created_at: l.created_at,
@@ -138,6 +156,8 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
     let agents = visibleAgents();
     if (statusFilter) agents = agents.filter((a) => a.status === statusFilter);
     if (search) agents = agents.filter((a) => a.name.toLowerCase().includes(search) || a.agent_number.toLowerCase().includes(search));
+    if (param(params, 'order') === 'oldest') agents = [...agents].sort((a,b) =>
+      a.created_at.localeCompare(b.created_at) || a.agent_id.localeCompare(b.agent_id));
     const offset = (page - 1) * limit;
     const sliced = pageSlice(agents, offset, limit);
     return {
@@ -183,6 +203,38 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
     };
   }
 
+  if (url === '/v1/dashboard/task-traffic') {
+    if (!loggedIn) return rejectDemo(401, 'not authenticated');
+    const ids = [...new Set((param(params,'agent_ids') ?? '').split(',').map(v=>v.trim().toLowerCase()))];
+    if (!ids.length || ids.length > 6 || ids.some(v=>! /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(v))) return rejectDemo(422, 'Invalid agent IDs');
+    const owned = new Set(visibleAgents().map(a=>a.agent_id));
+    if (ids.some(id=>!owned.has(id))) return rejectDemo(404, 'Agent not found');
+    const selected = new Set(ids);
+    const names = new Map(world.agents.map(a=>[a.name,a.agent_id]));
+    const agents = new Map(ids.map(id=>[id,{agent_id:id,...emptyCounters()}]));
+    const routes = new Map<string,TaskTrafficRoute>();
+    for (const task of visibleTasks()) {
+      const bucket: keyof TaskCounters | null = task.status === 'running' ? 'running' :
+        task.status === 'awaiting_approval' ? 'awaiting_approval' :
+        activeStates.has(task.status) ? 'queued' :
+        failedStates.has(task.status) && Date.parse(task.updated_at) >= NOW()-dayMs ? 'failed_24h' : null;
+      if (!bucket) continue;
+      const from=names.get(task.sender_agent) ?? task.sender_agent;
+      const to=names.get(task.target_agent) ?? task.target_agent;
+      if (selected.has(from)) agents.get(from)![bucket]++;
+      if (selected.has(to) && to!==from) agents.get(to)![bucket]++;
+      if (from===to || !selected.has(from) || !selected.has(to)) continue;
+      const key=from+':'+to;
+      const route=routes.get(key) ?? {from,to,...emptyCounters(),revision:''};
+      route[bucket]++;
+      if (task.updated_at > route.revision) route.revision=task.updated_at;
+      routes.set(key,route);
+    }
+    return {agents:[...agents.values()],routes:[...routes.values()].sort((a,b)=>
+      b.failed_24h-a.failed_24h || b.running-a.running || b.queued-a.queued || a.from.localeCompare(b.from) || a.to.localeCompare(b.to)),
+      failure_window_hours:24,generated_at:new Date().toISOString()};
+  }
+
   if (url === '/v1/dashboard/tasks') {
     if (!loggedIn) return rejectDemo(401, 'not authenticated');
     const offset = num(params, 'offset', 0);
@@ -190,15 +242,38 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
     const statusFilter = param(params, 'status_filter');
     const errorCode = param(params, 'error_code');
     let tasks = visibleTasks();
+    const view=param(params,'view') ?? 'all';
+    if (!['all','active','attention','history'].includes(view)) return rejectDemo(422,'Invalid task view');
+    const agentId=param(params,'agent_id');
+    if (agentId) {
+      const own=visibleAgents().find(a=>a.agent_id===agentId);
+      if (!own) return rejectDemo(404,'Agent not found');
+      tasks=tasks.filter(t=>t.sender_agent===own.name || t.target_agent===own.name);
+    }
+    if (view==='active') tasks=tasks.filter(t=>activeStates.has(t.status));
+    if (view==='history') tasks=tasks.filter(t=>!activeStates.has(t.status));
+    const search=param(params,'search')?.trim().toLowerCase();
+    if (search) {
+      const matched=new Set(visibleAgents().filter(a=>a.name.toLowerCase().includes(search) || a.agent_number.toLowerCase().includes(search)).map(a=>a.name));
+      tasks=tasks.filter(t=>t.task_id.toLowerCase().includes(search) || matched.has(t.sender_agent) || matched.has(t.target_agent));
+    }
     if (statusFilter) tasks = tasks.filter((t) => t.status === statusFilter);
     if (errorCode) tasks = tasks.filter((t) => t.error_code === errorCode);
+    const rank=(status:string)=>activeStates.has(status)?0:failedStates.has(status)?1:2;
+    tasks=[...tasks].sort((a,b)=>(view==='attention'?rank(a.status)-rank(b.status):0) || b.created_at.localeCompare(a.created_at) || a.task_id.localeCompare(b.task_id));
     const sliced = pageSlice(tasks, offset, limit);
+    // The fixture stores task endpoints as agent NAMES; the production
+    // contract returns agent_id UUIDs and the console joins by agent_id,
+    // so the boundary translates names -> ids here (unified agent_id
+    //口径). Unresolved names pass through verbatim rather than being
+    // guessed at.
+    const nameToId = new Map(world.agents.map((a) => [a.name, a.agent_id]));
     return {
       tasks: sliced.items.map((t) => ({
         task_id: t.task_id,
         status: t.status,
-        sender_agent: t.sender_agent,
-        target_agent: t.target_agent,
+        sender_agent: nameToId.get(t.sender_agent) ?? t.sender_agent,
+        target_agent: nameToId.get(t.target_agent) ?? t.target_agent,
         created_at: t.created_at,
         updated_at: t.updated_at,
         duration_sec: t.duration_sec,
@@ -305,15 +380,24 @@ function handleGet(url: string, params?: ReqConfig['params']): unknown {
         rejected_connections: stats.rejected,
       };
     });
+    // Production scopes pending requests to the caller's own agents as
+    // TARGETS (to_agent_id IN ds.user.agents); mirror that scoping so the
+    // demo exercises the real visibility semantics instead of leaking
+    // other users' request queues. to_agent_id passes through so the
+    // overview's list/detail panels can show requester -> target.
+    const visibleIds = new Set(agentRows.map((a) => a.agent_id));
     return {
       agents: agentRows,
-      pending_requests: world.pendingConnections.map((c) => ({
-        connection_id: c.connection_id,
-        agent_number: c.agent_number,
-        requester_agent: c.requester_agent,
-        requested_policy: c.requested_policy,
-        created_at: c.created_at,
-      })),
+      pending_requests: world.pendingConnections
+        .filter((c) => visibleIds.has(c.to_agent_id))
+        .map((c) => ({
+          connection_id: c.connection_id,
+          agent_number: c.agent_number,
+          requester_agent: c.requester_agent,
+          to_agent_id: c.to_agent_id,
+          requested_policy: c.requested_policy,
+          created_at: c.created_at,
+        })),
     };
   }
 
@@ -978,6 +1062,9 @@ function handleMutation(method: string, url: string, body?: unknown): Promise<Re
       cache_config: (b.cache_config as Record<string, unknown>) ?? null,
       cost_tracking: typeof b.cost_tracking === 'boolean' ? b.cost_tracking : true,
       enabled: true,
+      // M4: mirrors EgressGatewayCreate.allow_internal_egress (default false).
+      allow_internal_egress:
+        typeof b.allow_internal_egress === 'boolean' ? b.allow_internal_egress : false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -988,7 +1075,7 @@ function handleMutation(method: string, url: string, body?: unknown): Promise<Re
     const gw = world.gateways.find((g) => g.id === m![1]);
     if (!gw) return rejectDemo(404, 'Egress gateway not found');
     const b = body as Record<string, unknown>;
-    for (const key of ['gateway_name', 'gateway_type', 'domain_allowlist', 'secret_store_ref', 'rate_limit_config', 'cache_config', 'cost_tracking', 'enabled'] as const) {
+    for (const key of ['gateway_name', 'gateway_type', 'domain_allowlist', 'secret_store_ref', 'rate_limit_config', 'cache_config', 'cost_tracking', 'enabled', 'allow_internal_egress'] as const) {
       if (b[key] !== undefined) (gw as unknown as Record<string, unknown>)[key] = b[key];
     }
     gw.updated_at = new Date().toISOString();
@@ -1152,6 +1239,13 @@ function handleMutation(method: string, url: string, body?: unknown): Promise<Re
   // ── personal routing ─────────────────────────────────────────────
   if (method === 'patch' && url === '/v1/personal/scope') {
     const b = body as Record<string, unknown>;
+    if (b.routing_strategy !== undefined) {
+      // Pydantic Literal whitelist on the backend -> 422 here to match.
+      if (b.routing_strategy !== 'fast' && b.routing_strategy !== 'normal' && b.routing_strategy !== 'reliable') {
+        return rejectDemo(422, 'invalid routing_strategy');
+      }
+      world.personalScope.routing_strategy = b.routing_strategy;
+    }
     if (typeof b.enable_edge_relay === 'boolean') world.personalScope.enable_edge_relay = b.enable_edge_relay;
     if (typeof b.enable_secure_channel === 'boolean') world.personalScope.enable_secure_channel = b.enable_secure_channel;
     world.personalScope.updated_at = new Date().toISOString();

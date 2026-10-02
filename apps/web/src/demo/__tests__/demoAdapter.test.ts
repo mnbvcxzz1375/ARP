@@ -163,7 +163,10 @@ describe('demo GET surface (page contracts)', () => {
     expect(((await get('/v1/dashboard/admin/users')) as { users: unknown[] }).users.length).toBe(4);
     expect(((await get('/v1/dashboard/admin/agents')) as { agents: unknown[] }).agents.length).toBe(8);
     expect(((await get('/v1/dashboard/admin/tasks')) as { tasks: unknown[] }).tasks.length).toBeGreaterThan(0);
-    expect(((await get('/v1/dashboard/admin/audit-logs')) as { audit_logs: unknown[] }).audit_logs.length).toBe(8);
+    // 8 user/admin audits + 2 agent-actor rows (ws.connected /
+    // ws.disconnected) added so overview's narrow status feed has a
+    // population - see demoArchipelagoContract.test.ts.
+    expect(((await get('/v1/dashboard/admin/audit-logs')) as { audit_logs: unknown[] }).audit_logs.length).toBe(10);
     const h = (await get('/v1/dashboard/admin/system-health')) as { db_health: string; migration_revision: string };
     expect(h.db_health).toBe('healthy');
     expect(h.migration_revision).toBe('0030');
@@ -337,6 +340,24 @@ describe('demo write paths', () => {
   it('personal scope patch flips edge relay', async () => {
     const r = await demoApi.patch('/v1/personal/scope', { enable_edge_relay: false });
     expect((r.data as { enable_edge_relay: boolean }).enable_edge_relay).toBe(false);
+  });
+
+  it('personal scope routing_strategy patch persists and echoes via GET', async () => {
+    const r = await demoApi.patch('/v1/personal/scope', { routing_strategy: 'fast' });
+    expect((r.data as { routing_strategy: string }).routing_strategy).toBe('fast');
+    // The store holds the mutation, so the next read (query invalidation)
+    // echoes it — the demo "value kept after remount" contract.
+    const after = (await get('/v1/personal/scope')) as { routing_strategy: string };
+    expect(after.routing_strategy).toBe('fast');
+  });
+
+  it('personal scope routing_strategy rejects values outside the whitelist with 422', async () => {
+    await expect(demoApi.patch('/v1/personal/scope', { routing_strategy: 'turbo' })).rejects.toMatchObject({
+      response: { status: 422, data: { detail: 'invalid routing_strategy' } },
+    });
+    // Rejected value is not applied.
+    const after = (await get('/v1/personal/scope')) as { routing_strategy: string };
+    expect(after.routing_strategy).toBe('normal');
   });
 
   it('unknown mutation 404s', async () => {
